@@ -8,9 +8,9 @@ replace charm.land/bubbletea/v2 => github.com/lrstanley/bubbletea/v2 v2.0.0-2026
 require (
 	charm.land/bubbletea/v2 v2.0.6
 	github.com/aymanbagabas/go-udiff v0.4.1
-	github.com/charmbracelet/ultraviolet v0.0.0-20260422141423-a0f1f21775f7
+	github.com/charmbracelet/ultraviolet v0.0.0-20260428153724-66037269d7be
 	github.com/charmbracelet/x/ansi v0.11.7
-	github.com/charmbracelet/x/vt v0.0.0-20260427100455-1ea3e7f8134f
+	github.com/charmbracelet/x/vt v0.0.0-20260511003329-c066bcf2349a
 	github.com/rivo/uniseg v0.4.7
 )
 
@@ -29,5 +29,5 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/exp v0.0.0-20250819193227-8b4c13bb791b // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
 )
