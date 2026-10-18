@@ -11,11 +11,10 @@ import (
 	"sync"
 	"testing"
 
-	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/charmbracelet/x/vt"
-	"github.com/lrstanley/x/charm/steep/snapshot"
-	"github.com/lrstanley/x/charm/still"
+	"github.com/lrstanley/x/term/steep/snapshot"
+	"github.com/lrstanley/x/term/still"
+	"github.com/lrstanley/x/term/vt/screen"
 )
 
 func TestHarnessAssertViewSnapshot(t *testing.T) {
@@ -58,16 +57,14 @@ func TestHarnessImageRendersLiveEmulatorState(t *testing.T) {
 	h.Wait("text=image")
 	h.Blur()
 	h.SetCursorColor(cursorColor)
-	h.emulator.mu.Lock()
-	if _, err := h.emulator.vt.WriteString(ansi.SetCursorStyle(5)); err != nil {
+	if err := h.emulator.writeString(ansi.SetCursorStyle(5)); err != nil {
 		t.Fatalf("set cursor style: %v", err)
 	}
-	h.emulator.mu.Unlock()
 	img := h.Image()
 	if img.Bounds().Empty() {
 		t.Fatal("Image() returned empty bounds")
 	}
-	screenBounds := h.emulator.vt.Bounds()
+	screenBounds := h.Bounds()
 	if screenBounds.Dx() != h.Width() || screenBounds.Dy() != h.Height() {
 		t.Fatalf("screen bounds = %v, want harness dimensions %dx%d", screenBounds, h.Width(), h.Height())
 	}
@@ -75,7 +72,7 @@ func TestHarnessImageRendersLiveEmulatorState(t *testing.T) {
 	if capturedState == nil || capturedState.Focused {
 		t.Fatal("emulator state focused = true, want false")
 	}
-	if capturedState.CursorStyle != uv.CursorBar {
+	if capturedState.CursorStyle != screen.CursorBar {
 		t.Fatalf("cursor style = %v, want CursorBar", capturedState.CursorStyle)
 	}
 	if capturedState.CursorColor != cursorColor {
@@ -94,11 +91,9 @@ func TestHarnessImageConcurrentWithTerminalMutation(t *testing.T) {
 	h.Wait("size=24x3")
 	// Steady cursor: blink phase is time-dependent and this test cannot use synctest
 	// (VT I/O runs outside the bubble).
-	h.emulator.mu.Lock()
-	if _, err := h.emulator.vt.WriteString(ansi.SetCursorStyle(2)); err != nil {
+	if err := h.emulator.writeString(ansi.SetCursorStyle(2)); err != nil {
 		t.Fatalf("set steady cursor: %v", err)
 	}
-	h.emulator.mu.Unlock()
 
 	var wg sync.WaitGroup
 	for range 10 {
@@ -113,28 +108,6 @@ func TestHarnessImageConcurrentWithTerminalMutation(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-}
-
-func TestCursorShapeFromVT(t *testing.T) {
-	t.Parallel()
-
-	tests := map[string]struct {
-		style vt.CursorStyle
-		want  uv.CursorShape
-	}{
-		"block":     {style: vt.CursorBlock, want: uv.CursorBlock},
-		"underline": {style: vt.CursorUnderline, want: uv.CursorUnderline},
-		"bar":       {style: vt.CursorBar, want: uv.CursorBar},
-		"unknown":   {style: vt.CursorStyle(99), want: uv.CursorBlock},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			if got := cursorShapeFromVT(tt.style); got != tt.want {
-				t.Fatalf("cursorShapeFromVT(%v) = %v, want %v", tt.style, got, tt.want)
-			}
-		})
-	}
 }
 
 func BenchmarkHarness_Image(b *testing.B) {

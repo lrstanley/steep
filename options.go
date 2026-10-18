@@ -14,8 +14,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/lrstanley/x/charm/still"
-	"github.com/lrstanley/x/charm/still/export"
+	"github.com/lrstanley/x/term/still"
+	"github.com/lrstanley/x/term/still/export"
 )
 
 const (
@@ -100,12 +100,6 @@ func defaultOptions() options {
 			// Force TTY mode, since we're not connecting to a real TTY/PTY.
 			"TTY_FORCE=1",
 			"TERM=xterm-256color",
-			// TODO: remove this default env var once Bubble Tea either flushes
-			// startup DECRQM mode probes before input shutdown, or x/vt makes query
-			// responses non-blocking. Without this, WT_SESSION/kitty-like envs make
-			// Bubble Tea emit synchronized-output/unicode-core queries that x/vt can
-			// answer by blocking on its input pipe during fast test cleanup.
-			"TERM_PROGRAM=Apple_Terminal",
 		},
 		ctx: context.Background(),
 	}
@@ -362,8 +356,8 @@ func WithLog(tb testing.TB) Option {
 // WithEnvVars sets extra environment variables for the [tea.Program], in the form
 // of "key=value". Defaults:
 //
+//   - TTY_FORCE=1
 //   - TERM=xterm-256color
-//   - TERM_PROGRAM=Apple_Terminal
 func WithEnvVars(vars ...string) Option {
 	return func(cfg *options) {
 		current := map[string]string{}

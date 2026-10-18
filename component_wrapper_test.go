@@ -16,7 +16,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/lrstanley/x/charm/steep/snapshot"
+	"github.com/lrstanley/x/term/steep/snapshot"
 )
 
 type appendMsg string

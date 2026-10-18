@@ -14,7 +14,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/lrstanley/x/charm/still/export"
+	"github.com/lrstanley/x/term/still/export"
 )
 
 // ExportMode controls when harness export artifacts are written.
@@ -172,7 +172,7 @@ func (m *exportManager) hook(event HookEvent, stage HookStage, _ any) error {
 }
 
 func (m *exportManager) captureGIF() error {
-	if m.gifCh == nil {
+	if m.gifCh == nil || m.h.emulator.term.Held() {
 		return nil
 	}
 	m.gifCh <- export.Frame{Image: m.h.copyImage(), Delay: m.frameDelay}
@@ -180,6 +180,9 @@ func (m *exportManager) captureGIF() error {
 }
 
 func (m *exportManager) capturePNG(event HookEvent) error {
+	if m.h.emulator.term.Held() {
+		return nil
+	}
 	img := m.h.copyImage()
 	switch m.mode {
 	case ExportOnFailure:

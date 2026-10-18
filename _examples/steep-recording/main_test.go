@@ -7,8 +7,8 @@ package main
 import (
 	"testing"
 
-	"github.com/lrstanley/x/charm/steep"
-	"github.com/lrstanley/x/charm/still/fonts"
+	"github.com/lrstanley/x/term/steep"
+	"github.com/lrstanley/x/term/still/fonts"
 )
 
 // Example of outputting GIFs from a given test:

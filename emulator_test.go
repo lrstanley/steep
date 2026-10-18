@@ -8,13 +8,15 @@ import (
 	"fmt"
 	"image/color"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/charmbracelet/x/vt"
+	"github.com/lrstanley/x/term/vt"
+	"github.com/lrstanley/x/term/vt/screen"
 )
 
 // terminalProbe is a minimal model with a stable empty view.
@@ -89,9 +91,7 @@ func TestHarness_terminalDimensionsResizeInBandMsgs(t *testing.T) {
 	})
 
 	const nextW, nextH = 30, 12
-	h.emulator.mu.Lock()
-	_, _ = h.emulator.vt.WriteString(ansi.SetModeInBandResize)
-	h.emulator.mu.Unlock()
+	_ = h.emulator.writeString(ansi.SetModeInBandResize)
 	h.Resize(nextW, nextH)
 	waitMessagesContainWindowSize(t, h, nextW, nextH)
 
@@ -163,16 +163,13 @@ func TestHarness_terminalCursorPosition(t *testing.T) {
 func TestHarness_terminalScrollbackCopyAndCount(t *testing.T) {
 	t.Parallel()
 	h := newTerminalHarness(t, 5, 4)
-	h.emulator.mu.Lock()
-	_, _ = h.emulator.vt.WriteString("start\n")
+	var rows strings.Builder
+	rows.WriteString("start\n")
 	for i := range 18 {
-		_, _ = fmt.Fprintf(h.emulator.vt, "row-%d\n", i)
+		fmt.Fprintf(&rows, "row-%d\n", i)
 	}
-	h.emulator.mu.Unlock()
-
-	h.emulator.mu.RLock()
-	vtLen := h.emulator.vt.ScrollbackLen()
-	h.emulator.mu.RUnlock()
+	_ = h.emulator.writeString(rows.String())
+	vtLen := h.emulator.term.ScrollbackLen()
 	if h.ScrollbackCount() != vtLen {
 		t.Fatalf("TerminalScrollbackCount vs vt len: %d vs %d", h.ScrollbackCount(), vtLen)
 	}
@@ -196,7 +193,7 @@ func TestHarness_terminalScrollbackCopyAndCount(t *testing.T) {
 		t.Fatal("expected first snapshot line to have cells")
 	}
 
-	snap[0][0] = uv.Cell{}
+	snap[0][0] = screen.Cell{}
 	if h.ScrollbackCount() != 0 {
 		t.Fatalf("after clearing scrollback, mutating snapshot line should leave count at 0, got %d", h.ScrollbackCount())
 	}
@@ -205,14 +202,12 @@ func TestHarness_terminalScrollbackCopyAndCount(t *testing.T) {
 func TestHarness_terminalSetScrollbackSize(t *testing.T) {
 	t.Parallel()
 	h := newTerminalHarness(t, 4, 3)
-	h.SetScrollbackSize(3)
-	h.emulator.mu.Lock()
+	h.SetScrollbackSize(0)
 	for i := range 20 {
-		_, _ = fmt.Fprintf(h.emulator.vt, "x%d\n", i)
+		_, _ = fmt.Fprintf(h.emulator.term, "x%d\n", i)
 	}
-	h.emulator.mu.Unlock()
-	if got := h.ScrollbackCount(); got > 3 {
-		t.Fatalf("TerminalScrollbackCount = %d, max was 3", got)
+	if got := h.ScrollbackCount(); got != 0 {
+		t.Fatalf("TerminalScrollbackCount = %d, want 0 with scrollback disabled", got)
 	}
 }
 
@@ -222,15 +217,11 @@ func TestHarness_terminalAltScreen(t *testing.T) {
 	if h.IsAltScreen() {
 		t.Fatal("expected main screen initially")
 	}
-	h.emulator.mu.Lock()
-	_, _ = h.emulator.vt.WriteString("\x1b[?1049h")
-	h.emulator.mu.Unlock()
+	_ = h.emulator.writeString("\x1b[?1049h")
 	if !h.IsAltScreen() {
 		t.Fatal("expected alt screen after CSI ?1049h")
 	}
-	h.emulator.mu.Lock()
-	_, _ = h.emulator.vt.WriteString("\x1b[?1049l")
-	h.emulator.mu.Unlock()
+	_ = h.emulator.writeString("\x1b[?1049l")
 	if h.IsAltScreen() {
 		t.Fatal("expected main screen after leaving alt screen")
 	}
@@ -239,9 +230,7 @@ func TestHarness_terminalAltScreen(t *testing.T) {
 func TestHarness_terminalFocusBlurMsgs(t *testing.T) {
 	t.Parallel()
 	h := newTerminalHarness(t, 4, 2)
-	h.emulator.mu.Lock()
-	_, _ = h.emulator.vt.WriteString(ansi.SetModeFocusEvent)
-	h.emulator.mu.Unlock()
+	_ = h.emulator.writeString(ansi.SetModeFocusEvent)
 
 	h.Focus()
 	h.WaitMessage[tea.FocusMsg]()
@@ -269,7 +258,7 @@ func TestHarness_terminalTrackedHarnessFocus(t *testing.T) {
 func TestHarness_terminalTrackedCursorDefaults(t *testing.T) {
 	t.Parallel()
 	h := newTerminalHarness(t, 4, 2)
-	if !h.CursorVisible() || !h.CursorBlink() || h.CursorStyle() != vt.CursorBlock {
+	if !h.CursorVisible() || h.CursorBlink() || h.CursorStyle() != screen.CursorBlock {
 		t.Fatalf("defaults: visible=%v blink=%v style=%v", h.CursorVisible(), h.CursorBlink(), h.CursorStyle())
 	}
 	pt := h.CursorPosition()
@@ -282,9 +271,7 @@ func TestHarness_terminalTrackedTitle(t *testing.T) {
 	t.Parallel()
 	const want = "steep-tracked-title"
 	h := newTerminalHarness(t, 4, 2)
-	h.emulator.mu.Lock()
-	_, _ = h.emulator.vt.WriteString(ansi.SetWindowTitle(want))
-	h.emulator.mu.Unlock()
+	_ = h.emulator.writeString(ansi.SetWindowTitle(want))
 	if got := h.Title(); got != want {
 		t.Fatalf("Title() = %q, want %q", got, want)
 	}
@@ -297,18 +284,14 @@ func TestHarness_terminalTrackedBell(t *testing.T) {
 		t.Fatalf("LastBellAt() = %v, want zero time before first bell", h.LastBellAt())
 	}
 
-	h.emulator.mu.Lock()
-	_, _ = h.emulator.vt.WriteString(string(rune(ansi.BEL)))
-	h.emulator.mu.Unlock()
+	_ = h.emulator.writeString(string(rune(ansi.BEL)))
 
 	first := h.LastBellAt()
 	if first.IsZero() {
 		t.Fatal("expected LastBellAt non-zero after BEL")
 	}
 
-	h.emulator.mu.Lock()
-	_, _ = h.emulator.vt.WriteString(string(rune(ansi.BEL)))
-	h.emulator.mu.Unlock()
+	_ = h.emulator.writeString(string(rune(ansi.BEL)))
 
 	second := h.LastBellAt()
 	if second.Before(first) {
@@ -344,15 +327,11 @@ func TestHarness_terminalTrackedModeDEC(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			local := newTerminalHarness(t, 4, 2)
-			local.emulator.mu.Lock()
-			_, _ = local.emulator.vt.WriteString(tt.seq)
-			local.emulator.mu.Unlock()
+			_ = local.emulator.writeString(tt.seq)
 			if got := local.ModeSetting(tt.mode); got != tt.want {
 				t.Fatalf("after enable: ModeSetting(%v)=%v want %v", tt.mode, got, tt.want)
 			}
-			local.emulator.mu.Lock()
-			_, _ = local.emulator.vt.WriteString(tt.cleanup)
-			local.emulator.mu.Unlock()
+			_ = local.emulator.writeString(tt.cleanup)
 			if got := local.ModeSetting(tt.mode); got != ansi.ModeReset {
 				t.Fatalf("after reset: ModeSetting(%v)=%v want Reset", tt.mode, got)
 			}
@@ -372,15 +351,11 @@ func TestHarness_terminalTrackedModeUnsetKey(t *testing.T) {
 func TestHarness_terminalTrackedCursorHideShow(t *testing.T) {
 	t.Parallel()
 	h := newTerminalHarness(t, 6, 2)
-	h.emulator.mu.Lock()
-	_, _ = h.emulator.vt.WriteString(ansi.HideCursor)
-	h.emulator.mu.Unlock()
+	_ = h.emulator.writeString(ansi.HideCursor)
 	if h.CursorVisible() {
 		t.Fatal("expected hidden cursor after HideCursor sequence")
 	}
-	h.emulator.mu.Lock()
-	_, _ = h.emulator.vt.WriteString(ansi.ShowCursor)
-	h.emulator.mu.Unlock()
+	_ = h.emulator.writeString(ansi.ShowCursor)
 	if !h.CursorVisible() {
 		t.Fatal("expected visible cursor after ShowCursor sequence")
 	}
@@ -389,9 +364,7 @@ func TestHarness_terminalTrackedCursorHideShow(t *testing.T) {
 func TestHarness_terminalPasteMsg(t *testing.T) {
 	t.Parallel()
 	h := newTerminalHarness(t, 4, 2)
-	h.emulator.mu.Lock()
-	_, _ = h.emulator.vt.WriteString(ansi.SetModeBracketedPaste)
-	h.emulator.mu.Unlock()
+	_ = h.emulator.writeString(ansi.SetModeBracketedPaste)
 
 	const pasted = "hello"
 	h.Paste(pasted)
@@ -467,10 +440,8 @@ func TestHarness_TerminalKey_mapsNamedKeysThroughEmulator(t *testing.T) {
 
 func enableEmulatorMouseReporting(tb testing.TB, h *Harness) {
 	tb.Helper()
-	h.emulator.mu.Lock()
-	_, _ = h.emulator.vt.WriteString(ansi.SetModeMouseButtonEvent)
-	_, _ = h.emulator.vt.WriteString(ansi.SetModeMouseExtSgr)
-	h.emulator.mu.Unlock()
+	_ = h.emulator.writeString(ansi.SetModeMouseButtonEvent)
+	_ = h.emulator.writeString(ansi.SetModeMouseExtSgr)
 }
 
 // mouseStep is a normalized mouse line from [tea] for ordered assertions.
@@ -507,7 +478,7 @@ func TestHarness_TerminalMouse_deliversClick(t *testing.T) {
 	enableEmulatorMouseReporting(t, h)
 	n := len(slices.Collect(h.MessageHistory()))
 
-	h.Mouse(uv.MouseClickEvent{X: 4, Y: 2, Button: uv.MouseLeft})
+	h.Mouse(vt.MousePress, vt.MouseLeft, 4, 2)
 	WaitSettleMessages(t, h)
 
 	got := collectMouseTail(t, h, n)
@@ -523,7 +494,7 @@ func TestHarness_TerminalMouseClick_deliversPressAndRelease(t *testing.T) {
 	enableEmulatorMouseReporting(t, h)
 	n := len(slices.Collect(h.MessageHistory()))
 
-	h.MouseClick(uv.MouseLeft, 3, 2)
+	h.MouseClick(vt.MouseLeft, 3, 2)
 	WaitSettleMessages(t, h)
 
 	got := collectMouseTail(t, h, n)
@@ -546,11 +517,11 @@ func TestHarness_TerminalLeftMiddleRightClick_buttons(t *testing.T) {
 	tests := []struct {
 		name string
 		fn   func(*Harness, int, int) *Harness
-		want uv.MouseButton
+		want tea.MouseButton
 	}{
-		{name: "left", fn: (*Harness).LeftClick, want: uv.MouseLeft},
-		{name: "middle", fn: (*Harness).MiddleClick, want: uv.MouseMiddle},
-		{name: "right", fn: (*Harness).RightClick, want: uv.MouseRight},
+		{name: "left", fn: (*Harness).LeftClick, want: tea.MouseLeft},
+		{name: "middle", fn: (*Harness).MiddleClick, want: tea.MouseMiddle},
+		{name: "right", fn: (*Harness).RightClick, want: tea.MouseRight},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -579,7 +550,7 @@ func TestHarness_TerminalMouseDrag_sequence(t *testing.T) {
 	n := len(slices.Collect(h.MessageHistory()))
 
 	// (1,1) -> (3,1): press, motion at (2,1), motion at (3,1), release.
-	h.MouseDrag(uv.MouseLeft, 1, 1, 3, 1)
+	h.MouseDrag(vt.MouseLeft, 1, 1, 3, 1)
 	WaitSettleMessages(t, h)
 
 	got := collectMouseTail(t, h, n)
@@ -606,7 +577,7 @@ func TestHarness_TerminalLeftDrag_equivalentToMouseDragLeft(t *testing.T) {
 	enableEmulatorMouseReporting(t, h)
 
 	n0 := len(slices.Collect(h.MessageHistory()))
-	h.MouseDrag(uv.MouseLeft, 0, 0, 1, 0)
+	h.MouseDrag(vt.MouseLeft, 0, 0, 1, 0)
 	WaitSettleMessages(t, h)
 	a := collectMouseTail(t, h, n0)
 
@@ -632,7 +603,7 @@ func TestHarness_TerminalMouseDrag_sameCellIsClickAndRelease(t *testing.T) {
 	enableEmulatorMouseReporting(t, h)
 	n := len(slices.Collect(h.MessageHistory()))
 
-	h.MouseDrag(uv.MouseRight, 2, 2, 2, 2)
+	h.MouseDrag(vt.MouseRight, 2, 2, 2, 2)
 	WaitSettleMessages(t, h)
 
 	got := collectMouseTail(t, h, n)
@@ -666,13 +637,163 @@ func TestHarness_TerminalMouse_helpersReturnHarnessForChaining(t *testing.T) {
 	h.WaitMessage[tea.WindowSizeMsg]()
 	enableEmulatorMouseReporting(t, h)
 	if p := h.
-		Mouse(uv.MouseClickEvent{X: 0, Y: 0, Button: uv.MouseLeft}).
-		MouseClick(uv.MouseMiddle, 1, 1).
+		Mouse(vt.MousePress, vt.MouseLeft, 0, 0).
+		MouseClick(vt.MouseMiddle, 1, 1).
 		LeftClick(2, 2).
 		MiddleClick(3, 3).
 		RightClick(0, 1).
-		MouseDrag(uv.MouseRight, 1, 0, 2, 0).
+		MouseDrag(vt.MouseRight, 1, 0, 2, 0).
 		LeftDrag(0, 2, 1, 2); p != h {
 		t.Fatalf("chain returned %p, want same harness %p", p, h)
+	}
+}
+
+func osc7501(body string) string { return "\x1b]7501;" + body + "\x1b\\" }
+
+func writeVT(t *testing.T, h *Harness, s string) {
+	t.Helper()
+	if err := h.emulator.writeString(s); err != nil {
+		t.Fatalf("write vt: %v", err)
+	}
+}
+
+func TestProgramStatusProtocol(t *testing.T) {
+	t.Parallel()
+	h := newTerminalHarness(t, 8, 2)
+	before := h.emulator.term.Text()
+
+	stream := osc7501("?") + osc7501("state=blocked:kind=question:progress=42:app=agent:id=job:title=VGl0bGU=:msg=SGVsbG8=")
+	for i := range len(stream) {
+		if err := h.emulator.writeString(stream[i : i+1]); err != nil {
+			t.Fatalf("write vt: %v", err)
+		}
+	}
+	after := h.emulator.term.Text()
+
+	if before != after {
+		t.Fatal("program status changed the screen")
+	}
+	h.WaitMessage[tea.ProgramStatusSupportMsg]()
+
+	got := h.ProgramStatuses()
+	if len(got) != 1 {
+		t.Fatalf("records = %+v", got)
+	}
+	want := ansi.ProgramStatus{
+		State: ansi.ProgramStateBlocked, Kind: ansi.ProgramStatusKindQuestion,
+		Progress: 42, HasProgress: true, App: "agent", ID: "job",
+		Title: "Title", Message: "Hello",
+	}
+	if got[0] != want {
+		t.Fatalf("record = %+v, want %+v", got[0], want)
+	}
+
+	cloned := h.ProgramStatuses()
+	cloned[0].State = ansi.ProgramStateError
+	writeVT(t, h, osc7501("state=done:id=job"))
+	got = h.ProgramStatuses()
+	want = ansi.ProgramStatus{State: ansi.ProgramStateDone, ID: "job"}
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("replacement retained fields: %+v", got)
+	}
+
+	for _, bad := range []string{
+		"state=unknown:id=job",
+		"state=error:id=job:msg=A",
+		"state=error:id=job:msg=Gwo=",
+		"state=error:id=/",
+		"state=error:id=job:msg=" + strings.Repeat("A", 2800),
+	} {
+		writeVT(t, h, osc7501(bad))
+		got = h.ProgramStatuses()
+		if len(got) != 1 || got[0] != want {
+			t.Fatalf("invalid report applied: %q: %+v", bad, got)
+		}
+	}
+}
+
+func TestProgramStatusLifecycle(t *testing.T) {
+	t.Parallel()
+	h := newTerminalHarness(t, 8, 2)
+	writeVT(t, h, osc7501("state=idle:app=root")+
+		osc7501("state=working:id=build:app=compiler")+
+		osc7501("state=blocked:id=build/test")+
+		osc7501("state=done:id=build2"))
+	got := h.ProgramStatuses()
+	if len(got) != 4 || got[2].App != "compiler" || got[3].App != "root" {
+		t.Fatalf("inheritance: %+v", got)
+	}
+	writeVT(t, h, osc7501("state=clear:id=build"))
+	got = h.ProgramStatuses()
+	if len(got) != 2 || got[1].ID != "build2" {
+		t.Fatalf("subtree clear: %+v", got)
+	}
+
+	writeVT(t, h, osc7501("state=working:id=w")+osc7501("state=blocked:id=b")+osc7501("state=error:id=e"))
+	writeVT(t, h, "\x1b]133;A\x1b\\")
+	got = h.ProgramStatuses()
+	if len(got) != 3 || got[2].State != ansi.ProgramStateError {
+		t.Fatalf("prompt: %+v", got)
+	}
+
+	writeVT(t, h, "\x1b[?1049h\x1b[?1049l\x1b[!p")
+	if len(h.ProgramStatuses()) != 3 {
+		t.Fatal("screen switch or soft reset cleared status")
+	}
+	writeVT(t, h, "\x1bc")
+	if len(h.ProgramStatuses()) != 0 {
+		t.Fatal("RIS retained status")
+	}
+	writeVT(t, h, osc7501("state=done:id=x")+osc7501("state=clear:msg=A"))
+	if len(h.ProgramStatuses()) != 1 {
+		t.Fatal("invalid clear removed records")
+	}
+	writeVT(t, h, osc7501("state=clear"))
+	if len(h.ProgramStatuses()) != 0 {
+		t.Fatal("root clear retained status")
+	}
+}
+
+func TestProgramStatusBoundedEviction(t *testing.T) {
+	t.Parallel()
+	h := newTerminalHarness(t, 4, 1)
+	var b strings.Builder
+	for i := range programStatusMaxRecords {
+		fmt.Fprintf(&b, osc7501("state=working:id=j%03d"), i)
+	}
+	b.WriteString(osc7501("state=done:id=j000"))
+	b.WriteString(osc7501("state=idle:id=new"))
+	writeVT(t, h, b.String())
+
+	got := h.ProgramStatuses()
+	if len(got) != programStatusMaxRecords {
+		t.Fatalf("records = %d, want %d", len(got), programStatusMaxRecords)
+	}
+	for _, s := range got {
+		if s.ID == "j001" {
+			t.Fatal("least recently updated record survived")
+		}
+	}
+	var updated ansi.ProgramStatus
+	for _, s := range got {
+		if s.ID == "j000" {
+			updated = s
+		}
+	}
+	if updated.State != ansi.ProgramStateDone {
+		t.Fatalf("updated record = %+v", updated)
+	}
+}
+
+func TestProgramStatusInSnapshot(t *testing.T) {
+	t.Parallel()
+	h := newTerminalHarness(t, 4, 1)
+	writeVT(t, h, osc7501("state=working:id=job:progress=0:app=demo"))
+	snap := h.emulator.snapshot(t)
+	if len(snap.ProgramStatus) != 1 || snap.ProgramStatus[0].State != "working" {
+		t.Fatalf("snapshot status = %+v", snap.ProgramStatus)
+	}
+	if snap.ProgramStatus[0].Progress == nil || *snap.ProgramStatus[0].Progress != 0 {
+		t.Fatalf("progress = %v, want 0", snap.ProgramStatus[0].Progress)
 	}
 }

@@ -8,10 +8,8 @@ import (
 	"image"
 	"image/draw"
 
-	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/charmbracelet/x/vt"
-	"github.com/lrstanley/x/charm/steep/snapshot"
-	"github.com/lrstanley/x/charm/still"
+	"github.com/lrstanley/x/term/steep/snapshot"
+	"github.com/lrstanley/x/term/still"
 )
 
 func (h *Harness) snapshotOpts(opts []snapshot.Option) []snapshot.Option {
@@ -85,10 +83,8 @@ func (h *Harness) ImageInto(dst draw.Image) {
 }
 
 func (h *Harness) drawImageInto(dst draw.Image) {
-	h.emulator.mu.RLock()
-	defer h.emulator.mu.RUnlock()
-	h.syncRendererStateLocked()
-	h.imageRenderer.DrawInto(dst, image.Rectangle{}, h.emulator.vt)
+	h.syncRendererState()
+	h.imageRenderer.DrawInto(dst, image.Rectangle{}, h.emulator.term.Screen())
 }
 
 // Image renders the current terminal screen buffer as an image. Configure the
@@ -107,51 +103,32 @@ func (h *Harness) Image() image.Image {
 }
 
 func (h *Harness) drawImage() image.Image {
-	h.emulator.mu.RLock()
-	defer h.emulator.mu.RUnlock()
-	h.syncRendererStateLocked()
-	return h.imageRenderer.Draw(h.emulator.vt)
+	h.syncRendererState()
+	return h.imageRenderer.Draw(h.emulator.term.Screen())
 }
 
-// syncRendererStateLocked copies live emulator state into the harness renderer.
-// The caller must hold [emulator.mu] for reading.
-func (h *Harness) syncRendererStateLocked() {
+// syncRendererState copies live emulator state into the harness renderer.
+func (h *Harness) syncRendererState() {
 	h.tb.Helper()
-
-	state := h.rendererStateLocked()
+	state := h.rendererState()
 	h.imageRenderer.UpdateEmulatorState(&state)
 }
 
-func (h *Harness) rendererStateLocked() still.EmulatorState {
-	h.emulator.trackMu.RLock()
-	defer h.emulator.trackMu.RUnlock()
-
-	visible, style, blink := h.emulator.cursorLocked()
+func (h *Harness) rendererState() still.EmulatorState {
+	cur := h.emulator.term.Cursor()
+	cursorColor, _ := h.emulator.term.CursorColor()
 	return still.EmulatorState{
-		Title:           h.emulator.title,
+		Title:           h.emulator.term.Title(),
 		Focused:         h.emulator.focused,
-		AltScreen:       h.emulator.altScreen,
-		CursorVisible:   visible,
-		CursorX:         h.emulator.cursorPos.X,
-		CursorY:         h.emulator.cursorPos.Y,
-		CursorColor:     h.emulator.cursorColor,
-		CursorStyle:     cursorShapeFromVT(style),
-		CursorBlink:     blink,
-		FgColor:         h.emulator.fgColor,
-		BgColor:         h.emulator.bgColor,
-		ScrollbackCount: h.emulator.vt.ScrollbackLen(),
-	}
-}
-
-func cursorShapeFromVT(style vt.CursorStyle) uv.CursorShape {
-	switch style {
-	case vt.CursorBlock:
-		return uv.CursorBlock
-	case vt.CursorUnderline:
-		return uv.CursorUnderline
-	case vt.CursorBar:
-		return uv.CursorBar
-	default:
-		return uv.CursorBlock
+		AltScreen:       h.emulator.term.AltScreen(),
+		CursorVisible:   cur.Visible,
+		CursorX:         cur.X,
+		CursorY:         cur.Y,
+		CursorColor:     cursorColor,
+		CursorStyle:     cur.Shape,
+		CursorBlink:     cur.Blink,
+		FgColor:         h.emulator.term.Foreground(),
+		BgColor:         h.emulator.term.Background(),
+		ScrollbackCount: h.emulator.term.ScrollbackLen(),
 	}
 }

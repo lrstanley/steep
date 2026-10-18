@@ -23,10 +23,11 @@ func init() {
 		"Width", "Height", "Dimensions", "IsFocused", "FgColor", "BgColor",
 		"CursorColor", "CursorPosition", "CursorVisible", "CursorBlink", "CursorStyle",
 		"ProgramStatuses",
+		"Progress", "Notifications", "Clipboard", "WorkingDirectory", "Prompt", "ResizeRequest",
 		"Scrollback", "ScrollbackCount", "MessageHistory", "Messages", "LiveMessages",
 		"FinalModel", "FinalModelAs", "mergedOpts", "requireProgram", "waitStarted", "snapshotOpts",
 		"FilterMessagesType", "FilterMessagesFunc",
-		"syncRendererStateLocked", "rendererStateLocked", "drawImage", "drawImageInto",
+		"syncRendererState", "rendererState", "drawImage", "drawImageInto",
 		"key", "typeKeys", "mouse", "mouseClick", "mouseDrag", "waitFinished",
 		"KeyUp", "KeyDown", "KeyLeft", "KeyRight", "KeyEsc", "KeyDelete",
 		"KeyBackspace", "KeyCtrlC", "KeyCtrlD",
@@ -43,7 +44,6 @@ func TestHookInstrumentation(t *testing.T) {
 		"harness.go",
 		"harness_assertions.go",
 		"harness_snapshot.go",
-		"program_status.go",
 	}
 
 	fset := token.NewFileSet()

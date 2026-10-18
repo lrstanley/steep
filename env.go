@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/charm/steep/snapshot"
-	"github.com/lrstanley/x/charm/still"
-	"github.com/lrstanley/x/charm/still/export"
+	"github.com/lrstanley/x/term/steep/snapshot"
+	"github.com/lrstanley/x/term/still"
+	"github.com/lrstanley/x/term/still/export"
 )
 
 func applyEnv(tb testing.TB, cfg *options) {

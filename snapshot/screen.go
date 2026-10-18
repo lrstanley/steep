@@ -14,11 +14,12 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
-	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/charmbracelet/x/vt"
+	"github.com/lrstanley/x/term/vt/screen"
 )
 
 // Position represents a position in the terminal.
@@ -81,20 +82,20 @@ func (c *Color) UnmarshalText(text []byte) error {
 
 // Cursor represents the cursor state.
 type Cursor struct {
-	Position Position       `json:"position"       yaml:"position"`
-	Visible  bool           `json:"visible"        yaml:"visible"`
-	Color    Color          `json:"color,omitzero" yaml:"color,omitzero"`
-	Style    vt.CursorStyle `json:"style"          yaml:"style"`
-	Blink    bool           `json:"blink"          yaml:"blink"`
+	Position Position           `json:"position"       yaml:"position"`
+	Visible  bool               `json:"visible"        yaml:"visible"`
+	Color    Color              `json:"color,omitzero" yaml:"color,omitzero"`
+	Style    screen.CursorShape `json:"style"          yaml:"style"`
+	Blink    bool               `json:"blink"          yaml:"blink"`
 }
 
 // Style represents the Style of a cell.
 type Style struct {
-	Fg             Color        `json:"fg,omitzero"              yaml:"fg,omitzero"`
-	Bg             Color        `json:"bg,omitzero"              yaml:"bg,omitzero"`
-	UnderlineColor Color        `json:"underline_color,omitzero" yaml:"underline_color,omitzero"`
-	Underline      uv.Underline `json:"underline,omitempty"      yaml:"underline,omitempty"`
-	Attrs          byte         `json:"attrs,omitempty"          yaml:"attrs,omitempty"`
+	Fg             Color            `json:"fg,omitzero"              yaml:"fg,omitzero"`
+	Bg             Color            `json:"bg,omitzero"              yaml:"bg,omitzero"`
+	UnderlineColor Color            `json:"underline_color,omitzero" yaml:"underline_color,omitzero"`
+	Underline      screen.Underline `json:"underline,omitempty"      yaml:"underline,omitempty"`
+	Attrs          screen.Attr      `json:"attrs,omitempty"          yaml:"attrs,omitempty"`
 }
 
 // Link represents a hyperlink in the terminal screen.
@@ -121,8 +122,8 @@ type Cell struct {
 	Width int `json:"width,omitzero" yaml:"width,omitzero"`
 }
 
-// FromUV converts a [uv.Cell] into a [Cell].
-func (c *Cell) FromUV(cell *uv.Cell) *Cell {
+// FromCell copies a grid cell into c.
+func (c *Cell) FromCell(cell *screen.Cell) *Cell {
 	if cell == nil {
 		return nil
 	}
@@ -198,39 +199,54 @@ func (ss *ScreenSnapshot) Compare(tb testing.TB, other *ScreenSnapshot, _ ...Opt
 
 // WithScreenBuffer updates the ScreenSnapshot with the contents of the given
 // screen buffer (Rows, Cols, Cells).
-func (ss *ScreenSnapshot) WithScreenBuffer(tb testing.TB, screen *uv.ScreenBuffer, _ ...Option) *ScreenSnapshot {
+func (ss *ScreenSnapshot) WithScreenBuffer(tb testing.TB, grid *screen.Buffer, _ ...Option) *ScreenSnapshot {
 	tb.Helper()
-
-	ss.Rows = screen.Height()
-	ss.Cols = screen.Width()
+	if grid == nil {
+		ss.Rows, ss.Cols, ss.Cells = 0, 0, nil
+		return ss
+	}
+	bounds := grid.Bounds()
+	ss.Rows = bounds.Dy()
+	ss.Cols = bounds.Dx()
 	ss.Cells = make([][]*Cell, ss.Rows)
-	bounds := screen.Bounds()
-
-	var cell *uv.Cell
-	for y := range bounds.Dy() {
+	for y := range ss.Rows {
 		ss.Cells[y] = make([]*Cell, ss.Cols)
-		for x := range bounds.Dx() {
-			cell = screen.CellAt(x, y)
-			if cell == nil {
+		for x := range ss.Cols {
+			cell := grid.CellAt(bounds.Min.X+x, bounds.Min.Y+y)
+			if cell == nil || (cell.Content == "" && cell.Width == 0) {
 				continue
 			}
-			ss.Cells[y][x] = (&Cell{}).FromUV(cell)
+			ss.Cells[y][x] = (&Cell{}).FromCell(cell)
 		}
 	}
-
 	return ss
 }
 
-// AsScreenBuffer converts a string into a [uv.ScreenBuffer].
-func AsScreenBuffer(tb testing.TB, v string, opts ...Option) *uv.ScreenBuffer {
+// AsScreenBuffer converts plain text into a cell grid. Each rune is one cell.
+// The trailing newline does not add an empty row.
+func AsScreenBuffer(tb testing.TB, v string, opts ...Option) *screen.Buffer {
 	tb.Helper()
 	cfg := collectOptions(tb, opts...)
-	styled := uv.NewStyledString(normalize(v, cfg))
-	bounds := styled.Bounds()
-	buf := uv.NewScreenBuffer(bounds.Dx(), bounds.Dy())
-	buf.Method = ansi.GraphemeWidth
-	styled.Draw(buf, bounds)
-	return &buf
+	text := normalize(v, cfg)
+	if text == "" {
+		return screen.NewBuffer(0, 0)
+	}
+	lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+	width := 0
+	for _, line := range lines {
+		if n := utf8.RuneCountInString(line); n > width {
+			width = n
+		}
+	}
+	buf := screen.NewBuffer(width, len(lines))
+	for y, line := range lines {
+		x := 0
+		for _, r := range line {
+			buf.SetCell(x, y, &screen.Cell{Content: string(r), Width: 1})
+			x++
+		}
+	}
+	return buf
 }
 
 // writeScreen handles the i/o and encoding of a [ScreenSnapshot] to a JSON file.

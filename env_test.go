@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/charm/still/export"
+	"github.com/lrstanley/x/term/still/export"
 )
 
 func TestParseExportTypes(t *testing.T) {

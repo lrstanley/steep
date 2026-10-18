@@ -17,7 +17,7 @@ import (
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/lrstanley/x/charm/steep/internal/xansi"
+	"github.com/lrstanley/x/term/steep/internal/xansi"
 )
 
 type Viewable func() string

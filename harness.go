@@ -15,7 +15,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/lrstanley/x/charm/still"
+	"github.com/lrstanley/x/term/still"
 )
 
 type runResult struct {
@@ -67,7 +67,7 @@ func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
 
 	h := &Harness{
 		tb:            tb,
-		emulator:      newEmulator(cfg.width, cfg.height),
+		emulator:      newEmulator(tb, cfg.width, cfg.height),
 		observer:      newObserver(tb, model),
 		done:          make(chan struct{}),
 		opts:          append([]Option(nil), opts...),
@@ -123,7 +123,10 @@ func (h *Harness) Close() {
 
 	cfg := collectOptions(h.tb, h.mergedOpts()...)
 
-	go h.emulator.Close()
+	// Unblock the program input loop before Quit. The terminal stays
+	// readable for export, then returns to the pool when Close returns.
+	defer h.emulator.Close()
+	h.emulator.closeInput()
 
 	quitDone := make(chan struct{})
 	go func() {
