@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lrstanley/x/term/reel/render"
 	"github.com/lrstanley/x/term/steep"
-	"github.com/lrstanley/x/term/still"
 )
 
 // STEEP_EXPORT_MODE=on STEEP_EXPORT_TYPE=gif,mp4 go test -v -count 1 ./...
@@ -18,9 +18,9 @@ func TestGenerate(t *testing.T) {
 	h := steep.NewHarness(
 		t, newRankingModel(),
 		steep.WithRenderer(
-			still.WithWindowChrome(true),
-			still.WithPadding(5),
-			still.WithScale(1.5),
+			render.WithWindowChrome(true),
+			render.WithPadding(5),
+			render.WithScale(1.5),
 		),
 		// steep.WithWindowSize(160, 40),
 		steep.WithExportDir("testdata"),

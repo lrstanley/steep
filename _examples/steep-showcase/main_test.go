@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
+	"github.com/lrstanley/x/term/reel/render"
 	"github.com/lrstanley/x/term/steep"
-	"github.com/lrstanley/x/term/still"
 )
 
-// STEEP_EXPORT_DIR=testdata/ STEEP_EXPORT_MODE=on STEEP_EXPORT_TYPE=gif go test -v -count 1 ./still-showcase/
+// STEEP_EXPORT_DIR=testdata/ STEEP_EXPORT_MODE=on STEEP_EXPORT_TYPE=gif go test -v -count 1 ./reel-showcase/
 
 func TestShowcase(t *testing.T) {
 	h := steep.NewHarness(
@@ -24,10 +24,10 @@ func TestShowcase(t *testing.T) {
 		// need every bit.
 		steep.WithColor(steep.ColorTrueColor),
 		steep.WithRenderer(
-			still.WithWindowChrome(true),
-			still.WithPadding(14),
-			still.WithMargin(36, lipgloss.Color("#1d212c")),
-			still.WithBorderRadius(12),
+			render.WithWindowChrome(true),
+			render.WithPadding(14),
+			render.WithMargin(36, lipgloss.Color("#1d212c")),
+			render.WithBorderRadius(12),
 		),
 		steep.WithExportName("showcase"),
 		steep.WithExportKeys(1200*time.Millisecond),
