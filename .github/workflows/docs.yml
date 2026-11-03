@@ -1,0 +1,27 @@
+name: docs
+
+# build-only check (links, types, etc). deployment is handled by Cloudflare Workers Builds, see docs/wrangler.jsonc.
+
+on:
+  pull_request:
+    branches: [master]
+    paths: ["docs/**", ".github/workflows/docs.yml"]
+    types: [opened, edited, reopened, synchronize, unlocked]
+  push:
+    branches: [master]
+    paths: ["docs/**", ".github/workflows/docs.yml"]
+  workflow_dispatch: {}
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: lrstanley/.github/composite/install-node@master
+      - run: make docs-build
