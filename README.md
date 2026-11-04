@@ -159,6 +159,18 @@ go get -u github.com/lrstanley/steep@latest
 ```
 <!-- template:end:goget -->
 
+## :hammer_and_wrench: Development
+
+This repository holds several Go modules. To work on them, install [Task](https://taskfile.dev), then run this once
+after cloning:
+
+```console
+task setup
+```
+
+It creates a gitignored `go.work`, so changes to [reel](reel) apply to steep and the CLI straight away, the same as
+in CI. Without it, they build against the reel version they pin. Nothing runs this for you.
+
 ---
 
 <!-- template:begin:support -->

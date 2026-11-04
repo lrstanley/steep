@@ -17,6 +17,11 @@ tasks:
     cmds:
       - task: fmt
       - task: test
+  setup:
+    desc: create or update go.work, so each module builds against the others in this checkout
+    cmds:
+      - test -f go.work || go work init
+      - go work use {{.MODULES | join " "}}
 
   # go tasks, run across every module.
   license:
