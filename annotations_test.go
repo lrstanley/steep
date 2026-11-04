@@ -370,7 +370,7 @@ func TestAnnotationsMessages(t *testing.T) {
 	}
 
 	h = NewHarness(t, rootTestModel{}, WithWindowSize(20, 2), WithIgnoreEnv(true), WithRecordMessages(true))
-	h.SendProgram(setTextMsg("x")).Wait("text=x")
+	h.SendProgram(setTextMsg("x")).Wait("text=x").Wait("size=20x2")
 	got := notes(t, h.Timeline())
 	findNote(t, got, kindStart, map[string]any{"messages": true})
 	findNote(t, got, kindMessage, map[string]any{"type": "tea.WindowSizeMsg", "value": "{Width:20 Height:2}"})

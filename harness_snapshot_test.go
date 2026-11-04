@@ -144,7 +144,7 @@ func TestHarnessImageTracksProgress(t *testing.T) {
 	t.Parallel()
 
 	h := NewHarness(t, rootTestModel{text: "progress"}, WithWindowSize(24, 3), withRender(render.WithWindowChrome(true)))
-	h.Wait("text=progress")
+	h.Wait("text=progress").Wait("size=24x3")
 	before := copyImage(t, h.Image())
 
 	for _, tc := range []struct {
