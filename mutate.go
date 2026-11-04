@@ -41,7 +41,7 @@ type mutatableModel interface {
 // or the test fails.
 func (h *Harness) Mutate[M any](fn func(M) M, opts ...Option) *Harness {
 	h.tb.Helper()
-	defer h.hook(HookProgram, nil)()
+	defer h.hook(HookProgram, nil, responseTo[mutateRequest])()
 	h.requireProgram()
 
 	if fn == nil {

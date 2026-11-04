@@ -9,6 +9,7 @@ import (
 	"iter"
 	"os"
 	"os/signal"
+	"reflect"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -152,6 +153,9 @@ func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
 		)...,
 	)
 
+	h.observer.outputSeq = h.session.Terminal().OutputSeq
+	h.observer.send = h.program.Send
+
 	go func() {
 		finalModel, ferr := h.program.Run()
 		h.noteExit(ferr)
@@ -291,7 +295,13 @@ func (h *Harness) requireProgram() {
 // or the mouse helpers, which go through the terminal as real input would.
 func (h *Harness) SendProgram(msg uv.Event) *Harness {
 	h.tb.Helper()
-	defer h.hook(HookProgram, nil)()
+	msgType := reflect.TypeOf(msg)
+	defer h.hook(HookProgram, nil, func(got uv.Event) int {
+		if reflect.TypeOf(got) == msgType {
+			return 1
+		}
+		return 0
+	})()
 	h.requireProgram()
 	n := &programNote{Action: "send"}
 	n.Type, n.Value = valueNote(msg)

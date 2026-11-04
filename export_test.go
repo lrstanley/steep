@@ -262,21 +262,19 @@ func TestExportStills(t *testing.T) {
 		WithStills(StillPNG, HookInput),
 		WithStills(StillSnapshot, HookInput, HookWait),
 		WithExportAlways(),
-		// An input's mark waits this long for any output, so a loaded machine
-		// has time to deliver it. Output ends the wait early.
+		// An input's mark waits this long for its response, so a loaded machine
+		// has time to deliver it. The response ends the wait early.
 		WithTimeout(10*time.Second),
 		WithSettle(5*time.Second),
 	)...)
-	// Any output counts as an input's response, so have the first paint out of
-	// the way, or a still could show the screen from before the input.
-	h.Wait("size=20x4").Type("a").Type("b").Wait("text=ab")
+	h.Type("a").Type("b").Wait("text=ab")
 	h.Close()
 
 	stem := "TestExportStills_passed_"
 	want := []string{
 		stem + "input-1.png", stem + "input-1.snap",
 		stem + "input-2.png", stem + "input-2.snap",
-		stem + "wait-1.snap", stem + "wait-2.snap",
+		stem + "wait-1.snap",
 		"rec",
 	}
 	slices.Sort(want)
@@ -738,6 +736,111 @@ func TestExportOnPanic(t *testing.T) {
 	n := findNote(t, got[len(got)-1:], kindResult, map[string]any{"failed": true, "panicked": true})
 	if stack, _ := n.fields["stack"].(string); !strings.HasPrefix(stack, "panic(") || !strings.Contains(stack, "TestExportOnPanic") {
 		t.Fatalf("stack = %q", stack)
+	}
+}
+
+// animatedTick is the message of animatedModel.
+type animatedTick struct{}
+
+// animatedModel repaints on its own, and takes longer to respond to anything
+// else than the output must stay quiet for an action to be marked. So, while
+// it responds, the screen is quiet with output newer than the action.
+type animatedModel struct {
+	frame int
+	text  string
+}
+
+func (m animatedModel) tick() tea.Msg {
+	time.Sleep(5 * time.Millisecond)
+	return animatedTick{}
+}
+
+func (m animatedModel) Init() tea.Cmd { return m.tick }
+
+func (m animatedModel) Update(msg uv.Event) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case animatedTick:
+		m.frame++
+		return m, m.tick
+	case tea.KeyPressMsg:
+		time.Sleep(40 * time.Millisecond)
+		m.text += msg.Key().Text
+	case setTextMsg:
+		time.Sleep(40 * time.Millisecond)
+		m.text = string(msg)
+	case tea.MouseClickMsg:
+		time.Sleep(40 * time.Millisecond)
+		m.text = "clicked"
+	case tea.PasteMsg:
+		time.Sleep(40 * time.Millisecond)
+		m.text = msg.Content
+	}
+	return m, nil
+}
+
+func (m animatedModel) View() tea.View {
+	v := tea.NewView(fmt.Sprintf("frame=%d\ntext=%s", m.frame, m.text))
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
+}
+
+// TestExportStillsShowResponse checks that the still of an action shows the
+// program's response to it, despite other output before the response.
+func TestExportStillsShowResponse(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		action func(h *Harness)
+		label  string
+		want   string
+	}{
+		"type":  {func(h *Harness) { h.Type("ab") }, "input-1", "text=ab"},
+		"key":   {func(h *Harness) { h.Key("a") }, "input-1", "text=a"},
+		"paste": {func(h *Harness) { h.Paste("ab") }, "input-1", "text=ab"},
+		"click": {func(h *Harness) { h.Wait("frame=").LeftClick(0, 0) }, "input-1", "text=clicked"},
+		"send":  {func(h *Harness) { h.SendProgram(setTextMsg("sent")) }, "program-1", "text=sent"},
+		"mutate": {func(h *Harness) {
+			h.Mutate(func(m animatedModel) animatedModel { m.text = "mutated"; return m })
+		}, "program-1", "text=mutated"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			h := NewHarness(t, animatedModel{}, exportOptions(dir,
+				WithStills(StillSnapshot, HookInput, HookProgram),
+				WithExportAlways(),
+				WithTimeout(10*time.Second),
+				WithSettle(5*time.Second),
+			)...)
+			tc.action(h)
+			h.Close()
+			files, err := filepath.Glob(filepath.Join(dir, "*"+tc.label+".snap"))
+			if err != nil || len(files) != 1 {
+				t.Fatalf("stills for %s = %q, %v", tc.label, files, err)
+			}
+			snap, err := os.ReadFile(files[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(snap), tc.want) {
+				t.Errorf("still does not show %q:\n%s", tc.want, snap)
+			}
+		})
+	}
+}
+
+// TestExportStillDroppedInput checks that an action the program never hears of
+// is still marked: without mouse tracking, a click is dropped.
+func TestExportStillDroppedInput(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	h := NewHarness(t, rootTestModel{}, exportOptions(dir,
+		WithStills(StillSnapshot, HookInput),
+		WithExportAlways(),
+	)...)
+	h.Wait("size=").LeftClick(0, 0)
+	h.Close()
+	if files, err := filepath.Glob(filepath.Join(dir, "*input-1.snap")); err != nil || len(files) != 1 {
+		t.Fatalf("stills = %q, %v", files, err)
 	}
 }
 

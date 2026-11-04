@@ -329,9 +329,15 @@ const markVar = "{mark}"
 // After hooks run, labeled with the event's name and count, such as
 // "input:1" or "wait:1". While exporting, input, terminal, and program
 // actions are marked once the program has painted its response: when its
-// output has then been quiet for the [WithCheck] interval, or, if it writes
-// nothing, after the [WithSettle] period (at least 50ms). A very large
-// check interval therefore slows those actions. [Harness.Close] places its
+// output has been quiet for the [WithCheck] interval, or, if it writes
+// nothing, after the [WithSettle] period (at least 50ms). For input and
+// program actions, only output after the model has handled the action counts,
+// so a still of one shows the response even when other output came first.
+// Input the program does not hear of, such as a click without mouse tracking,
+// takes that period too. A response made later, such as by a command, need
+// not be painted yet. Any output counts for terminal actions, which the
+// program may not hear of. A very large check interval slows those actions.
+// [Harness.Close] places its
 // mark as it starts, where the recording ends.
 //
 // The harness also marks each failure it reports as it reports it,

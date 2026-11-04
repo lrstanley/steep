@@ -8,6 +8,10 @@ import (
 	"log/slog"
 	"testing"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/rivo/uniseg"
 )
 
 // InputKind is the kind of an input action.
@@ -249,16 +253,27 @@ func (s HookStage) String() string {
 // annotation the harness records for the action.
 type Hook func(event HookEvent, stage HookStage, metadata any) error
 
-func (h *Harness) hook(event HookEvent, metadata any) func() {
+// While exporting, responses says which message the action causes, for
+// actions whose metadata does not (see [inputResponses]), so its mark can wait
+// for the program to paint it. Without one, output of any kind counts.
+func (h *Harness) hook(event HookEvent, metadata any, responses ...func(uv.Event) int) func() {
 	h.tb.Helper()
 	var seq uint64
+	var watch *paintWatch
 	if h.awaitsPaint(event) {
 		seq = h.session.Terminal().OutputSeq()
+		want, match := inputResponses(metadata)
+		if len(responses) > 0 {
+			want, match = 1, responses[0]
+		}
+		if want > 0 {
+			watch = h.observer.watchPaint(want, match)
+		}
 	}
 	h.runHooks(event, HookStageBefore, metadata)
 	return func() {
 		if h.awaitsPaint(event) {
-			h.waitForPaint(seq)
+			h.waitForPaint(seq, watch)
 		}
 		if d := h.cfg.slow; d > 0 {
 			time.Sleep(d)
@@ -281,13 +296,72 @@ func (h *Harness) awaitsPaint(event HookEvent) bool {
 	return event == HookInput || event == HookProgram || event == HookTerminal
 }
 
-// waitForPaint blocks until the terminal has output newer than start and has
-// then stayed idle for one check interval, or until [Harness.paintWait]
-// passes with no new output (see [reel.Session.WaitIdle]).
-func (h *Harness) waitForPaint(start uint64) {
+// inputResponses returns which messages the input with this metadata causes:
+// match returns how much each is worth, and want is the least they add up to.
+// want is 0 if metadata is not an input's. A paste is one message if the
+// program enabled bracketed paste, or else a key press for each character.
+func inputResponses(metadata any) (want int, match func(uv.Event) int) {
+	meta, ok := metadata.(InputMeta)
+	if !ok {
+		return 0, nil
+	}
+	switch meta.Kind {
+	case InputKindType:
+		return uniseg.GraphemeClusterCount(meta.Text), responseTo[tea.KeyPressMsg]
+	case InputKindKey:
+		return 1, responseTo[tea.KeyPressMsg]
+	case InputKindPaste:
+		want = uniseg.GraphemeClusterCount(meta.Text)
+		return want, func(msg uv.Event) int {
+			switch msg.(type) {
+			case tea.PasteMsg:
+				return want
+			case tea.KeyPressMsg:
+				return 1
+			}
+			return 0
+		}
+	case InputKindMouse, InputKindClick, InputKindDrag:
+		return 1, responseTo[tea.MouseMsg]
+	}
+	return 0, nil
+}
+
+// responseTo matches messages of type T, for [Harness.hook].
+func responseTo[T any](msg uv.Event) int {
+	if _, ok := msg.(T); ok {
+		return 1
+	}
+	return 0
+}
+
+// waitForPaint blocks until the program has painted its response to an action:
+// until the terminal has output newer than the action, and has then stayed
+// idle for one check interval (see [reel.Session.WaitIdle]). With a watch, that
+// is output that can only show the messages it follows; other output, such as
+// an animation's, does not count. All of it is given up on after
+// [Harness.paintWait], when an action may have no response to paint.
+func (h *Harness) waitForPaint(start uint64, watch *paintWatch) {
 	h.tb.Helper()
-	quiet := max(h.cfg.checkInterval, time.Millisecond)
-	_ = h.session.WaitIdle(h.cfg.ctx, start, quiet, h.paintWait())
+	quiet, limit := max(h.cfg.checkInterval, time.Millisecond), h.paintWait()
+	if watch != nil {
+		defer h.observer.unwatch(watch)
+		timer := time.NewTimer(limit)
+		defer timer.Stop()
+		select {
+		case <-watch.painted:
+			start = watch.seq
+		case <-timer.C:
+			// Such as an input the program never hears of, so wait no longer
+			// than for one with no response.
+			limit = 0
+		case <-h.done:
+			limit = 0
+		case <-h.cfg.ctx.Done():
+			return
+		}
+	}
+	_ = h.session.WaitIdle(h.cfg.ctx, start, quiet, limit)
 }
 
 // paintWait is how long an exporting action waits for a program write before
