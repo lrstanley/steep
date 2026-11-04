@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/lrstanley/clix/v2"
-	"github.com/lrstanley/steep/reel"
 	"github.com/lrstanley/steep/_examples/internal/showcase"
+	"github.com/lrstanley/steep/reel"
 	"github.com/lrstanley/steep/reel/effects"
 	"github.com/lrstanley/steep/reel/render"
 )

@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/steep/reel"
 	"github.com/lrstanley/steep/cmd/reel/internal/play"
 	"github.com/lrstanley/steep/cmd/reel/internal/tape"
+	"github.com/lrstanley/steep/reel"
 )
 
 // TestCmd runs tapes as tests.

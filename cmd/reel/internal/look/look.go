@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/steep/reel"
 	"github.com/lrstanley/steep/cmd/reel/internal/themes"
+	"github.com/lrstanley/steep/reel"
 	"github.com/lrstanley/steep/reel/effects"
 	"github.com/lrstanley/steep/reel/render"
 	"github.com/lrstanley/steep/reel/render/fonts"

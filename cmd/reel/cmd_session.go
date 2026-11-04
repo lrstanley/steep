@@ -22,9 +22,9 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
-	"github.com/lrstanley/steep/reel"
 	"github.com/lrstanley/steep/cmd/reel/internal/live"
 	"github.com/lrstanley/steep/cmd/reel/internal/look"
+	"github.com/lrstanley/steep/reel"
 )
 
 // SessionCmd drives programs in detached sessions.

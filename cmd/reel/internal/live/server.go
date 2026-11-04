@@ -19,8 +19,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lrstanley/steep/reel"
 	"github.com/lrstanley/steep/cmd/reel/internal/play"
+	"github.com/lrstanley/steep/reel"
 	"github.com/lrstanley/steep/reel/vt"
 )
 

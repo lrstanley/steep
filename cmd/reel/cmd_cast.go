@@ -19,8 +19,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/steep/reel"
 	"github.com/lrstanley/steep/cmd/reel/internal/look"
+	"github.com/lrstanley/steep/reel"
 	"github.com/lrstanley/steep/reel/effects"
 	"github.com/lrstanley/steep/reel/sink"
 )

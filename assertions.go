@@ -14,8 +14,8 @@ import (
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/lrstanley/steep/reel"
 	"github.com/lrstanley/steep/internal/xansi"
+	"github.com/lrstanley/steep/reel"
 )
 
 // Viewable returns the output the package-level assertions check, such as
