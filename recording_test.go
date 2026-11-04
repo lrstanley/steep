@@ -10,10 +10,10 @@ import (
 	"image"
 	"image/draw"
 	"image/gif"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -32,57 +32,6 @@ import (
 // withRender draws [Harness.Image] with opts.
 func withRender(opts ...render.Option) Option {
 	return WithRecording(reel.Profile{Render: opts})
-}
-
-// fakeTB is a [testing.TB] whose errors are recorded instead of failing the
-// test, so a harness can run as a failing test inside a passing one.
-type fakeTB struct {
-	testing.TB
-
-	mu     sync.Mutex
-	failed bool
-	errs   []string
-}
-
-func (f *fakeTB) Error(args ...any) { f.record(fmt.Sprintln(args...)) }
-
-func (f *fakeTB) Errorf(format string, args ...any) { f.record(fmt.Sprintf(format, args...)) }
-
-func (f *fakeTB) Fail() { f.record("") }
-
-// FailNow marks the test failed, and stops the goroutine, so it must be
-// called on a goroutine of the test's own.
-func (f *fakeTB) FailNow() {
-	f.record("")
-	runtime.Goexit()
-}
-
-// Fatalf records the error, and stops the goroutine as FailNow does, so it
-// must be called on a goroutine of the test's own.
-func (f *fakeTB) Fatalf(format string, args ...any) {
-	f.record(fmt.Sprintf(format, args...))
-	runtime.Goexit()
-}
-
-func (f *fakeTB) record(msg string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.failed = true
-	if msg != "" {
-		f.errs = append(f.errs, msg)
-	}
-}
-
-func (f *fakeTB) Failed() bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.failed
-}
-
-func (f *fakeTB) errors() []string {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return slices.Clone(f.errs)
 }
 
 // exportOptions export a small terminal into dir, ignoring the environment,
@@ -1000,5 +949,44 @@ func TestAutoMarksUnknown(t *testing.T) {
 	runFailing(func() { NewHarness(ftb, rootTestModel{}, WithIgnoreEnv(true), WithAutoMarks(false, "nope")) })
 	if errs := ftb.errors(); len(errs) != 1 || !strings.Contains(errs[0], `"nope"`) {
 		t.Fatalf("errors = %q", errs)
+	}
+}
+
+// stillPatterns maps each still's path to its MarkMatch patterns.
+func stillPatterns(stills []reel.File) map[string][]string {
+	out := make(map[string][]string, len(stills))
+	for _, f := range stills {
+		out[f.Path] = slices.Sorted(slices.Values(f.MarkMatch))
+	}
+	return out
+}
+
+func TestWithStills(t *testing.T) {
+	t.Parallel()
+	cfg := collectOptions(t, WithIgnoreEnv(true), WithStills(StillPNG), WithStills(StillSnapshot|StillPNG, HookInput, HookAssert))
+	want := map[string][]string{
+		stillPath + ".png":  slices.Sorted(slices.Values(append([]string{"assert:[0-9]*"}, hookPatterns(captureEvents)...))),
+		stillPath + ".snap": {"assert:[0-9]*", "input:[0-9]*"},
+	}
+	if got := stillPatterns(cfg.stills); !maps.EqualFunc(got, want, slices.Equal) {
+		t.Fatalf("stills = %v, want %v", got, want)
+	}
+	// The default events are not grown by a later call.
+	if !slices.Equal(captureEvents, []HookEvent{HookInput, HookTerminal, HookProgram, HookWait, HookReady, HookClose}) {
+		t.Fatalf("captureEvents changed: %v", captureEvents)
+	}
+}
+
+func TestNormalizeTestName(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string]string{
+		"TestFoo/bar":           "TestFoo_bar",
+		"TestFoo/a_b/../c d#01": "TestFoo_a_b____c_d_01",
+		"///":                   "test",
+		"TestÜber/日本":           "TestÜber_日本",
+	} {
+		if got := normalizeTestName(in); got != want {
+			t.Errorf("normalizeTestName(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

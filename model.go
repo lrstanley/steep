@@ -5,6 +5,7 @@
 package steep
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -14,7 +15,6 @@ import (
 )
 
 type observer struct {
-	tb       testing.TB
 	mu       sync.RWMutex
 	model    tea.Model
 	messages *broker.Broker[uv.Event]
@@ -23,8 +23,6 @@ type observer struct {
 	// request, has been through Update.
 	firstEvent     chan struct{}
 	firstEventOnce sync.Once
-	// lastViewSnapshot is the most recent View content.
-	lastViewSnapshot string
 	// onMessage, when set, is called with each message but mutate requests
 	// before the wrapped model receives it, without mu held. It is set
 	// before the program starts.
@@ -100,9 +98,8 @@ func (o *observer) handled(msg uv.Event) {
 
 // newObserver returns a [tea.Model] wrapping model, which records every
 // message in a broker and serves [Harness.Mutate] requests.
-func newObserver(tb testing.TB, model tea.Model) *observer {
+func newObserver(model tea.Model) *observer {
 	return &observer{
-		tb:         tb,
 		firstEvent: make(chan struct{}),
 		model:      model,
 		messages:   broker.New[uv.Event](broker.WithMaxHistory(0)),
@@ -110,16 +107,12 @@ func newObserver(tb testing.TB, model tea.Model) *observer {
 }
 
 func (o *observer) Init() tea.Cmd {
-	o.tb.Helper()
 	return o.currentModel().Init()
 }
 
 // Update serves mutate requests itself, and passes other messages to the
 // wrapped model before publishing them to the broker.
 func (o *observer) Update(msg uv.Event) (tea.Model, tea.Cmd) {
-	o.tb.Helper()
-	copiedMsg := msg
-
 	// Not a message of the program's, so neither it nor the test sees it.
 	if b, ok := msg.(paintBarrier); ok {
 		b.watch.seq = o.outputSeq()
@@ -129,39 +122,35 @@ func (o *observer) Update(msg uv.Event) (tea.Model, tea.Cmd) {
 
 	// Recorded before taking the lock, which View waits on. Update only runs
 	// on the program's goroutine, so the order is kept.
-	if _, ok := msg.(mutateRequest); !ok && o.onMessage != nil {
+	if _, ok := msg.(mutateMsg); !ok && o.onMessage != nil {
 		o.onMessage(msg)
 	}
 
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	if msg, ok := msg.(mutateRequest); ok {
+	if msg, ok := msg.(mutateMsg); ok {
 		err := o.mutateLocked(msg)
 		o.handled(msg)
-		msg.respond(err)
+		msg.done <- err
 		return o, nil
 	}
 
 	next, cmd := o.model.Update(msg)
 	if next != nil {
-		o.replaceLocked(next)
+		o.model = next
 	}
-	o.handled(copiedMsg)
-	o.messages.Publish(copiedMsg)
+	o.handled(msg)
+	o.messages.Publish(msg)
 	o.firstEventOnce.Do(func() { close(o.firstEvent) })
 
 	return o, cmd
 }
 
 func (o *observer) View() tea.View {
-	o.tb.Helper()
 	o.mu.Lock()
 	defer o.mu.Unlock()
-
-	view := o.model.View()
-	o.lastViewSnapshot = view.Content
-	return view
+	return o.model.View()
 }
 
 // currentModel returns the wrapped model, which callers must treat as
@@ -172,51 +161,113 @@ func (o *observer) currentModel() tea.Model {
 	return o.model
 }
 
-// replaceLocked sets the wrapped model, unwrapping an observer. Caller must
-// hold mu.
-func (o *observer) replaceLocked(model tea.Model) {
-	if model == nil {
-		return
-	}
-
-	if wrapper, ok := model.(*observer); ok {
-		if wrapper == o {
-			return
-		}
-		model = wrapper.currentModel()
-	}
-
-	o.model = model
-}
-
-// replace is replaceLocked, taking mu.
-func (o *observer) replace(model tea.Model) {
-	o.mu.Lock()
-	o.replaceLocked(model)
-	o.mu.Unlock()
-}
-
-// mutate applies req to the wrapped model.
-func (o *observer) mutate(req mutateRequest) error {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.mutateLocked(req)
-}
-
-// mutateLocked is mutate with mu held.
-func (o *observer) mutateLocked(req mutateRequest) error {
-	if wrapper, ok := o.model.(*observer); ok && wrapper != o {
-		return wrapper.mutate(req)
-	}
-
+// mutateLocked applies req to the wrapped model. Caller must hold mu.
+func (o *observer) mutateLocked(req mutateMsg) error {
 	if model, ok := o.model.(mutatableModel); ok {
 		return model.mutate(req)
 	}
 
-	next, err := req.mutateTeaModel(o.model)
+	next, err := req.apply(o.model)
 	if err != nil {
 		return err
 	}
-	o.replaceLocked(next)
+	model, ok := next.(tea.Model)
+	if !ok {
+		return fmt.Errorf("mutate function must return tea.Model for root harnesses, got %T", next)
+	}
+	o.model = model
+	return nil
+}
+
+// mutateMsg is a [Harness.Mutate] request, which the observer serves on the
+// program's goroutine instead of passing it to the model.
+type mutateMsg struct {
+	// apply returns the mutate function's result for model, or an error if
+	// the function does not accept model's type.
+	apply func(model any) (any, error)
+	done  chan error
+}
+
+// mutatableModel is a wrapper that applies mutate requests to its own model.
+type mutatableModel interface {
+	mutate(mutateMsg) error
+}
+
+type simpleViewer interface {
+	View() string
+}
+
+type simpleUpdater interface {
+	Update(uv.Event) tea.Cmd
+}
+
+type replacementUpdater[T any] interface {
+	Update(uv.Event) (T, tea.Cmd)
+}
+
+type initializer interface {
+	Init() tea.Cmd
+}
+
+// componentWrapper adapts a component model, as [NewComponentHarness] takes,
+// to a [tea.Model].
+type componentWrapper[M any] struct {
+	model M
+}
+
+func (cw *componentWrapper[M]) validate(tb testing.TB) {
+	tb.Helper()
+
+	if _, ok := any(cw.model).(simpleViewer); !ok {
+		tb.Fatalf("model must implement View() string")
+	}
+	_, supportsCommandUpdate := any(cw.model).(simpleUpdater)
+	_, supportsReplacementUpdate := any(cw.model).(replacementUpdater[M])
+	if !supportsCommandUpdate && !supportsReplacementUpdate {
+		tb.Fatalf("model must implement Update(uv.Msg) tea.Cmd or Update(uv.Msg) (%T, tea.Cmd)", cw.model)
+	}
+}
+
+func (cw *componentWrapper[M]) Init() tea.Cmd {
+	if m, ok := any(cw.model).(initializer); ok {
+		return m.Init()
+	}
+	return nil
+}
+
+func (cw *componentWrapper[M]) Update(msg uv.Event) (tea.Model, tea.Cmd) {
+	switch m := any(cw.model).(type) {
+	case replacementUpdater[M]:
+		next, cmd := m.Update(msg)
+		cw.model = next
+		return cw, cmd
+	case simpleUpdater:
+		return cw, m.Update(msg)
+	}
+
+	return cw, nil
+}
+
+func (cw *componentWrapper[M]) View() tea.View {
+	viewer, ok := any(cw.model).(simpleViewer)
+	if !ok {
+		panic("model must implement View() string")
+	}
+
+	return tea.NewView(viewer.View())
+}
+
+func (cw *componentWrapper[M]) mutate(req mutateMsg) error {
+	next, err := req.apply(cw.model)
+	if err != nil {
+		return err
+	}
+
+	nextModel, ok := next.(M)
+	if !ok {
+		return fmt.Errorf("mutate function must return %T, got %T", cw.model, next)
+	}
+
+	cw.model = nextModel
 	return nil
 }

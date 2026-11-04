@@ -14,6 +14,7 @@ import (
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/lrstanley/steep/internal/typeobserver"
 	"github.com/lrstanley/steep/internal/xansi"
 	"github.com/lrstanley/steep/reel"
 )
@@ -294,10 +295,10 @@ func waitMessage[T uv.Event](tb testing.TB, log MessageCollector, live bool, fn 
 	if live {
 		messages = log.LiveMessages
 	}
-	observedMessages := newTypeObserver[uv.Event]()
+	observedMessages := typeobserver.New()
 
 	for msg := range messages(ctx) {
-		observedMessages.observe(msg)
+		observedMessages.Observe(msg)
 		if typed, ok := msg.(T); ok && (fn == nil || fn(typed)) {
 			w.received(msg)
 			return typed
@@ -329,20 +330,14 @@ func WaitSettleMessages(tb testing.TB, log MessageCollector, opts ...Option) {
 	ctx, cancel := context.WithTimeoutCause(cfg.ctx, cfg.timeout, errWaitTimeout)
 	defer cancel()
 
-	observedMessages := newTypeObserver[uv.Event]()
-	done := make(chan struct{})
+	observedMessages := typeobserver.New()
 
 	var last atomic.Pointer[time.Time]
 	last.Store(new(time.Now()))
 
 	go func() {
-		defer close(done)
-		for msg := range log.LiveMessages(ctx) {
-			if len(cfg.settleIgnore) > 0 && slices.Contains(cfg.settleIgnore, reflect.TypeOf(msg)) {
-				continue
-			}
-
-			observedMessages.observe(msg)
+		for msg := range IgnoreMessagesReflect(tb, log.LiveMessages(ctx), cfg.settleIgnore...) {
+			observedMessages.Observe(msg)
 			last.Store(new(time.Now()))
 		}
 	}()

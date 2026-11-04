@@ -9,12 +9,16 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/render"
 )
 
 const (
@@ -120,9 +124,7 @@ func (o options) validate() options {
 	if o.settleTimeout <= 0 {
 		o.settleTimeout = DefaultSettleTimeout
 	}
-	if maxSettleTimeout := o.timeout * 8 / 10; o.settleTimeout > maxSettleTimeout {
-		o.settleTimeout = maxSettleTimeout
-	}
+	o.settleTimeout = min(o.settleTimeout, o.timeout*8/10)
 
 	return o
 }
@@ -150,13 +152,7 @@ type Option func(*options)
 
 // withReason sets a prefix for failure messages.
 func withReason(format string, args ...any) Option {
-	return func(cfg *options) {
-		if len(args) > 0 {
-			cfg.reason = fmt.Sprintf(format, args...)
-		} else {
-			cfg.reason = format
-		}
-	}
+	return func(cfg *options) { cfg.reason = fmt.Sprintf(format, args...) }
 }
 
 // withHarness makes waits and assertions record their outcome in h's
@@ -377,5 +373,214 @@ func WithEnvVars(vars ...string) Option {
 		for key, value := range current {
 			cfg.envVars = append(cfg.envVars, key+"="+value)
 		}
+	}
+}
+
+// ColorProfile is the color support the harness terminal advertises to the
+// program (see [WithColor]).
+type ColorProfile int
+
+const (
+	// ColorASCII advertises no color support (NO_COLOR=1). Text attributes
+	// such as bold still render.
+	ColorASCII ColorProfile = iota + 1
+	// ColorANSI advertises the 16 ANSI colors (TERM=xterm).
+	ColorANSI
+	// ColorANSI256 advertises 256 colors (TERM=xterm-256color). This is what
+	// the harness terminal reports without [WithColor].
+	ColorANSI256
+	// ColorTrueColor advertises 24-bit color (TERM=xterm-256color,
+	// COLORTERM=truecolor).
+	ColorTrueColor
+)
+
+// String returns the profile's name.
+func (p ColorProfile) String() string {
+	switch p {
+	case ColorASCII:
+		return "ascii"
+	case ColorANSI:
+		return "ansi"
+	case ColorANSI256:
+		return "ansi256"
+	case ColorTrueColor:
+		return "truecolor"
+	}
+	return "unset"
+}
+
+// term256 is the TERM the harness terminal reports by default.
+const term256 = "TERM=xterm-256color"
+
+// colorEnvKeys are the color detection variables [WithColor] replaces.
+var colorEnvKeys = []string{"TERM", "COLORTERM", "NO_COLOR", "CLICOLOR", "CLICOLOR_FORCE"}
+
+// env returns env with the color variables replaced by those that advertise p.
+func (p ColorProfile) env(env []string) []string {
+	out := slices.DeleteFunc(slices.Clone(env), func(entry string) bool {
+		key, _, _ := strings.Cut(entry, "=")
+		return slices.Contains(colorEnvKeys, key)
+	})
+	switch p {
+	case ColorASCII:
+		return append(out, term256, "NO_COLOR=1")
+	case ColorANSI:
+		return append(out, "TERM=xterm")
+	case ColorTrueColor:
+		return append(out, term256, "COLORTERM=truecolor")
+	case ColorANSI256:
+	}
+	return append(out, term256)
+}
+
+// teaProfile is p as Bubble Tea's color profile, set explicitly so it does
+// not depend on the host's terminfo database.
+func (p ColorProfile) teaProfile() colorprofile.Profile {
+	switch p {
+	case ColorASCII:
+		return colorprofile.ASCII
+	case ColorANSI:
+		return colorprofile.ANSI
+	case ColorTrueColor:
+		return colorprofile.TrueColor
+	case ColorANSI256:
+	}
+	return colorprofile.ANSI256
+}
+
+// WithColor sets the color support the harness terminal advertises to the
+// program, through TERM, COLORTERM, and NO_COLOR and [tea.WithColorProfile].
+// Without it the terminal reports [ColorANSI256], so Bubble Tea downsamples
+// 24-bit colors; use [ColorTrueColor] for gradients and blends.
+//
+// It overrides the color variables of [WithEnvVars], whatever the order. A
+// [tea.WithColorProfile] passed through [WithProgramOptions] wins over it.
+func WithColor(p ColorProfile) Option {
+	return func(cfg *options) {
+		cfg.color = p
+	}
+}
+
+func applyEnv(tb testing.TB, cfg *options) {
+	if cfg.ignoreEnv {
+		return
+	}
+
+	if on, _ := parseSwitch(os.Getenv("STEEP_LOG")); on {
+		cfg.hooks = append(cfg.hooks, LoggerHook(tb, nil))
+	}
+
+	if on, ok := parseSwitch(os.Getenv("STEEP_RECORD_MESSAGES")); ok {
+		cfg.recordMessages = on
+	}
+
+	if on, ok := parseSwitch(os.Getenv("STEEP_SOURCE")); ok {
+		cfg.source = on
+	}
+
+	envDuration("STEEP_SLOW", &cfg.slow)
+
+	envDuration("STEEP_TYPING_DELAY", &cfg.typingDelay)
+
+	applyExportEnv(tb, cfg)
+
+	if v := os.Getenv("STEEP_SNAPSHOT_DIR"); v != "" {
+		cfg.snapshotDir = v
+	}
+
+	envDuration("STEEP_TIMEOUT", &cfg.timeout)
+
+	envDuration("STEEP_CHECK", &cfg.checkInterval)
+
+	envDuration("STEEP_SETTLE", &cfg.settleTimeout)
+}
+
+// applyExportEnv applies the STEEP_EXPORT* and STEEP_RENDERER_* variables.
+// Render options are appended to the profile's, so the environment wins
+// without dropping the rest.
+func applyExportEnv(tb testing.TB, cfg *options) {
+	if v := os.Getenv("STEEP_EXPORT_MODE"); v != "" {
+		if policy, ok := parseExportMode(v); ok {
+			cfg.policy = policy
+		}
+	}
+	if v := os.Getenv("STEEP_EXPORT_DIR"); v != "" {
+		cfg.artifacts = v
+	}
+
+	var patch reel.Profile
+	if v := os.Getenv("STEEP_EXPORT"); v != "" {
+		outputs, err := reel.ParseFiles(v)
+		if err != nil {
+			tb.Fatalf("steep: STEEP_EXPORT: %v", err)
+		}
+		// Not nil, so it replaces the profile's outputs even when empty.
+		patch.Outputs = append([]reel.File{}, outputs...)
+		cfg.stills = nil
+	}
+	if v := os.Getenv("STEEP_EXPORT_FPS"); v != "" {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			patch.FPS = n
+		}
+	}
+	if v := os.Getenv("STEEP_EXPORT_SPEED"); v != "" {
+		if f, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil {
+			patch.Speed = f
+		}
+	}
+
+	var rend []render.Option
+	if v := os.Getenv("STEEP_RENDERER_SCALE"); v != "" {
+		if scale, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil {
+			rend = append(rend, render.WithScale(scale))
+		}
+	}
+	if v := os.Getenv("STEEP_RENDERER_FONT_FAMILY"); v != "" {
+		rend = append(rend, render.WithFontFamilyName(v))
+	}
+	if rend != nil {
+		patch.Render = append(slices.Clip(cfg.recording.Render), rend...)
+	}
+
+	cfg.recording = cfg.recording.Merge(patch)
+}
+
+// parseSwitch parses a boolean variable: on or off, or what
+// [strconv.ParseBool] accepts. ok is false for anything else, such as an
+// unset variable.
+func parseSwitch(raw string) (on, ok bool) {
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	switch raw {
+	case "on":
+		return true, true
+	case "off":
+		return false, true
+	}
+	on, err := strconv.ParseBool(raw)
+	return on, err == nil
+}
+
+// parseExportMode parses STEEP_EXPORT_MODE: a boolean variable (see
+// parseSwitch) for always or off, or always, or failure.
+func parseExportMode(raw string) (exportPolicy, bool) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "always":
+		return exportAlways, true
+	case "failure", "on-failure":
+		return exportOnFailure, true
+	}
+	if on, ok := parseSwitch(raw); ok {
+		if on {
+			return exportAlways, true
+		}
+		return exportOff, true
+	}
+	return exportOff, false
+}
+
+// envDuration sets dst from the named variable, if it holds a duration.
+func envDuration(name string, dst *time.Duration) {
+	if d, err := time.ParseDuration(os.Getenv(name)); err == nil {
+		*dst = d
 	}
 }

@@ -377,7 +377,7 @@ func (h *Harness) paintWait() time.Duration {
 
 func (h *Harness) runHooks(event HookEvent, stage HookStage, metadata any) {
 	h.tb.Helper()
-	for _, hook := range h.hooks {
+	for _, hook := range h.cfg.hooks {
 		if hook == nil {
 			continue
 		}

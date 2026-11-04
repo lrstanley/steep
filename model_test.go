@@ -14,7 +14,6 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/lrstanley/steep/reel"
 	"github.com/lrstanley/steep/snapshot"
@@ -405,4 +404,23 @@ func readSteepSnapshot(t *testing.T, path string) string {
 		t.Fatalf("failed to read snapshot: %v", err)
 	}
 	return string(bts)
+}
+
+func TestHarnessMutateRootModel(t *testing.T) {
+	t.Parallel()
+	h := NewHarness(t, rootTestModel{text: "start"}, WithWindowSize(80, 3))
+
+	h.Mutate(func(m rootTestModel) rootTestModel {
+		m.text = "mutated"
+		return m
+	})
+
+	h.Wait("text=mutated")
+	got := h.View()
+	if !strings.Contains(got, "text=mutated") {
+		t.Fatalf("view = %q, want text=mutated", got)
+	}
+	if len(slices.Collect(h.FilterMessagesType[mutateMsg]())) != 0 {
+		t.Fatalf("mutate messages should not be exposed")
+	}
 }

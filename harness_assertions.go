@@ -37,17 +37,11 @@ func (h *Harness) waitFinished(cfg options, w *waitRecord) {
 	defer cancel()
 	select {
 	case <-h.done:
-		h.resultMu.RLock()
-		result := h.result
-		h.resultMu.RUnlock()
-		if result.err != nil && !errors.Is(result.err, tea.ErrProgramKilled) {
+		if h.runErr != nil && !errors.Is(h.runErr, tea.ErrProgramKilled) {
 			w.ended(outcomeFailed)
-			h.tb.Fatalf("bubble tea program failed: %v", result.err)
+			h.tb.Fatalf("bubble tea program failed: %v", h.runErr)
 		}
 		w.ended(outcomeSatisfied)
-		if wrapper, ok := result.model.(*observer); ok {
-			h.observer.replace(wrapper.currentModel())
-		}
 	case <-ctx.Done():
 		w.ended(doneOutcome(ctx))
 		h.tb.Fatalf("waiting for the bubble tea program to finish: %v", context.Cause(ctx))

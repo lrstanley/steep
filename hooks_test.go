@@ -23,7 +23,7 @@ var harnessHookExcluded = func() map[string]bool {
 		"ProgramStatuses",
 		"Progress", "Notifications", "Clipboard", "WorkingDirectory", "Prompt", "ResizeRequest",
 		"Scrollback", "ScrollbackCount", "ScrollbackOffset", "MessageHistory", "Messages", "LiveMessages",
-		"FinalModel", "FinalModelAs", "mergedOpts", "requireProgram", "waitStarted", "snapshotOpts", "textSnapshotOpts",
+		"FinalModel", "FinalModelAs", "mergedOpts", "waitStarted", "snapshotOpts", "textSnapshotOpts",
 		"FilterMessagesType", "FilterMessagesFunc",
 		"check", "waitFinished", "waitScreen", "assertScreen",
 		"LeftClick", "MiddleClick", "RightClick", "LeftDrag",

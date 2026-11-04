@@ -6,8 +6,9 @@ package steep
 
 import (
 	"fmt"
+	"runtime"
 	"slices"
-	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -46,6 +47,57 @@ func (m rootTestModel) View() tea.View {
 	return tea.NewView(fmt.Sprintf("size=%dx%d\ntext=%s", m.width, m.height, m.text))
 }
 
+// fakeTB is a [testing.TB] whose errors are recorded instead of failing the
+// test, so a harness can run as a failing test inside a passing one.
+type fakeTB struct {
+	testing.TB
+
+	mu     sync.Mutex
+	failed bool
+	errs   []string
+}
+
+func (f *fakeTB) Error(args ...any) { f.record(fmt.Sprintln(args...)) }
+
+func (f *fakeTB) Errorf(format string, args ...any) { f.record(fmt.Sprintf(format, args...)) }
+
+func (f *fakeTB) Fail() { f.record("") }
+
+// FailNow marks the test failed, and stops the goroutine, so it must be
+// called on a goroutine of the test's own.
+func (f *fakeTB) FailNow() {
+	f.record("")
+	runtime.Goexit()
+}
+
+// Fatalf records the error, and stops the goroutine as FailNow does, so it
+// must be called on a goroutine of the test's own.
+func (f *fakeTB) Fatalf(format string, args ...any) {
+	f.record(fmt.Sprintf(format, args...))
+	runtime.Goexit()
+}
+
+func (f *fakeTB) record(msg string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.failed = true
+	if msg != "" {
+		f.errs = append(f.errs, msg)
+	}
+}
+
+func (f *fakeTB) Failed() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.failed
+}
+
+func (f *fakeTB) errors() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.errs)
+}
+
 func TestHarness(t *testing.T) {
 	t.Parallel()
 	h := NewHarness(t, rootTestModel{}, WithWindowSize(80, 2))
@@ -72,25 +124,6 @@ func TestHarness(t *testing.T) {
 	}
 }
 
-func TestHarnessMutateRootModel(t *testing.T) {
-	t.Parallel()
-	h := NewHarness(t, rootTestModel{text: "start"}, WithWindowSize(80, 3))
-
-	h.Mutate(func(m rootTestModel) rootTestModel {
-		m.text = "mutated"
-		return m
-	})
-
-	h.Wait("text=mutated")
-	got := h.View()
-	if !strings.Contains(got, "text=mutated") {
-		t.Fatalf("view = %q, want text=mutated", got)
-	}
-	if len(slices.Collect(h.FilterMessagesType[mutateMsg[rootTestModel]]())) != 0 {
-		t.Fatalf("mutate messages should not be exposed")
-	}
-}
-
 func TestHarness_QuitProgram_returnsHarnessForChaining(t *testing.T) {
 	t.Parallel()
 	h := NewHarness(t, rootTestModel{}, WithWindowSize(80, 3))
@@ -100,48 +133,13 @@ func TestHarness_QuitProgram_returnsHarnessForChaining(t *testing.T) {
 	h.WaitFinished(WithTimeout(time.Second))
 }
 
-func TestHarness_TerminalKey_mapsNamedKeys(t *testing.T) {
+func TestFailureTBRecords(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name     string
-		key      string
-		wantCode rune
-		wantMod  tea.KeyMod
-		wantText string
-	}{
-		{name: "single ASCII rune", key: "q", wantCode: 'q', wantMod: 0, wantText: "q"},
-		{name: "space", key: "space", wantCode: ' ', wantMod: 0, wantText: " "},
-		{name: "enter", key: "enter", wantCode: tea.KeyEnter},
-		{name: "tab", key: "tab", wantCode: tea.KeyTab},
-		{name: "escape alias esc", key: "esc", wantCode: tea.KeyEscape},
-		{name: "escape alias escape", key: "escape", wantCode: tea.KeyEscape},
-		{name: "backspace", key: "backspace", wantCode: tea.KeyBackspace},
-		{name: "delete", key: "delete", wantCode: tea.KeyDelete},
-		{name: "arrow up", key: "up", wantCode: tea.KeyUp},
-		{name: "arrow down", key: "down", wantCode: tea.KeyDown},
-		{name: "arrow left", key: "left", wantCode: tea.KeyLeft},
-		{name: "arrow right", key: "right", wantCode: tea.KeyRight},
-		{name: "home", key: "home", wantCode: tea.KeyHome},
-		{name: "end", key: "end", wantCode: tea.KeyEnd},
-		{name: "pgup", key: "pgup", wantCode: tea.KeyPgUp},
-		{name: "pageup alias", key: "pageup", wantCode: tea.KeyPgUp},
-		{name: "pgdown", key: "pgdown", wantCode: tea.KeyPgDown},
-		{name: "pagedown alias", key: "pagedown", wantCode: tea.KeyPgDown},
-		{name: "shift+tab", key: "shift+tab", wantCode: tea.KeyTab, wantMod: tea.ModShift},
-		{name: "ctrl lowercase letter", key: "ctrl+g", wantCode: 'g', wantMod: tea.ModCtrl},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			h := NewHarness(t, rootTestModel{}, WithWindowSize(80, 3))
-			h.Key(tt.key)
-			h.WaitMessageWhere(func(km tea.KeyPressMsg) bool {
-				k := km.Key()
-				if k.Code != tt.wantCode || k.Mod != tt.wantMod {
-					return false
-				}
-				return tt.wantText == "" || k.Text == tt.wantText
-			})
-		})
+	f := &failureTB{TB: &fakeTB{TB: t}}
+	f.Error("want", 3, "rows")
+	f.Errorf("timeout after %s", "2s")
+	want := []string{"want 3 rows", "timeout after 2s"}
+	if got := f.messages(); !slices.Equal(got, want) {
+		t.Fatalf("messages = %q, want %q", got, want)
 	}
 }

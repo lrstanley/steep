@@ -6,7 +6,6 @@ package steep
 
 import (
 	"context"
-	"fmt"
 	"iter"
 	"reflect"
 	"regexp"
@@ -69,47 +68,6 @@ func TestWaitMessageWhere(t *testing.T) {
 	if len(matches) != 2 {
 		t.Fatalf("messages = %d, want 2", len(matches))
 	}
-}
-
-// softTB suppresses Errorf so Assert* failure paths can be tested without
-// failing the outer test.
-type softTB struct {
-	testing.TB
-	nErrors int
-}
-
-func (s *softTB) Errorf(_ string, _ ...any) {
-	s.nErrors++
-}
-
-func (s *softTB) Error(...any) {
-	s.nErrors++
-}
-
-type fatalSentinelType struct{}
-
-var fatalSentinel = fatalSentinelType{}
-
-// captureFatalTB records a Fatalf string (or the error passed to Fatal) and
-// panics so callers can recover and assert invalid-regexp (and similar) paths
-// without aborting the real test.
-type captureFatalTB struct {
-	testing.TB
-	msg string
-	err error
-}
-
-func (c *captureFatalTB) Fatal(args ...any) {
-	c.msg = fmt.Sprint(args...)
-	if len(args) > 0 {
-		c.err, _ = args[0].(error)
-	}
-	panic(fatalSentinel)
-}
-
-func (c *captureFatalTB) Fatalf(format string, args ...any) {
-	c.msg = fmt.Sprintf(format, args...)
-	panic(fatalSentinel)
 }
 
 type emptyMsgCollector struct{}
@@ -181,18 +139,14 @@ func TestWaitString_WaitBytes(t *testing.T) {
 
 func TestWait_timeout(t *testing.T) {
 	t.Parallel()
-	tb := &captureFatalTB{TB: t}
+	tb := &fakeTB{TB: t}
 	h := NewComponentHarness(tb, &mutableViewModel{text: "hi"}, WithWindowSize(80, 1), WithIgnoreEnv(true))
 	h.Wait("text=hi")
-	defer func() {
-		if _, ok := recover().(fatalSentinelType); !ok {
-			t.Fatal("expected a fatal failure")
-		}
-		if !strings.Contains(tb.msg, `Wait("nope")`) || !strings.Contains(tb.msg, "text=hi") {
-			t.Fatalf("fatalf = %q, want the reason and the last screen", tb.msg)
-		}
-	}()
-	h.Wait("nope", WithTimeout(20*time.Millisecond))
+	runFailing(func() { h.Wait("nope", WithTimeout(20*time.Millisecond)) })
+	errs := strings.Join(tb.errors(), "\n")
+	if !strings.Contains(errs, `Wait("nope")`) || !strings.Contains(errs, "text=hi") {
+		t.Fatalf("errors = %q, want the reason and the last screen", errs)
+	}
 }
 
 func TestWaitStrings(t *testing.T) {
@@ -240,45 +194,45 @@ func TestWaitSettleView(t *testing.T) {
 
 func TestAssertString_fail(t *testing.T) {
 	t.Parallel()
-	st := &softTB{TB: t}
+	st := &fakeTB{TB: t}
 	if assertNo := Assert(st, func() string { return "abc" }, "nope"); assertNo {
 		t.Fatal("expected false")
 	}
-	if st.nErrors != 1 {
-		t.Fatalf("error calls = %d, want 1", st.nErrors)
+	if len(st.errors()) != 1 {
+		t.Fatalf("error calls = %d, want 1", len(st.errors()))
 	}
 }
 
 func TestAssertStrings_fail(t *testing.T) {
 	t.Parallel()
-	st := &softTB{TB: t}
+	st := &fakeTB{TB: t}
 	if Assert(st, func() string { return "only a" }, []string{"a", "missing"}) {
 		t.Fatal("expected false")
 	}
-	if st.nErrors != 1 {
-		t.Fatalf("error calls = %d, want 1", st.nErrors)
+	if len(st.errors()) != 1 {
+		t.Fatalf("error calls = %d, want 1", len(st.errors()))
 	}
 }
 
 func TestAssertNotString_fail(t *testing.T) {
 	t.Parallel()
-	st := &softTB{TB: t}
+	st := &fakeTB{TB: t}
 	if AssertNot(st, func() string { return "has needle" }, "needle") {
 		t.Fatal("expected false")
 	}
-	if st.nErrors != 1 {
-		t.Fatalf("error calls = %d, want 1", st.nErrors)
+	if len(st.errors()) != 1 {
+		t.Fatalf("error calls = %d, want 1", len(st.errors()))
 	}
 }
 
 func TestAssertNotStrings_fail(t *testing.T) {
 	t.Parallel()
-	st := &softTB{TB: t}
+	st := &fakeTB{TB: t}
 	if AssertNot(st, func() string { return "x bad y" }, []string{"zzz", "bad"}) {
 		t.Fatal("expected false")
 	}
-	if st.nErrors != 1 {
-		t.Fatalf("error calls = %d, want 1", st.nErrors)
+	if len(st.errors()) != 1 {
+		t.Fatalf("error calls = %d, want 1", len(st.errors()))
 	}
 }
 
@@ -289,12 +243,12 @@ func TestAssertFor_fail(t *testing.T) {
 		reel.NotMatches(regexp.MustCompile(`\d`)),
 		reel.OnCursorLine(reel.Contains("abc")),
 	} {
-		st := &softTB{TB: t}
+		st := &fakeTB{TB: t}
 		if AssertFor(st, func() string { return "abc123" }, cond) {
 			t.Fatalf("%s held", cond)
 		}
-		if st.nErrors != 1 {
-			t.Fatalf("%s: error calls = %d, want 1", cond, st.nErrors)
+		if len(st.errors()) != 1 {
+			t.Fatalf("%s: error calls = %d, want 1", cond, len(st.errors()))
 		}
 	}
 }
@@ -312,12 +266,12 @@ func TestAssertHeightWidthDimensions(t *testing.T) {
 
 func TestAssertHeight_fail(t *testing.T) {
 	t.Parallel()
-	st := &softTB{TB: t}
+	st := &fakeTB{TB: t}
 	if AssertHeight(st, func() string { return "one\ntwo" }, 99) {
 		t.Fatal("expected false")
 	}
-	if st.nErrors != 1 {
-		t.Fatalf("error calls = %d, want 1", st.nErrors)
+	if len(st.errors()) != 1 {
+		t.Fatalf("error calls = %d, want 1", len(st.errors()))
 	}
 }
 
@@ -350,12 +304,12 @@ func TestAssertHasMessage_found_andMissing(t *testing.T) {
 	}
 	h.RequireHasMessage[appendMsg]()
 
-	st := &softTB{TB: t}
+	st := &fakeTB{TB: t}
 	if AssertHasMessage[appendMsg](st, emptyMsgCollector{}) {
 		t.Fatal("expected false")
 	}
-	if st.nErrors != 1 {
-		t.Fatalf("error calls = %d, want 1", st.nErrors)
+	if len(st.errors()) != 1 {
+		t.Fatalf("error calls = %d, want 1", len(st.errors()))
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/lrstanley/steep/internal/typeobserver"
 	"github.com/lrstanley/steep/reel"
 	"github.com/lrstanley/steep/reel/vt"
 )
@@ -66,9 +67,13 @@ func waitMessagesContainWindowSize(tb testing.TB, h *Harness, wantW, wantH int) 
 		case <-time.After(cfg.checkInterval):
 		}
 	}
+	observed := typeobserver.New()
+	for msg := range h.MessageHistory() {
+		observed.Observe(msg)
+	}
 	tb.Fatalf("timed out waiting for terminal size %#v in observed messages:\n%s",
 		tea.WindowSizeMsg{Width: wantW, Height: wantH},
-		newTypeObserver[uv.Event]().observe(slices.Collect(h.MessageHistory())...),
+		observed,
 	)
 }
 
@@ -851,5 +856,51 @@ func TestHarness_terminalScrollOnInput(t *testing.T) {
 		if got := h.ScrollbackOffset(); got != want {
 			t.Fatalf("scroll on input %v: offset = %d, want %d", enabled, got, want)
 		}
+	}
+}
+
+func TestHarness_TerminalKey_mapsNamedKeys(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		key      string
+		wantCode rune
+		wantMod  tea.KeyMod
+		wantText string
+	}{
+		{name: "single ASCII rune", key: "q", wantCode: 'q', wantMod: 0, wantText: "q"},
+		{name: "space", key: "space", wantCode: ' ', wantMod: 0, wantText: " "},
+		{name: "enter", key: "enter", wantCode: tea.KeyEnter},
+		{name: "tab", key: "tab", wantCode: tea.KeyTab},
+		{name: "escape alias esc", key: "esc", wantCode: tea.KeyEscape},
+		{name: "escape alias escape", key: "escape", wantCode: tea.KeyEscape},
+		{name: "backspace", key: "backspace", wantCode: tea.KeyBackspace},
+		{name: "delete", key: "delete", wantCode: tea.KeyDelete},
+		{name: "arrow up", key: "up", wantCode: tea.KeyUp},
+		{name: "arrow down", key: "down", wantCode: tea.KeyDown},
+		{name: "arrow left", key: "left", wantCode: tea.KeyLeft},
+		{name: "arrow right", key: "right", wantCode: tea.KeyRight},
+		{name: "home", key: "home", wantCode: tea.KeyHome},
+		{name: "end", key: "end", wantCode: tea.KeyEnd},
+		{name: "pgup", key: "pgup", wantCode: tea.KeyPgUp},
+		{name: "pageup alias", key: "pageup", wantCode: tea.KeyPgUp},
+		{name: "pgdown", key: "pgdown", wantCode: tea.KeyPgDown},
+		{name: "pagedown alias", key: "pagedown", wantCode: tea.KeyPgDown},
+		{name: "shift+tab", key: "shift+tab", wantCode: tea.KeyTab, wantMod: tea.ModShift},
+		{name: "ctrl lowercase letter", key: "ctrl+g", wantCode: 'g', wantMod: tea.ModCtrl},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			h := NewHarness(t, rootTestModel{}, WithWindowSize(80, 3))
+			h.Key(tt.key)
+			h.WaitMessageWhere(func(km tea.KeyPressMsg) bool {
+				k := km.Key()
+				if k.Code != tt.wantCode || k.Mod != tt.wantMod {
+					return false
+				}
+				return tt.wantText == "" || k.Text == tt.wantText
+			})
+		})
 	}
 }

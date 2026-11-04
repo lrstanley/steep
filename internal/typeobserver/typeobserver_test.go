@@ -2,7 +2,7 @@
 // this source code is governed by the MIT license that can be found in
 // the LICENSE file.
 
-package steep
+package typeobserver
 
 import (
 	"strings"
@@ -15,9 +15,9 @@ type (
 	typeObsB struct{ s string }
 )
 
-func TestNewTypeObserver_Empty(t *testing.T) {
+func TestNew_Empty(t *testing.T) {
 	t.Parallel()
-	o := newTypeObserver[typeObsA]()
+	o := New()
 	if len(o.sortedLastReceived()) != 0 {
 		t.Fatalf("sortedLastReceived = %d entries, want 0", len(o.sortedLastReceived()))
 	}
@@ -26,10 +26,12 @@ func TestNewTypeObserver_Empty(t *testing.T) {
 	}
 }
 
-func TestTypeObserver_Observe_CountsAndLastReceived(t *testing.T) {
+func TestObserver_Observe_CountsAndLastReceived(t *testing.T) {
 	t.Parallel()
-	o := newTypeObserver[any]()
-	o.observe("a", "b", "c")
+	o := New()
+	o.Observe("a")
+	o.Observe("b")
+	o.Observe("c")
 
 	types := o.types
 	if len(types) != 1 {
@@ -42,59 +44,61 @@ func TestTypeObserver_Observe_CountsAndLastReceived(t *testing.T) {
 	if obs.count != 3 {
 		t.Fatalf("count = %d, want 3", obs.count)
 	}
-	if obs.rtype.String() != "string" {
-		t.Fatalf("rtype = %q, want string", obs.rtype.String())
+	if obs.name != "string" {
+		t.Fatalf("rtype = %q, want string", obs.name)
 	}
 	if obs.lastReceived.IsZero() {
 		t.Fatal("lastReceived should be set")
 	}
 }
 
-func TestTypeObserver_Observe_MultipleConcreteTypes(t *testing.T) {
+func TestObserver_Observe_MultipleConcreteTypes(t *testing.T) {
 	t.Parallel()
-	o := newTypeObserver[any]()
-	o.observe(typeObsA{n: 1}, typeObsB{s: "x"}, typeObsA{n: 2})
+	o := New()
+	o.Observe(typeObsA{n: 1})
+	o.Observe(typeObsB{s: "x"})
+	o.Observe(typeObsA{n: 2})
 
 	if len(o.types) != 2 {
 		t.Fatalf("unique types = %d, want 2", len(o.types))
 	}
-	if o.types["steep.typeObsA"].count != 2 {
-		t.Fatalf("typeObsA count = %d, want 2", o.types["steep.typeObsA"].count)
+	if o.types["typeobserver.typeObsA"].count != 2 {
+		t.Fatalf("typeObsA count = %d, want 2", o.types["typeobserver.typeObsA"].count)
 	}
-	if o.types["steep.typeObsB"].count != 1 {
-		t.Fatalf("typeObsB count = %d, want 1", o.types["steep.typeObsB"].count)
+	if o.types["typeobserver.typeObsB"].count != 1 {
+		t.Fatalf("typeObsB count = %d, want 1", o.types["typeobserver.typeObsB"].count)
 	}
 }
 
-func TestTypeObserver_SortedLastReceived_NewestFirst(t *testing.T) {
+func TestObserver_SortedLastReceived_NewestFirst(t *testing.T) {
 	t.Parallel()
-	o := newTypeObserver[any]()
+	o := New()
 
-	o.observe(typeObsA{n: 1})
+	o.Observe(typeObsA{n: 1})
 	time.Sleep(5 * time.Millisecond)
-	o.observe(typeObsB{s: "x"})
+	o.Observe(typeObsB{s: "x"})
 	time.Sleep(5 * time.Millisecond)
-	o.observe(typeObsA{n: 2})
+	o.Observe(typeObsA{n: 2})
 
 	got := o.sortedLastReceived()
 	if len(got) != 2 {
 		t.Fatalf("len = %d, want 2", len(got))
 	}
-	if got[0].rtype.String() != "steep.typeObsA" {
-		t.Fatalf("newest type = %s, want steep.typeObsA (touched last)", got[0].rtype.String())
+	if got[0].name != "typeobserver.typeObsA" {
+		t.Fatalf("newest type = %s, want typeobserver.typeObsA (touched last)", got[0].name)
 	}
-	if got[1].rtype.String() != "steep.typeObsB" {
-		t.Fatalf("older type = %s, want steep.typeObsB", got[1].rtype.String())
+	if got[1].name != "typeobserver.typeObsB" {
+		t.Fatalf("older type = %s, want typeobserver.typeObsB", got[1].name)
 	}
 	if !got[0].lastReceived.After(got[1].lastReceived) {
 		t.Fatalf("want typeObsA lastReceived after typeObsB, got %v vs %v", got[0].lastReceived, got[1].lastReceived)
 	}
 }
 
-func TestTypeObserver_String_IncludesRelativeFirstAndLast(t *testing.T) {
+func TestObserver_String_IncludesRelativeFirstAndLast(t *testing.T) {
 	t.Parallel()
-	o := newTypeObserver[any]()
-	o.observe(42)
+	o := New()
+	o.Observe(42)
 
 	s := o.String()
 	if !strings.HasPrefix(s, "observed types:\n") {
@@ -110,7 +114,7 @@ func TestTypeObserver_String_IncludesRelativeFirstAndLast(t *testing.T) {
 		t.Fatalf("single observe should omit last when first == last: %q", s)
 	}
 
-	o.observe(7)
+	o.Observe(7)
 	s = o.String()
 	if !strings.Contains(s, `"int" x2 -- first:`) {
 		t.Fatalf("String() missing int line after second observe: %q", s)
@@ -120,15 +124,16 @@ func TestTypeObserver_String_IncludesRelativeFirstAndLast(t *testing.T) {
 	}
 }
 
-func TestTypeObserver_ConcurrentObserve(t *testing.T) {
+func TestObserver_ConcurrentObserve(t *testing.T) {
 	t.Parallel()
-	o := newTypeObserver[int]()
+	o := New()
 	const n = 100
 	done := make(chan struct{})
 	for i := range n {
 		go func(v int) {
 			defer func() { done <- struct{}{} }()
-			o.observe(v)
+			o.Observe(v)
+			_ = o.String()
 		}(i)
 	}
 	for range n {

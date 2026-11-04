@@ -6,11 +6,13 @@ package steep
 
 import (
 	"context"
+	"fmt"
 	"iter"
 	"os"
 	"os/signal"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -20,11 +22,6 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/lrstanley/steep/reel"
 )
-
-type runResult struct {
-	model tea.Model
-	err   error
-}
 
 var _ MessageCollector = (*Harness)(nil)
 
@@ -53,19 +50,17 @@ type Harness struct {
 	opts     []Option
 	cfg      options
 
-	resultMu sync.RWMutex
 	// endMu keeps what the program notes out of the end of the recording,
 	// between the result and where [Harness.Close] cuts it.
-	endMu  sync.Mutex
-	result *runResult
+	endMu sync.Mutex
+	// done closes when the program has finished, with runErr set.
 	done   chan struct{}
+	runErr error
 
 	// imager draws [Harness.Image] and [Harness.ImageInto].
 	imager *reel.Imager
 	// start is when the harness was created, for [Result.Duration].
-	start       time.Time
-	hooks       []Hook
-	readyHooked bool
+	start time.Time
 
 	// autoMarks is whether each of autoMarkCategories is marked.
 	autoMarks map[string]bool
@@ -88,11 +83,11 @@ func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
 
 	cfg := collectOptions(tb, opts...)
 
-	if cfg.ctx == nil || !cfg.wasContextSet {
+	if !cfg.wasContextSet {
 		ctx, cancel := signal.NotifyContext(tb.Context(), os.Interrupt)
 		tb.Cleanup(cancel)
 		opts = append(opts, WithContext(ctx))
-		cfg = collectOptions(tb, opts...)
+		cfg.ctx = ctx
 	}
 	autoMarks := cfg.autoMarked(tb)
 
@@ -117,18 +112,16 @@ func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
 		tb:        tb,
 		failures:  failures,
 		session:   session,
-		observer:  newObserver(tb, model),
+		observer:  newObserver(model),
 		done:      make(chan struct{}),
-		opts:      append([]Option(nil), opts...),
 		cfg:       cfg,
 		imager:    imager,
 		start:     time.Now(),
-		hooks:     append([]Hook(nil), cfg.hooks...),
 		autoMarks: autoMarks,
 		markCount: make(map[HookEvent]int),
 	}
 	// Clipped, so one call's appends cannot write into another's.
-	h.opts = slices.Clip(append(h.opts, withHarness(h)))
+	h.opts = slices.Clip(append(slices.Clone(opts), withHarness(h)))
 	failures.note = h.noteFailure
 	if cfg.recordMessages {
 		h.observer.onMessage = h.noteMessage
@@ -157,14 +150,8 @@ func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
 	h.observer.send = h.program.Send
 
 	go func() {
-		finalModel, ferr := h.program.Run()
-		h.noteExit(ferr)
-		h.resultMu.Lock()
-		h.result = &runResult{
-			model: finalModel,
-			err:   ferr,
-		}
-		h.resultMu.Unlock()
+		_, h.runErr = h.program.Run()
+		h.noteExit(h.runErr)
 		close(h.done)
 	}()
 
@@ -174,6 +161,16 @@ func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
 	h.waitStarted(cfg)
 
 	return h
+}
+
+// NewComponentHarness is [NewHarness] for a component model, which must have
+// a View() string method and an Update method returning either a [tea.Cmd]
+// or the updated model and a [tea.Cmd]. Init is optional.
+func NewComponentHarness[M any](tb testing.TB, model M, opts ...Option) *Harness {
+	tb.Helper()
+	m := &componentWrapper[M]{model: model}
+	m.validate(tb)
+	return NewHarness(tb, m, opts...)
 }
 
 // Close stops the program, exports the recording if the export policy says
@@ -200,43 +197,23 @@ func (h *Harness) Close() {
 	// Unblock the program's input loop before Quit.
 	h.session.Terminal().CloseReader()
 
-	quitDone := make(chan struct{})
-	go func() {
-		if h.program != nil {
-			h.program.Quit()
-		} else {
-			// Should generally be sufficient for most programs to quit.
-			h.KeyCtrlC()
-			h.KeyCtrlC()
-		}
-		<-h.done
-		close(quitDone)
-	}()
+	go h.program.Quit()
 
-	timer := time.NewTimer(cfg.timeout)
-	defer timer.Stop()
+	ctx, cancel := context.WithTimeout(cfg.ctx, cfg.timeout)
+	defer cancel()
 
 	select {
-	case <-quitDone:
-	case <-cfg.ctx.Done():
-		if h.program != nil {
-			h.program.Kill()
-		}
-	case <-timer.C:
-		if h.program != nil {
-			h.program.Kill()
-		}
+	case <-h.done:
+	case <-ctx.Done():
+		h.program.Kill()
 	}
 	// The test's context is canceled during cleanups.
-	h.waitFinished(collectOptions(h.tb, h.mergedOpts(WithContext(context.Background()))...), nil)
+	cfg.ctx = context.Background()
+	h.waitFinished(cfg, nil)
 }
 
 func (h *Harness) waitStarted(cfg options) {
 	h.tb.Helper()
-
-	if h.program == nil {
-		return
-	}
 
 	timer := time.NewTimer(cfg.timeout)
 	defer timer.Stop()
@@ -247,26 +224,12 @@ func (h *Harness) waitStarted(cfg options) {
 	select {
 	case <-h.observer.firstEvent:
 		note(outcomeReady)
-		if !h.readyHooked {
-			h.readyHooked = true
-			done := h.hook(HookReady, nil)
-			done()
-		}
+		h.hook(HookReady, nil)()
 	case <-timer.C:
 		note(outcomeTimeout)
 	case <-cfg.ctx.Done():
 		note(outcomeCanceled)
 	}
-}
-
-// NewComponentHarness is [NewHarness] for a component model, which must have
-// a View() string method and an Update method returning either a [tea.Cmd]
-// or the updated model and a [tea.Cmd]. Init is optional.
-func NewComponentHarness[M any](tb testing.TB, model M, opts ...Option) *Harness {
-	tb.Helper()
-	m := &componentWrapper[M]{tb: tb, model: model}
-	m.validate()
-	return NewHarness(tb, m, opts...)
 }
 
 // check reports err from a terminal action without stopping the test.
@@ -282,13 +245,6 @@ func (h *Harness) mergedOpts(call ...Option) []Option {
 	return append(h.opts, call...)
 }
 
-func (h *Harness) requireProgram() {
-	h.tb.Helper()
-	if h.program == nil {
-		h.tb.Fatalf("Harness is not a Bubble Tea program, but called a tea.Program-related method")
-	}
-}
-
 // SendProgram sends msg to the [tea.Program].
 //
 // Prefer driving input with [Harness.Type], [Harness.Key], [Harness.Paste],
@@ -302,7 +258,6 @@ func (h *Harness) SendProgram(msg uv.Event) *Harness {
 		}
 		return 0
 	})()
-	h.requireProgram()
 	n := &programNote{Action: "send"}
 	n.Type, n.Value = valueNote(msg)
 	h.annotate(n)
@@ -314,9 +269,53 @@ func (h *Harness) SendProgram(msg uv.Event) *Harness {
 func (h *Harness) QuitProgram() *Harness {
 	h.tb.Helper()
 	defer h.hook(HookClose, nil)()
-	h.requireProgram()
 	h.annotate(&programNote{Action: "quit"})
 	h.program.Quit()
+	return h
+}
+
+// Mutate applies fn to the model on the program's goroutine, as part of its
+// Update handling. Use it sparingly, for scenarios that are otherwise
+// impossible to set up or would pollute the model with test-only state.
+//
+// fn must take and return the model type passed to [NewHarness] or
+// [NewComponentHarness], such as func(Model) Model or func(*Model) *Model,
+// or the test fails.
+func (h *Harness) Mutate[M any](fn func(M) M, opts ...Option) *Harness {
+	h.tb.Helper()
+	defer h.hook(HookProgram, nil, responseTo[mutateMsg])()
+
+	if fn == nil {
+		h.tb.Fatalf("mutate function must not be nil")
+	}
+	h.annotate(&programNote{Action: "mutate", Type: typeName[M]()})
+
+	cfg := collectOptions(h.tb, h.mergedOpts(opts...)...)
+	done := make(chan error, 1)
+	// Not SendProgram, which would record and hook it as a test message.
+	h.program.Send(mutateMsg{done: done, apply: func(model any) (any, error) {
+		current, ok := model.(M)
+		if !ok {
+			var zero M
+			return nil, fmt.Errorf("mutate function must accept %T, current model is %T", zero, model)
+		}
+		return fn(current), nil
+	}})
+
+	timer := time.NewTimer(cfg.timeout)
+	defer timer.Stop()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			h.tb.Fatalf("mutate failed: %v", err)
+		}
+	case <-timer.C:
+		h.tb.Fatalf("timeout waiting for mutation after %s", cfg.timeout)
+	case <-cfg.ctx.Done():
+		h.tb.Fatalf("test context canceled waiting for mutation: %v", cfg.ctx.Err())
+	}
+
 	return h
 }
 
@@ -324,7 +323,6 @@ func (h *Harness) QuitProgram() *Harness {
 // model.
 func (h *Harness) FinalModel(opts ...Option) tea.Model {
 	h.tb.Helper()
-	h.requireProgram()
 	h.WaitFinished(opts...)
 	return h.observer.currentModel()
 }
@@ -345,7 +343,6 @@ func (h *Harness) FinalModelAs[M any](opts ...Option) M {
 // MessageHistory returns a copy of all messages the model received.
 func (h *Harness) MessageHistory() iter.Seq[uv.Event] {
 	h.tb.Helper()
-	h.requireProgram()
 	return h.observer.messages.History()
 }
 
@@ -355,7 +352,6 @@ func (h *Harness) MessageHistory() iter.Seq[uv.Event] {
 // newer messages, which [Harness.MessageHistory] still has.
 func (h *Harness) Messages(ctx context.Context) iter.Seq[uv.Event] {
 	h.tb.Helper()
-	h.requireProgram()
 	return h.observer.messages.SubscribeAll(ctx)
 }
 
@@ -364,6 +360,64 @@ func (h *Harness) Messages(ctx context.Context) iter.Seq[uv.Event] {
 // only 32 messages, and a loop that falls further behind misses the newer ones.
 func (h *Harness) LiveMessages(ctx context.Context) iter.Seq[uv.Event] {
 	h.tb.Helper()
-	h.requireProgram()
 	return h.observer.messages.Subscribe(ctx)
+}
+
+// failureTB records the failure messages the harness reports through it, for
+// [Result.Failures], and passes each to note, with its number counted from
+// 1, before reporting it.
+type failureTB struct {
+	testing.TB
+
+	// note is set once, before the program starts. It is called with mu
+	// held, so notes keep the order of msgs, and must not report through the
+	// failureTB.
+	note func(n int, msg string)
+
+	mu   sync.Mutex
+	msgs []string
+}
+
+func (f *failureTB) Error(args ...any) {
+	f.TB.Helper()
+	f.record(sprintln(args...))
+	f.TB.Error(args...)
+}
+
+func (f *failureTB) Errorf(format string, args ...any) {
+	f.TB.Helper()
+	f.record(fmt.Sprintf(format, args...))
+	f.TB.Errorf(format, args...)
+}
+
+func (f *failureTB) Fatal(args ...any) {
+	f.TB.Helper()
+	f.record(sprintln(args...))
+	f.TB.Fatal(args...)
+}
+
+func (f *failureTB) Fatalf(format string, args ...any) {
+	f.TB.Helper()
+	f.record(fmt.Sprintf(format, args...))
+	f.TB.Fatalf(format, args...)
+}
+
+// sprintln formats args as [testing.TB.Error] does.
+func sprintln(args ...any) string {
+	return strings.TrimSuffix(fmt.Sprintln(args...), "\n")
+}
+
+func (f *failureTB) record(msg string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.msgs = append(f.msgs, msg)
+	if f.note != nil {
+		f.note(len(f.msgs), msg)
+	}
+}
+
+func (f *failureTB) messages() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.msgs)
 }
