@@ -4,7 +4,7 @@ A static web page for inspecting `.cast` files that reel and steep write: open
 one, scrub through its events on a timeline, and see the screen, terminal
 state, colors, escape sequences, and annotations after any of them.
 
-The page holds little logic of its own. [`wasm`](wasm) is reel compiled to
+The page holds little logic of its own. [`reel/internal/inspector`](../reel/internal/inspector) is reel compiled to
 WebAssembly: it reads the cast with `reel.ReadTimeline`, replays it with
 `reel.Player` (the replay `reel.Export` uses), and draws frames with reel's
 renderer, so a frame here matches the frame an export writes; a cast's mouse
@@ -41,10 +41,11 @@ bun run test       # the frame scheduler, worker client, and timeline geometry
 The site's generated assets are not committed:
 
 - `bun run wasm` builds `public/reel.wasm`, after changing reel or
-  [`wasm`](wasm). Its tests run natively: `cd wasm && go test ./...`.
+  [its Go source](../reel/internal/inspector). Its tests run natively:
+  `go -C ../reel test ./internal/inspector`.
 - `bun run samples` records the sample casts the landing page offers into
   `public/samples`, by running `TestInspectorSamples` in steep's
-  [simple example](../../_examples/steep-simple/samples_test.go), with
+  [simple example](../_examples/steep-simple/samples_test.go), with
   sources recorded.
 
 `bun run assets` runs both.

@@ -1,4 +1,4 @@
-// Shapes of what the reel WebAssembly module returns; see ../../wasm.
+// Shapes of what the reel WebAssembly module returns; see reel/internal/inspector.
 
 export interface CastHeader {
   cols: number

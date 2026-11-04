@@ -16,7 +16,7 @@ import (
 )
 
 // TestInspectorSamples records the sample casts reel's inspector
-// (reel/inspector) offers, into the directory REEL_INSPECTOR_SAMPLES names.
+// (inspector) offers, into the directory REEL_INSPECTOR_SAMPLES names.
 // It is skipped without it. One sample is of a failing test, so its
 // failures are kept from failing this one.
 func TestInspectorSamples(t *testing.T) {

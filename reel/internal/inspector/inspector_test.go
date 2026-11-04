@@ -16,6 +16,9 @@ import (
 
 func TestInspector(t *testing.T) {
 	files, _ := filepath.Glob("../../testdata/*.cast")
+	if len(files) == 0 {
+		t.Fatal("no casts found in reel's testdata")
+	}
 	if extra := os.Getenv("REEL_CAST"); extra != "" {
 		files = append(files, extra)
 	}
@@ -57,7 +60,7 @@ func TestInspector(t *testing.T) {
 // TestInspectorSources checks that marks and annotations keep the sources a
 // steep test recorded, and marks their category.
 func TestInspectorSources(t *testing.T) {
-	data, err := os.ReadFile("../public/samples/failing-wait.cast")
+	data, err := os.ReadFile("../../../inspector/public/samples/failing-wait.cast")
 	if errors.Is(err, fs.ErrNotExist) {
 		t.Skip("no samples; bun run samples records them")
 	}
@@ -87,7 +90,7 @@ func TestInspectorSources(t *testing.T) {
 // chrome for its title, and no scrollbar, as it draws on the alternate
 // screen.
 func TestDetectDisplay(t *testing.T) {
-	data, err := os.ReadFile("../public/samples/failing-wait.cast")
+	data, err := os.ReadFile("../../../inspector/public/samples/failing-wait.cast")
 	if errors.Is(err, fs.ErrNotExist) {
 		t.Skip("no samples; bun run samples records them")
 	}
@@ -147,7 +150,7 @@ func TestTokenize(t *testing.T) {
 // TestScaleAndPrepare checks that frames grow with their scale, and that a
 // cast quick to replay gets no checkpoints to prepare.
 func TestScaleAndPrepare(t *testing.T) {
-	data, err := os.ReadFile("../public/samples/failing-wait.cast")
+	data, err := os.ReadFile("../../../inspector/public/samples/failing-wait.cast")
 	if errors.Is(err, fs.ErrNotExist) {
 		t.Skip("no samples; bun run samples records them")
 	}

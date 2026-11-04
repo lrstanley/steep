@@ -21,5 +21,3 @@ require (
 	github.com/mattn/go-runewidth v0.0.31 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 )
-
-ignore ./inspector/node_modules

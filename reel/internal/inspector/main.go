@@ -4,7 +4,7 @@
 
 //go:build js && wasm
 
-// Command wasm is reel compiled for the browser: it reads a cast, replays
+// Command inspector is reel compiled for the browser: it reads a cast, replays
 // it, and draws its frames with reel itself, for the reel inspector. It sets
 // globalThis.reel to an object of functions, each returning an object with
 // either an "error" string or its result:

@@ -33,4 +33,7 @@ require (
 	golang.org/x/text v0.43.0 // indirect
 )
 
-ignore ./docs/node_modules
+ignore (
+	./docs/node_modules
+	./inspector/node_modules
+)

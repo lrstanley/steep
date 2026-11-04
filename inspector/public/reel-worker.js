@@ -7,7 +7,7 @@
 const runtime = /** @type {WasmRuntime} */ (/** @type {unknown} */ (globalThis))
 /** @param {WorkerResponse} message @param {Transferable[]} [transfer] */
 function send(message, transfer = []) { postMessage(message, transfer) }
-// Runs reel, compiled to WebAssembly from ../wasm, off the main thread. The
+// Runs reel, compiled to WebAssembly from reel/internal/inspector, off the main thread. The
 // page posts {id, op, args} and gets back {id, result} or {id, error}; while
 // the module downloads, it also gets {progress: {loaded, total}}.
 importScripts('wasm_exec.js')

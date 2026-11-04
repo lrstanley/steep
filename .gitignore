@@ -15,3 +15,12 @@ dist
 **/_artifacts
 **/*.cache
 **/TODO.md
+
+# inspector
+/inspector/node_modules
+/inspector/.nuxt
+/inspector/.output
+/inspector/.data
+/inspector/public/reel.wasm
+/inspector/public/wasm_exec.js
+/inspector/public/samples

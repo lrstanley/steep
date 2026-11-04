@@ -49,7 +49,7 @@ tasks:
       - for: { var: MODULES, as: MODULE }
         cmd: cd {{.MODULE}} && go get -u -t ./... && go mod tidy
       - cd docs && bunx npm-check-updates -u && bun install
-      - cd reel/inspector && bunx npm-check-updates -u && bun install
+      - cd inspector && bunx npm-check-updates -u && bun install
   test:
     desc: run tests
     cmds:
@@ -101,27 +101,27 @@ tasks:
       - "{{.VT_HEADER}}"
       - GOWORK=off go run ./cmd/genabi
 
-  # the reel inspector.
+  # the inspector.
   inspector:install:
     desc: install the inspector's dependencies
-    dir: reel/inspector
+    dir: inspector
     cmds:
       - bun install
   inspector:dev:
     desc: run the inspector's dev server
-    dir: reel/inspector
+    dir: inspector
     deps: [inspector:install]
     cmds:
       - bun run dev
   inspector:build:
     desc: build the inspector
-    dir: reel/inspector
+    dir: inspector
     deps: [inspector:install]
     cmds:
       - bun run build
   inspector:test:
     desc: test the inspector
-    dir: reel/inspector
+    dir: inspector
     deps: [inspector:install]
     cmds:
       - bun run test
