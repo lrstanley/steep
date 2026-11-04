@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -141,82 +142,86 @@ func TestSessionWaitClosed(t *testing.T) {
 
 func TestSessionWaitSettle(t *testing.T) {
 	t.Parallel()
-	s := openTest(t, 10, 2)
-	const quiet = 40 * time.Millisecond
-	start := time.Now()
-	// Each change restarts the quiet time, and a repaint of the same text
-	// does not.
-	writeLater(t, s, 20*time.Millisecond, "a", "\rb", "\rc", "\rc")
-	got, err := s.WaitSettle(t.Context(), quiet)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.HasPrefix(got, "c") {
-		t.Fatalf("settled on %q, want the last change", got)
-	}
-	if elapsed := time.Since(start); elapsed < 60*time.Millisecond+quiet {
-		t.Fatalf("settled after %s, before the last change had been quiet for %s", elapsed, quiet)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		s := openTest(t, 10, 2)
+		const quiet = 40 * time.Millisecond
+		start := time.Now()
+		// Each change restarts the quiet time, and a repaint of the same text
+		// does not: the last change is at 60ms, and the repaint at 80ms.
+		writeLater(t, s, 20*time.Millisecond, "a", "\rb", "\rc", "\rc")
+		got, err := s.WaitSettle(t.Context(), quiet)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasPrefix(got, "c") {
+			t.Fatalf("settled on %q, want the last change", got)
+		}
+		if elapsed := time.Since(start); elapsed != 60*time.Millisecond+quiet {
+			t.Fatalf("settled after %s, want the last change at 60ms to be quiet for %s", elapsed, quiet)
+		}
 
-	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
-	defer cancel()
-	var werr *WaitError
-	if _, err = s.WaitSettle(ctx, time.Hour); !errors.As(err, &werr) || werr.Wait != "settle" {
-		t.Fatalf("WaitSettle = %v, want a settle WaitError", err)
-	}
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+		defer cancel()
+		var werr *WaitError
+		if _, err = s.WaitSettle(ctx, time.Hour); !errors.As(err, &werr) || werr.Wait != "settle" {
+			t.Fatalf("WaitSettle = %v, want a settle WaitError", err)
+		}
+	})
 }
 
 func TestSessionWaitIdle(t *testing.T) {
 	t.Parallel()
-	s := openTest(t, 10, 2)
+	synctest.Test(t, func(t *testing.T) {
+		s := openTest(t, 10, 2)
 
-	// No output: it gives up at the limit.
-	start := time.Now()
-	since := s.Terminal().OutputSeq()
-	if err := s.WaitIdle(t.Context(), since, time.Hour, 20*time.Millisecond); err != nil {
-		t.Fatal(err)
-	}
-	if elapsed := time.Since(start); elapsed > time.Second {
-		t.Fatalf("WaitIdle with no output took %s", elapsed)
-	}
+		// No output: it gives up at the limit.
+		start := time.Now()
+		since := s.Terminal().OutputSeq()
+		if err := s.WaitIdle(t.Context(), since, time.Hour, 20*time.Millisecond); err != nil {
+			t.Fatal(err)
+		}
+		if elapsed := time.Since(start); elapsed != 20*time.Millisecond {
+			t.Fatalf("WaitIdle with no output took %s, want the limit", elapsed)
+		}
 
-	// Output already written counts, and further output restarts the quiet
-	// time, past the limit.
-	write(t, s, "a")
-	writeLater(t, s, 15*time.Millisecond, "b", "c")
-	start = time.Now()
-	if err := s.WaitIdle(t.Context(), since, 30*time.Millisecond, 5*time.Millisecond); err != nil {
-		t.Fatal(err)
-	}
-	if elapsed := time.Since(start); elapsed < 60*time.Millisecond {
-		t.Fatalf("WaitIdle returned after %s, before the output was quiet", elapsed)
-	}
-	if text := s.Terminal().Text(); !strings.HasPrefix(text, "abc") {
-		t.Fatalf("screen = %q, want all the output", text)
-	}
+		// Output already written counts, and further output restarts the quiet
+		// time, past the limit.
+		write(t, s, "a")
+		writeLater(t, s, 15*time.Millisecond, "b", "c")
+		start = time.Now()
+		if err := s.WaitIdle(t.Context(), since, 30*time.Millisecond, 5*time.Millisecond); err != nil {
+			t.Fatal(err)
+		}
+		if elapsed := time.Since(start); elapsed != 60*time.Millisecond {
+			t.Fatalf("WaitIdle returned after %s, want the last output at 30ms to be quiet for 30ms", elapsed)
+		}
+		if text := s.Terminal().Text(); !strings.HasPrefix(text, "abc") {
+			t.Fatalf("screen = %q, want all the output", text)
+		}
 
-	// Output held by synchronized output that never ends is not shown, so
-	// the limit still applies.
-	held := s.Terminal().OutputSeq()
-	write(t, s, "\x1b[?2026hhidden")
-	start = time.Now()
-	if err := s.WaitIdle(t.Context(), held, time.Hour, 20*time.Millisecond); err != nil {
-		t.Fatal(err)
-	}
-	if elapsed := time.Since(start); elapsed > time.Second {
-		t.Fatalf("WaitIdle on held output took %s, want the limit", elapsed)
-	}
-	write(t, s, "\x1b[?2026l")
+		// Output held by synchronized output that never ends is not shown, so
+		// the limit still applies.
+		held := s.Terminal().OutputSeq()
+		write(t, s, "\x1b[?2026hhidden")
+		start = time.Now()
+		if err := s.WaitIdle(t.Context(), held, time.Hour, 20*time.Millisecond); err != nil {
+			t.Fatal(err)
+		}
+		if elapsed := time.Since(start); elapsed != 20*time.Millisecond {
+			t.Fatalf("WaitIdle on held output took %s, want the limit", elapsed)
+		}
+		write(t, s, "\x1b[?2026l")
 
-	// Synchronized output holds the screen, so it is not idle.
-	since = s.Terminal().OutputSeq()
-	write(t, s, "\x1b[?2026h")
-	writeLater(t, s, 50*time.Millisecond, "\x1b[?2026l")
-	start = time.Now()
-	if err := s.WaitIdle(t.Context(), since, 5*time.Millisecond, time.Hour); err != nil {
-		t.Fatal(err)
-	}
-	if elapsed := time.Since(start); elapsed < 50*time.Millisecond {
-		t.Fatalf("WaitIdle returned after %s, while output was held", elapsed)
-	}
+		// Synchronized output holds the screen, so it is not idle.
+		since = s.Terminal().OutputSeq()
+		write(t, s, "\x1b[?2026h")
+		writeLater(t, s, 50*time.Millisecond, "\x1b[?2026l")
+		start = time.Now()
+		if err := s.WaitIdle(t.Context(), since, 5*time.Millisecond, time.Hour); err != nil {
+			t.Fatal(err)
+		}
+		if elapsed := time.Since(start); elapsed != 55*time.Millisecond {
+			t.Fatalf("WaitIdle returned after %s, want the hold to end at 50ms and be quiet for 5ms", elapsed)
+		}
+	})
 }

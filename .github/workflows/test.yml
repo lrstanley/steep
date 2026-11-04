@@ -55,8 +55,7 @@ jobs:
       - working-directory: ${{ matrix.module }}
         env:
           GORACE: exitcode=1 halt_on_error=1
-        # reel's TestSessionWaitIdle and TestSessionWaitSettle fail under -race.
-        run: go test -v ${{ matrix.module != 'reel' && '-race -count 3 -cpu 1,4' || '' }} -timeout 10m ./...
+        run: go test -v -race -count 3 -cpu 1,4 -timeout 10m ./...
   go-lint:
     needs: [go-versions]
     runs-on: ubuntu-latest

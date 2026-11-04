@@ -85,11 +85,13 @@ func TestCastKeepsKittyImages(t *testing.T) {
 		t.Fatal(err)
 	}
 	images := func(h Header, events []Event) []vt.Placement {
+		// Closed here, not in a cleanup: writing a cut below needs a terminal
+		// from the same pool, which may have only one.
 		r, rerr := newReplay(t.Context(), replayRuntime, h, 0, 0)
 		if rerr != nil {
 			t.Fatal(rerr)
 		}
-		t.Cleanup(func() { _ = r.close() })
+		defer r.close()
 		for _, ev := range events {
 			if err = r.apply(ev); err != nil {
 				t.Fatal(err)

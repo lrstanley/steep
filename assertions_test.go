@@ -144,17 +144,26 @@ func (m *swapViewModel) Update(msg uv.Event) tea.Cmd {
 	return nil
 }
 
+// delayedPingModel pings itself repeatedly, as a live wait only sees messages
+// after it starts, which can be later than the first ping on a loaded machine.
 type delayedPingModel struct{}
 
 func (m *delayedPingModel) View() string { return "ready" }
 
-func (m *delayedPingModel) Init() tea.Cmd {
+func (m *delayedPingModel) ping() tea.Cmd {
 	return tea.Tick(15*time.Millisecond, func(time.Time) uv.Event {
 		return appendMsg("ping")
 	})
 }
 
-func (m *delayedPingModel) Update(uv.Event) tea.Cmd { return nil }
+func (m *delayedPingModel) Init() tea.Cmd { return m.ping() }
+
+func (m *delayedPingModel) Update(msg uv.Event) tea.Cmd {
+	if _, ok := msg.(appendMsg); ok {
+		return m.ping()
+	}
+	return nil
+}
 
 func TestWaitFor(t *testing.T) {
 	t.Parallel()

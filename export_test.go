@@ -262,15 +262,21 @@ func TestExportStills(t *testing.T) {
 		WithStills(StillPNG, HookInput),
 		WithStills(StillSnapshot, HookInput, HookWait),
 		WithExportAlways(),
+		// An input's mark waits this long for any output, so a loaded machine
+		// has time to deliver it. Output ends the wait early.
+		WithTimeout(10*time.Second),
+		WithSettle(5*time.Second),
 	)...)
-	h.Type("a").Type("b").Wait("text=ab")
+	// Any output counts as an input's response, so have the first paint out of
+	// the way, or a still could show the screen from before the input.
+	h.Wait("size=20x4").Type("a").Type("b").Wait("text=ab")
 	h.Close()
 
 	stem := "TestExportStills_passed_"
 	want := []string{
 		stem + "input-1.png", stem + "input-1.snap",
 		stem + "input-2.png", stem + "input-2.snap",
-		stem + "wait-1.snap",
+		stem + "wait-1.snap", stem + "wait-2.snap",
 		"rec",
 	}
 	slices.Sort(want)
@@ -727,9 +733,11 @@ func TestExportOnPanic(t *testing.T) {
 		t.Fatalf("files = %q, want %q\n%s", got, want, out)
 	}
 
-	// The recording ends on the result, with the stack of the panic.
+	// The recording holds the result, with the stack of the panic. The test's
+	// context is canceled by now, so the program may exit, and note it, on
+	// either side of the result.
 	got := notes(t, readCast(t, filepath.Join(dir, want[0])))
-	n := findNote(t, got[len(got)-1:], kindResult, map[string]any{"failed": true, "panicked": true})
+	n := findNote(t, got, kindResult, map[string]any{"failed": true, "panicked": true})
 	if stack, _ := n.fields["stack"].(string); !strings.HasPrefix(stack, "panic(") || !strings.Contains(stack, "TestExportOnPanic") {
 		t.Fatalf("stack = %q", stack)
 	}

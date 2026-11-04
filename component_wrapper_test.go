@@ -295,8 +295,10 @@ func TestComponentHarnessWaitSettledIgnoreMsgs(t *testing.T) {
 	if !strings.Contains(h.View(), "updates=2") {
 		t.Fatalf("output = %q, want updates=2", h.View())
 	}
-	if len(slices.Collect(h.FilterMessagesType[settleNoiseTick]())) < 3 {
-		t.Fatalf("expected periodic noise ticks in message log")
+	// The noise is still coming, so the settle above ignored it rather than
+	// finding it quiet. How many ticks came before now depends on the machine.
+	for range 3 {
+		h.WaitLiveMessageWhere(func(settleNoiseTick) bool { return true }, WithTimeout(10*time.Second))
 	}
 }
 
@@ -342,9 +344,14 @@ func TestComponentHarnessWaitSettledView(t *testing.T) {
 	if !strings.Contains(h.View(), "stable") {
 		t.Fatalf("view = %q, want stable", h.View())
 	}
-	tickMsgs := slices.Collect(h.FilterMessagesType[viewSettleTick]())
-	if len(tickMsgs) < 2 {
-		t.Fatalf("viewSettleTick messages = %d, want at least 2 (ticks while view stayed stable)", len(tickMsgs))
+	// The ticks keep coming while the view stays stable, though how many came
+	// before now depends on the machine.
+	deadline := time.Now().Add(10 * time.Second)
+	for len(slices.Collect(h.FilterMessagesType[viewSettleTick]())) < 2 {
+		if time.Now().After(deadline) {
+			t.Fatal("want at least 2 viewSettleTick messages while the view stayed stable")
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 

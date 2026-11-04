@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/lrstanley/steep/reel"
@@ -631,49 +632,53 @@ func TestRedactStills(t *testing.T) {
 	}
 	check("export", dir)
 
-	for _, recording := range []bool{true, false} {
-		name := fmt.Sprintf("record (recording %v)", recording)
-		record := func(dir string, between ...string) error {
-			s, err := reel.Open(t.Context(), 10, 1)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer s.Close()
-			rec, err := reel.Record(t.Context(), s, profile(dir, recording, between...))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err = s.Write([]byte("pw hunter2")); err != nil {
-				t.Fatal(err)
-			}
-			// end comes after the last still.
-			for _, label := range append(labels, "end") {
-				if label == "secret" {
-					time.Sleep(5 * ms)
-				} else {
-					time.Sleep(100 * ms)
-				}
-				if err = s.Mark(label); err != nil {
+	// The marks need exact spacing: the fake clock keeps a loaded machine from
+	// stretching the 5ms before secret past the step.
+	synctest.Test(t, func(t *testing.T) {
+		for _, recording := range []bool{true, false} {
+			name := fmt.Sprintf("record (recording %v)", recording)
+			record := func(dir string, between ...string) error {
+				s, err := reel.Open(t.Context(), 10, 1)
+				if err != nil {
 					t.Fatal(err)
 				}
+				defer s.Close()
+				rec, err := reel.Record(t.Context(), s, profile(dir, recording, between...))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err = s.Write([]byte("pw hunter2")); err != nil {
+					t.Fatal(err)
+				}
+				// end comes after the last still.
+				for _, label := range append(labels, "end") {
+					if label == "secret" {
+						time.Sleep(5 * ms)
+					} else {
+						time.Sleep(100 * ms)
+					}
+					if err = s.Mark(label); err != nil {
+						t.Fatal(err)
+					}
+				}
+				return rec.Stop()
 			}
-			return rec.Stop()
+			dir = t.TempDir()
+			if err := record(dir, "secret", "done"); err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+			check(name, dir)
+			// A mark after the last still is found, and one that never comes
+			// is reported once.
+			if err := record(t.TempDir(), "secret", "end"); err != nil {
+				t.Errorf("%s: Stop = %v", name, err)
+			}
+			err := record(t.TempDir(), "nope", "")
+			if !errors.Is(err, reel.ErrNoMark) || strings.Count(err.Error(), "nope") != 2 {
+				t.Errorf("%s: Stop = %v, want one error wrapping reel.ErrNoMark", name, err)
+			}
 		}
-		dir = t.TempDir()
-		if err := record(dir, "secret", "done"); err != nil {
-			t.Fatalf("%s: %v", name, err)
-		}
-		check(name, dir)
-		// A mark after the last still is found, and one that never comes
-		// is reported once.
-		if err := record(t.TempDir(), "secret", "end"); err != nil {
-			t.Errorf("%s: Stop = %v", name, err)
-		}
-		err := record(t.TempDir(), "nope", "")
-		if !errors.Is(err, reel.ErrNoMark) || strings.Count(err.Error(), "nope") != 2 {
-			t.Errorf("%s: Stop = %v, want one error wrapping reel.ErrNoMark", name, err)
-		}
-	}
+	})
 }
 
 // cardOf is an effect that does not redact, whose stage is its func.

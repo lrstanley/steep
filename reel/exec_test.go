@@ -9,7 +9,6 @@ package reel
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,7 +71,14 @@ func TestExecRecordsFrames(t *testing.T) {
 	t.Parallel()
 	s := openTest(t, 20, 2)
 	const pause = 200 * ms
-	p := execTest(t.Context(), t, s, bash(t, fmt.Sprintf("printf one; sleep %g; printf ' two'", pause.Seconds())))
+	// The script waits for input rather than sleeping, so its second write
+	// comes only after the first has been read, however late that is.
+	p := execTest(t.Context(), t, s, bash(t, `stty -echo; printf one; read -r; printf ' two'`))
+	waitText(t, s, "one")
+	time.Sleep(pause)
+	if err := s.Type("\r"); err != nil {
+		t.Fatal(err)
+	}
 	wait(t, p, 0)
 
 	tl := s.Timeline()
@@ -88,9 +94,8 @@ func TestExecRecordsFrames(t *testing.T) {
 	if !slices.Equal(texts, []string{"one", "one two"}) {
 		t.Fatalf("frames = %q, want one, one two", texts)
 	}
-	// Output is stamped when it is read, a little after it is written, so
-	// the gap is the pause give or take how late each read woke up, which on
-	// a loaded machine can be tens of milliseconds. Half the pause still
+	// The second write is at least the pause after the first was read. Half
+	// the pause allows for frames landing on the export's steps, and still
 	// shows it was recorded rather than collapsed.
 	if gap := frames[1].At - frames[0].At; gap < pause/2 {
 		t.Fatalf("second frame %v after the first, want about %v", gap, pause)
