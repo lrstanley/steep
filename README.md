@@ -149,7 +149,8 @@ complete example.
   [`reel` CLI](cmd/reel). steep records through it.
 - [bubbletint](https://github.com/lrstanley/bubbletint): hundreds of terminal color themes for Bubble Tea and Lip
   Gloss.
-- [bloomfx](https://bloomfx.dev): TODO
+- [bloom](https://bloomfx.dev): a layout, compositing, and animation engine for Bubble Tea programs. Its end-to-end
+  tests and example recordings run on steep.
 
 <!-- template:begin:goget -->
 <!-- do not edit anything in this "template" block, its auto-generated -->
