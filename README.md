@@ -144,6 +144,13 @@ STEEP_EXPORT_MODE=on STEEP_EXPORT='{name}.gif?max-bytes=5MB,{name}.cast' go test
 See [`_examples/steep-showcase`](_examples/steep-showcase/main_test.go) for a
 complete example.
 
+<!-- template:begin:goget -->
+<!-- do not edit anything in this "template" block, its auto-generated -->
+```console
+go get -u github.com/lrstanley/steep@latest
+```
+<!-- template:end:goget -->
+
 ### Related libraries
 
 - [reel](reel): records terminals and renders recordings, from Go or with the
@@ -152,13 +159,6 @@ complete example.
   Gloss.
 - [bloom](https://bloomfx.dev): a layout, compositing, and animation engine for Bubble Tea programs. Its end-to-end
   tests and example recordings run on steep.
-
-<!-- template:begin:goget -->
-<!-- do not edit anything in this "template" block, its auto-generated -->
-```console
-go get -u github.com/lrstanley/steep@latest
-```
-<!-- template:end:goget -->
 
 ## :hammer_and_wrench: Development
 
