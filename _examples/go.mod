@@ -1,6 +1,6 @@
 module github.com/lrstanley/steep/_examples
 
-go 1.27.2
+go 1.27.3
 
 // Examples build against the copies of steep and reel in this repository.
 replace (

@@ -1,6 +1,6 @@
 module github.com/lrstanley/steep/reel
 
-go 1.27.2
+go 1.27.3
 
 require (
 	github.com/charmbracelet/x/ansi v0.11.9
