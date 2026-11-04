@@ -8,7 +8,7 @@ import (
 	"image"
 	"slices"
 
-	"github.com/lrstanley/x/term/steep/snapshot"
+	"github.com/lrstanley/steep/snapshot"
 )
 
 // snapshotOpts prepends the STEEP_SNAPSHOT_DIR default to opts, so a

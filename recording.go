@@ -19,7 +19,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/lrstanley/x/term/reel"
+	"github.com/lrstanley/steep/reel"
 )
 
 // exportPolicy is when a harness exports its recording.

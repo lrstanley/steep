@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/internal/pty"
+	"github.com/lrstanley/steep/reel/internal/pty"
 )
 
 // exitQuiet is how long an exited process's output may go quiet before

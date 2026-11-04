@@ -9,7 +9,7 @@ import (
 	"image/color"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // frameSnap is everything outside the cell grid that can change pixels

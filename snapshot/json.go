@@ -7,7 +7,7 @@ package snapshot
 import (
 	"testing"
 
-	"github.com/lrstanley/x/term/reel"
+	"github.com/lrstanley/steep/reel"
 )
 
 // WriteJSON writes the JSON representation of the provided string to a file,

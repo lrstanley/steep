@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/lrstanley/x/master/term/reel/annotation.schema.json",
+  "$id": "https://raw.githubusercontent.com/lrstanley/steep/master/reel/annotation.schema.json",
   "title": "reel asciicast annotation",
   "description": "The data of a reel annotation: an asciicast event with code \"R\", whose data is a JSON string holding this object. Other asciicast readers ignore the event. The object names its kind, and holds the fields of that kind. Kinds this schema does not list may hold any fields, so a reader keeps annotations written by newer tools. For the kinds it lists, it checks the fields it knows, and allows others, along with values it does not list (its \"examples\"), which newer tools may write.",
   "type": "object",

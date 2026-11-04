@@ -7,7 +7,7 @@ package fontset
 import (
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/render/internal/config"
+	"github.com/lrstanley/steep/reel/render/internal/config"
 )
 
 func TestFaceForClusterMarks(t *testing.T) {

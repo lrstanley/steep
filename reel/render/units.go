@@ -5,7 +5,7 @@
 package render
 
 import (
-	"github.com/lrstanley/x/term/reel/render/units"
+	"github.com/lrstanley/steep/reel/render/units"
 )
 
 type (

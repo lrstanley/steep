@@ -18,9 +18,9 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/vt"
-	"github.com/lrstanley/x/term/steep/snapshot"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/vt"
+	"github.com/lrstanley/steep/snapshot"
 )
 
 // recorded is a steep annotation, decoded.

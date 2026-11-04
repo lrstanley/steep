@@ -8,8 +8,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/lrstanley/x/term/reel/render/fonts"
-	"github.com/lrstanley/x/term/reel/render/internal/config"
+	"github.com/lrstanley/steep/reel/render/fonts"
+	"github.com/lrstanley/steep/reel/render/internal/config"
 	xfont "golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 )

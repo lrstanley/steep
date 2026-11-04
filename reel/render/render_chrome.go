@@ -14,14 +14,14 @@ import (
 	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/x/term/reel/internal/plaintext"
-	icol "github.com/lrstanley/x/term/reel/render/internal/color"
-	idraw "github.com/lrstanley/x/term/reel/render/internal/draw"
-	"github.com/lrstanley/x/term/reel/render/internal/fontset"
-	imetrics "github.com/lrstanley/x/term/reel/render/internal/metrics"
-	"github.com/lrstanley/x/term/reel/render/internal/raster"
-	"github.com/lrstanley/x/term/reel/render/types"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/internal/plaintext"
+	icol "github.com/lrstanley/steep/reel/render/internal/color"
+	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
+	"github.com/lrstanley/steep/reel/render/internal/fontset"
+	imetrics "github.com/lrstanley/steep/reel/render/internal/metrics"
+	"github.com/lrstanley/steep/reel/render/internal/raster"
+	"github.com/lrstanley/steep/reel/render/types"
+	"github.com/lrstanley/steep/reel/vt"
 	xfont "golang.org/x/image/font"
 )
 

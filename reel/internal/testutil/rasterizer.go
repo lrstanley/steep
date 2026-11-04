@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/render"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/render"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // Rasterizer is a reel.Rasterizer that draws each cell as one flat color,

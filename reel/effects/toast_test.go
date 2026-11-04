@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/internal/testutil"
-	"github.com/lrstanley/x/term/reel/render"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/internal/testutil"
+	"github.com/lrstanley/steep/reel/render"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // osc9 and osc777 are output that sends a desktop notification.

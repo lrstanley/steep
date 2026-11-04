@@ -9,8 +9,8 @@ import (
 	"image/draw"
 	"math"
 
-	"github.com/lrstanley/x/term/reel/render/internal/config"
-	idraw "github.com/lrstanley/x/term/reel/render/internal/draw"
+	"github.com/lrstanley/steep/reel/render/internal/config"
+	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
 )
 
 // ApplyFocusDimming darkens the terminal window when unfocused.

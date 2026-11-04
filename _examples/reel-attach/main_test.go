@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
+	"github.com/lrstanley/steep/reel"
 )
 
 func TestRun(t *testing.T) {

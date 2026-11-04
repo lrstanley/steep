@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/effects"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/effects"
 )
 
 // frameLog is an effect that keeps every frame it is given, and passes it

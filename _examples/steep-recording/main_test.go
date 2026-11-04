@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/render"
-	"github.com/lrstanley/x/term/steep"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/render"
+	"github.com/lrstanley/steep"
 )
 
 // The recording is only written when exporting is turned on, as with:
 //
-//	STEEP_EXPORT_MODE=on go test -v -count 1 ./reel-simple/
+//	STEEP_EXPORT_MODE=on go test -v -count 1 ./steep-recording/
 //
 // which writes testdata/TestGenerate.gif, played once, and
 // testdata/TestGenerate.mp4 (the MP4 needs ffmpeg). Each output's query

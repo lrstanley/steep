@@ -19,8 +19,8 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	syntax "github.com/lrstanley/x/term/tape"
+	"github.com/lrstanley/steep/reel"
+	syntax "github.com/lrstanley/steep/cmd/reel/internal/tape"
 )
 
 // describe is a step as the tests compare it.
@@ -480,14 +480,11 @@ Set FontSize 40
 	}
 }
 
-// TestParseVHSExamples compiles VHS's example tapes, which term/tape's
+// TestParseVHSExamples compiles VHS's example tapes, which internal/tape's
 // testdata holds with VHS's license: each compiles, but for those that use
 // what reel rejects, or that VHS rejects too.
 func TestParseVHSExamples(t *testing.T) {
-	dir := filepath.Join("..", "..", "tape", "testdata", "vhs")
-	if _, err := os.Stat(dir); err != nil {
-		t.Skip("term/tape's testdata is not beside this module:", err)
-	}
+	dir := filepath.Join("..", "tape", "testdata", "vhs")
 	rejected := map[string]string{
 		"cli-ui/text-prompt.tape":        "a .snap or .json output holds",
 		"errors/parser.tape":             `unknown setting "Foo"`,

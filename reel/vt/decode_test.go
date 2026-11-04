@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/x/term/reel/vt/internal/wasmvt"
+	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
 )
 
 // paste is a decoded paste, as [decodeAll] returns it.

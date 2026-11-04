@@ -2,7 +2,7 @@
 // this source code is governed by the MIT license that can be found in
 // the LICENSE file.
 
-// Package showcase holds a recording of steep's reel-showcase example for
+// Package showcase holds a recording of steep's steep-showcase example for
 // the examples that export it with effects.
 //
 // showcase.cast.gz is the end of the showcase's recording, from the mark of
@@ -20,7 +20,7 @@ import (
 	"compress/gzip"
 	_ "embed"
 
-	"github.com/lrstanley/x/term/reel"
+	"github.com/lrstanley/steep/reel"
 )
 
 //go:embed showcase.cast.gz

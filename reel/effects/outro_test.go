@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
+	"github.com/lrstanley/steep/reel"
 )
 
 // TestOutro checks that an outro is a card after the last frame, the size of

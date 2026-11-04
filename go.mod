@@ -1,8 +1,6 @@
-module github.com/lrstanley/x/term/steep
+module github.com/lrstanley/steep
 
 go 1.27.2
-
-replace github.com/lrstanley/x/term/reel => ../reel
 
 require (
 	charm.land/bubbletea/v2 v2.1.0
@@ -10,7 +8,7 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/ultraviolet v0.0.0-20261008173134-6b8d4baf91b4
 	github.com/charmbracelet/x/ansi v0.11.9
-	github.com/lrstanley/x/term/reel v0.0.0
+	github.com/lrstanley/steep/reel v0.0.0
 	github.com/rivo/uniseg v0.4.7
 )
 
@@ -34,3 +32,5 @@ require (
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 )
+
+ignore ./docs/node_modules

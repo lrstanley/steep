@@ -16,7 +16,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/lrstanley/x/term/reel/sink"
+	"github.com/lrstanley/steep/reel/sink"
 )
 
 // Formats of the outputs reel writes itself rather than through

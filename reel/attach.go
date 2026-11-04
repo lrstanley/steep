@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/internal/asciicast"
-	"github.com/lrstanley/x/term/reel/internal/scriptlog"
+	"github.com/lrstanley/steep/reel/internal/asciicast"
+	"github.com/lrstanley/steep/reel/internal/scriptlog"
 )
 
 // attachChunk is the most [Attach] reads per write to the session.

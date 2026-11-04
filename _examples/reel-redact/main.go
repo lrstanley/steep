@@ -21,9 +21,9 @@ import (
 	"time"
 
 	"github.com/lrstanley/clix/v2"
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/effects"
-	"github.com/lrstanley/x/term/reel/render"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/effects"
+	"github.com/lrstanley/steep/reel/render"
 )
 
 // tokenEnv is the environment variable that holds the token.

@@ -16,9 +16,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/render"
-	"github.com/lrstanley/x/term/reel/sink"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/render"
+	"github.com/lrstanley/steep/reel/sink"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // Export replays tl into a fresh terminal and writes the outputs of p. Each

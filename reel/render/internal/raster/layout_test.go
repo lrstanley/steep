@@ -7,7 +7,7 @@ package raster_test
 import (
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/render/internal/raster"
+	"github.com/lrstanley/steep/reel/render/internal/raster"
 )
 
 func TestIsSpanIcon(t *testing.T) {

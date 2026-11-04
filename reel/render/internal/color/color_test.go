@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	icol "github.com/lrstanley/x/term/reel/render/internal/color"
-	"github.com/lrstanley/x/term/reel/render/types"
-	"github.com/lrstanley/x/term/reel/vt"
+	icol "github.com/lrstanley/steep/reel/render/internal/color"
+	"github.com/lrstanley/steep/reel/render/types"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 type testColorSource struct {

@@ -16,8 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/internal/pty"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/internal/pty"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // ErrClosed is returned by [Session] methods called after [Session.Close].

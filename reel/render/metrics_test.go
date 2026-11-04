@@ -9,10 +9,10 @@ import (
 	"math"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/render/fonts"
-	imetrics "github.com/lrstanley/x/term/reel/render/internal/metrics"
-	"github.com/lrstanley/x/term/reel/render/internal/testutil"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/render/fonts"
+	imetrics "github.com/lrstanley/steep/reel/render/internal/metrics"
+	"github.com/lrstanley/steep/reel/render/internal/testutil"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 func TestWithScale(t *testing.T) {

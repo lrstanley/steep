@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // TestDrawStatePalette checks that the indexed colors in [vt.State.Palette]

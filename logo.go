@@ -11,9 +11,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/effects"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/effects"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // logoBitmap is a teacup beside "STEEP" in a 5x7 pixel font. "#" is lit.

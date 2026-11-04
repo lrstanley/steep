@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/vt/internal/wasmvt"
+	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
 )
 
 // Runtime is a pool of emulator instances owned by the caller. Live

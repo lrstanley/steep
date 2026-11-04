@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/cmd/reel/internal/look"
-	"github.com/lrstanley/x/term/reel/cmd/reel/internal/spec"
-	"github.com/lrstanley/x/term/reel/effects"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/cmd/reel/internal/look"
+	"github.com/lrstanley/steep/cmd/reel/internal/spec"
+	"github.com/lrstanley/steep/reel/effects"
 )
 
 // OutputFlags are the files a command writes.

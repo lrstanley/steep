@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/sink/internal/palette"
-	"github.com/lrstanley/x/term/reel/sink/internal/testutil"
+	"github.com/lrstanley/steep/reel/sink/internal/palette"
+	"github.com/lrstanley/steep/reel/sink/internal/testutil"
 )
 
 // matchDist is the squared RGB distance within which the adaptive palette

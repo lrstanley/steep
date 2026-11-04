@@ -9,9 +9,9 @@ import (
 	"image/color"
 	"time"
 
-	idraw "github.com/lrstanley/x/term/reel/render/internal/draw"
-	"github.com/lrstanley/x/term/reel/render/internal/effects"
-	"github.com/lrstanley/x/term/reel/vt"
+	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
+	"github.com/lrstanley/steep/reel/render/internal/effects"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // minScrollbarWidthPx is the narrowest scrollbar that scales with the cell

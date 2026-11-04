@@ -14,7 +14,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
+	"github.com/lrstanley/steep/reel"
 )
 
 // highlightDim is the default of [DimOthers].

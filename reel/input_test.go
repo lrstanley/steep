@@ -11,7 +11,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // keyboardModes are what a program can ask for that changes how keys are

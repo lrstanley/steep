@@ -8,7 +8,7 @@ import (
 	"image"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // clusterRow draws one cell per cluster and returns the ink signature and ink

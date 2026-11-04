@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/x/term/tape"
+	"github.com/lrstanley/steep/cmd/reel/internal/tape"
 )
 
 func ExampleParse() {

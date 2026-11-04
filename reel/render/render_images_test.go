@@ -11,7 +11,7 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // kittyScreen writes s to a fresh cols by rows terminal and returns its

@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // sliceColor is a color.Color whose dynamic type is not comparable, so

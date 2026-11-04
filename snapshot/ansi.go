@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/aymanbagabas/go-udiff"
-	"github.com/lrstanley/x/term/steep/internal/xansi"
+	"github.com/lrstanley/steep/internal/xansi"
 )
 
 // writeBytes handles the i/o and writing of a []byte to a file.

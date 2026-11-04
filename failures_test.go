@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/effects"
+	"github.com/lrstanley/steep/reel/effects"
 )
 
 func TestFailureTBRecords(t *testing.T) {

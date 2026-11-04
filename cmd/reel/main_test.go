@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
-	"github.com/lrstanley/x/term/reel"
+	"github.com/lrstanley/steep/reel"
 )
 
 // parse parses args as reel's command line, with clix's global flags.

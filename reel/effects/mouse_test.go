@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // Button codes of SGR mouse reports: a press of left or right, motion

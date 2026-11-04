@@ -7,7 +7,7 @@ package main
 import (
 	"testing"
 
-	"github.com/lrstanley/x/term/reel"
+	"github.com/lrstanley/steep/reel"
 )
 
 func TestOutputBoundaries(t *testing.T) {

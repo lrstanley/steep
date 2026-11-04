@@ -19,10 +19,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/cmd/reel/internal/look"
-	"github.com/lrstanley/x/term/reel/effects"
-	"github.com/lrstanley/x/term/reel/sink"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/cmd/reel/internal/look"
+	"github.com/lrstanley/steep/reel/effects"
+	"github.com/lrstanley/steep/reel/sink"
 )
 
 // readCast reads the asciicast file at path, or standard input for "-".

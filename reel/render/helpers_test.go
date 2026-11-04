@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
-	idraw "github.com/lrstanley/x/term/reel/render/internal/draw"
-	"github.com/lrstanley/x/term/reel/render/internal/fontset"
-	"github.com/lrstanley/x/term/reel/vt"
+	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
+	"github.com/lrstanley/steep/reel/render/internal/fontset"
+	"github.com/lrstanley/steep/reel/vt"
 	"golang.org/x/image/font"
 )
 

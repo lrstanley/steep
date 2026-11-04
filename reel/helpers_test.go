@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/internal/testutil"
-	"github.com/lrstanley/x/term/reel/sink"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/internal/testutil"
+	"github.com/lrstanley/steep/reel/sink"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 const ms = time.Millisecond

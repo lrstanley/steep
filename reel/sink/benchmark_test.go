@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/sink/internal/gifopt"
-	"github.com/lrstanley/x/term/reel/sink/internal/palette"
-	"github.com/lrstanley/x/term/reel/sink/internal/testutil"
+	"github.com/lrstanley/steep/reel/sink/internal/gifopt"
+	"github.com/lrstanley/steep/reel/sink/internal/palette"
+	"github.com/lrstanley/steep/reel/sink/internal/testutil"
 )
 
 const (

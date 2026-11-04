@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel"
+	"github.com/lrstanley/steep/reel"
 )
 
 // token is a made-up token, with a prefix of three characters, "ghp", that

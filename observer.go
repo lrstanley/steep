@@ -10,7 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/lrstanley/x/term/steep/internal/broker"
+	"github.com/lrstanley/steep/internal/broker"
 )
 
 type observer struct {

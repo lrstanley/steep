@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lrstanley/x/term/reel/sink/internal/ffmpeg"
+	"github.com/lrstanley/steep/reel/sink/internal/ffmpeg"
 )
 
 // ErrFFmpegNotFound is wrapped by the error [CreateVideo], [NewVideo], and

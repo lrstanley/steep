@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // testView returns a view of the recording cast, drawn into out as on a

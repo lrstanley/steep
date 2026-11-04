@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/sink"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/sink"
 )
 
 func outputPaths(files []reel.File) []string {

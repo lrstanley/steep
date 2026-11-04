@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 func TestProgressBounds(t *testing.T) {

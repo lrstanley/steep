@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // Replays use their own terminal pools so they never wait on running

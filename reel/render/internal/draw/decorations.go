@@ -9,10 +9,10 @@ import (
 	"image/color"
 	"image/draw"
 
-	icol "github.com/lrstanley/x/term/reel/render/internal/color"
-	"github.com/lrstanley/x/term/reel/render/internal/config"
-	"github.com/lrstanley/x/term/reel/render/units"
-	"github.com/lrstanley/x/term/reel/vt"
+	icol "github.com/lrstanley/steep/reel/render/internal/color"
+	"github.com/lrstanley/steep/reel/render/internal/config"
+	"github.com/lrstanley/steep/reel/render/units"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // Decorations renders underline, strikethrough, and related lines for a cell.

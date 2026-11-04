@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/render/internal/alpha"
+	"github.com/lrstanley/steep/reel/render/internal/alpha"
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )

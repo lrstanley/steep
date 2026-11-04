@@ -11,7 +11,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/render"
+	"github.com/lrstanley/steep/reel/render"
 )
 
 // Player steps through a timeline's events in a terminal, replaying them as

@@ -12,8 +12,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/render"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/render"
 )
 
 // zoomFrames exports tl through effects at fps, drawn by rast, or the

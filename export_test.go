@@ -23,10 +23,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/effects"
-	"github.com/lrstanley/x/term/reel/render"
-	"github.com/lrstanley/x/term/reel/sink"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/effects"
+	"github.com/lrstanley/steep/reel/render"
+	"github.com/lrstanley/steep/reel/sink"
 )
 
 // withRender draws [Harness.Image] with opts.

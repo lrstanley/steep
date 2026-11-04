@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/vt/internal/wasmvt"
+	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
 )
 
 // DefaultScrollback is how many lines of history a terminal keeps unless

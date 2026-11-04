@@ -7,8 +7,8 @@ package draw //nolint:revive // name mirrors image/draw responsibilities
 import (
 	"time"
 
-	"github.com/lrstanley/x/term/reel/render/internal/config"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/render/internal/config"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // TextVisible reports whether a cell's foreground should be drawn for the current

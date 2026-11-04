@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lrstanley/x/term/reel/sink"
+	"github.com/lrstanley/steep/reel/sink"
 )
 
 // fileParam is a query parameter of [ParseFile].

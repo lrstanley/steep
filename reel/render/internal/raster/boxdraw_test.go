@@ -8,7 +8,7 @@ import (
 	"image"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/render/internal/raster"
+	"github.com/lrstanley/steep/reel/render/internal/raster"
 )
 
 func TestExtendBoxInkToEdgesVertical(t *testing.T) {

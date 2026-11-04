@@ -13,7 +13,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/lrstanley/x/term/reel/sink/internal/palette"
+	"github.com/lrstanley/steep/reel/sink/internal/palette"
 )
 
 // PNG writes img to path. By default it is an indexed paletted PNG; pass

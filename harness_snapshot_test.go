@@ -15,9 +15,9 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/x/term/reel/render"
-	"github.com/lrstanley/x/term/reel/vt"
-	"github.com/lrstanley/x/term/steep/snapshot"
+	"github.com/lrstanley/steep/reel/render"
+	"github.com/lrstanley/steep/reel/vt"
+	"github.com/lrstanley/steep/snapshot"
 )
 
 func TestHarnessAssertViewSnapshot(t *testing.T) {

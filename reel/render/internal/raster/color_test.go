@@ -10,7 +10,7 @@ import (
 	"image/draw"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/render/internal/testutil"
+	"github.com/lrstanley/steep/reel/render/internal/testutil"
 )
 
 func colorLayout(area image.Rectangle, opacity uint8) *Layout {

@@ -9,9 +9,9 @@ package metrics //nolint:revive // cell geometry derivation, distinct from runti
 import (
 	"math"
 
-	"github.com/lrstanley/x/term/reel/render/internal/config"
-	"github.com/lrstanley/x/term/reel/render/types"
-	"github.com/lrstanley/x/term/reel/render/units"
+	"github.com/lrstanley/steep/reel/render/internal/config"
+	"github.com/lrstanley/steep/reel/render/types"
+	"github.com/lrstanley/steep/reel/render/units"
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )

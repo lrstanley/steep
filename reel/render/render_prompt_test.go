@@ -10,8 +10,8 @@ import (
 	"image/color"
 	"testing"
 
-	icol "github.com/lrstanley/x/term/reel/render/internal/color"
-	"github.com/lrstanley/x/term/reel/vt"
+	icol "github.com/lrstanley/steep/reel/render/internal/color"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 var (

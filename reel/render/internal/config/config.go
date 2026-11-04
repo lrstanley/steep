@@ -14,9 +14,9 @@ import (
 	"math"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/render/fonts"
-	"github.com/lrstanley/x/term/reel/render/types"
-	"github.com/lrstanley/x/term/reel/render/units"
+	"github.com/lrstanley/steep/reel/render/fonts"
+	"github.com/lrstanley/steep/reel/render/types"
+	"github.com/lrstanley/steep/reel/render/units"
 )
 
 const (

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/lrstanley/x/term/reel"
+	"github.com/lrstanley/steep/reel"
 )
 
 const (

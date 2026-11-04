@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	tint "github.com/lrstanley/bubbletint/v2"
-	"github.com/lrstanley/x/term/reel/render"
+	"github.com/lrstanley/steep/reel/render"
 )
 
 // Resolve returns the palette of a theme: a tint's ID or display name, in

@@ -20,9 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/internal/testutil"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/internal/testutil"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // badgeTimeline is a 40x10 terminal that changes twice and holds still to

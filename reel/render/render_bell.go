@@ -10,9 +10,9 @@ import (
 	"math"
 	"time"
 
-	icol "github.com/lrstanley/x/term/reel/render/internal/color"
-	idraw "github.com/lrstanley/x/term/reel/render/internal/draw"
-	"github.com/lrstanley/x/term/reel/vt"
+	icol "github.com/lrstanley/steep/reel/render/internal/color"
+	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // After a BEL, the window flashes bellFlashTint of the way toward the

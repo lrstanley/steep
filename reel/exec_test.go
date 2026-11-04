@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/internal/pty"
+	"github.com/lrstanley/steep/reel/internal/pty"
 )
 
 // bash returns a command running script with bash, skipping the test when

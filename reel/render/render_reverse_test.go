@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // TestDrawReverseColors checks that reverse video ([vt.State.ReverseColors])

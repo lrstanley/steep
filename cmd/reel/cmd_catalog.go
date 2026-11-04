@@ -14,8 +14,8 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	tint "github.com/lrstanley/bubbletint/v2"
-	"github.com/lrstanley/x/term/reel/cmd/reel/internal/themes"
-	"github.com/lrstanley/x/term/reel/render/fonts"
+	"github.com/lrstanley/steep/cmd/reel/internal/themes"
+	"github.com/lrstanley/steep/reel/render/fonts"
 )
 
 // FontsCmd lists font families.

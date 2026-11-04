@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "wasm": "cd wasm && GOOS=js GOARCH=wasm go build -trimpath -ldflags='-s -w' -o ../public/reel.wasm . && cp \"$(go env GOROOT)/lib/wasm/wasm_exec.js\" ../public/wasm_exec.js",
-    "samples": "rm -rf public/samples && mkdir -p public/samples && REEL_INSPECTOR_SAMPLES=\"$PWD/public/samples\" go -C ../../steep/_examples test -count=1 -run '^TestInspectorSamples$' ./simple/",
+    "samples": "rm -rf public/samples && mkdir -p public/samples && REEL_INSPECTOR_SAMPLES=\"$PWD/public/samples\" go -C ../../_examples test -count=1 -run '^TestInspectorSamples$' ./steep-simple/",
     "assets": "bun run wasm && bun run samples",
     "dev": "bun run assets && nuxt dev",
     "build": "bun run assets && nuxt generate",

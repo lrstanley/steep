@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lrstanley/x/term/reel/internal/kittycmd"
+	"github.com/lrstanley/steep/reel/internal/kittycmd"
 )
 
 // WithKittyFiles lets the program send Kitty graphics as a file, a temporary

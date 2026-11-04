@@ -11,7 +11,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/sink/internal/testutil"
+	"github.com/lrstanley/steep/reel/sink/internal/testutil"
 )
 
 type blendPair struct{ fg, bg color.NRGBA }

@@ -9,7 +9,7 @@ import (
 	"image"
 	"image/color"
 
-	"github.com/lrstanley/x/term/reel/render/units"
+	"github.com/lrstanley/steep/reel/render/units"
 )
 
 // Metrics describes the terminal grid geometry used for a draw.

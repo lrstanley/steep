@@ -9,8 +9,8 @@ import (
 	"image/color"
 	"image/draw"
 
-	"github.com/lrstanley/x/term/reel/render/internal/alpha"
-	"github.com/lrstanley/x/term/reel/render/types"
+	"github.com/lrstanley/steep/reel/render/internal/alpha"
+	"github.com/lrstanley/steep/reel/render/types"
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )

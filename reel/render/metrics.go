@@ -4,7 +4,7 @@
 
 package render
 
-import "github.com/lrstanley/x/term/reel/render/types"
+import "github.com/lrstanley/steep/reel/render/types"
 
 type (
 	Metrics = types.Metrics

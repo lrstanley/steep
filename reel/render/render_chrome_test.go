@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 func newRenderer(t *testing.T, opts ...Option) *Renderer {

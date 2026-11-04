@@ -9,15 +9,15 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/effects"
-	"github.com/lrstanley/x/term/reel/render"
-	"github.com/lrstanley/x/term/steep"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/effects"
+	"github.com/lrstanley/steep/reel/render"
+	"github.com/lrstanley/steep"
 )
 
 // The recording is only written when exporting is turned on, as with:
 //
-//	STEEP_EXPORT_DIR=testdata/ STEEP_EXPORT_MODE=on go test -v -count 1 ./reel-showcase/
+//	STEEP_EXPORT_DIR=testdata/ STEEP_EXPORT_MODE=on go test -v -count 1 ./steep-showcase/
 //
 // which writes testdata/showcase.gif and testdata/showcase.cast. Exporting
 // the .cast again with the same profile writes the same GIF.

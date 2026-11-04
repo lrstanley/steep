@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/internal/testutil"
-	"github.com/lrstanley/x/term/reel/render"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/internal/testutil"
+	"github.com/lrstanley/steep/reel/render"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // cellsOf returns a cell frame of a cols by rows screen with title, at at.

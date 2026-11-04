@@ -19,9 +19,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/cmd/reel/internal/play"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/cmd/reel/internal/play"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // Config is how [Serve] starts a session.

@@ -10,9 +10,9 @@ import (
 	"image/color"
 	"image/draw"
 
-	"github.com/lrstanley/x/term/reel/render/internal/alpha"
-	idraw "github.com/lrstanley/x/term/reel/render/internal/draw"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/render/internal/alpha"
+	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
+	"github.com/lrstanley/steep/reel/vt"
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )

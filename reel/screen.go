@@ -11,7 +11,7 @@ import (
 	"strconv"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // Screen is the terminal at one moment, as JSON: its cells, cursor, colors,

@@ -2,7 +2,7 @@
 // this source code is governed by the MIT license that can be found in
 // the LICENSE file.
 
-// Command highlight exports a recording of steep's reel-showcase example
+// Command highlight exports a recording of steep's steep-showcase example
 // as a GIF that highlights a service as it is deployed: once the deploy key
 // is pressed, everything but the cells that show "billing" fades to half
 // brightness, and an outline follows the name as the dashboard changes
@@ -17,10 +17,10 @@ import (
 	"time"
 
 	"github.com/lrstanley/clix/v2"
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/_examples/internal/showcase"
-	"github.com/lrstanley/x/term/reel/effects"
-	"github.com/lrstanley/x/term/reel/render"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/_examples/internal/showcase"
+	"github.com/lrstanley/steep/reel/effects"
+	"github.com/lrstanley/steep/reel/render"
 )
 
 // Flags are the command's flags.

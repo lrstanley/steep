@@ -9,7 +9,7 @@
 // builds with the standard Go toolchain.
 //
 // Linear memory, the C type manifest, and GhosttyResult live in
-// [github.com/lrstanley/x/term/reel/vt/internal/wasmvt]. This package turns
+// [github.com/lrstanley/steep/reel/vt/internal/wasmvt]. This package turns
 // those calls into terminal operations.
 //
 // The emulator fills a cell grid and the terminal state around it, which a

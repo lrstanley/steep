@@ -7,7 +7,7 @@ package units_test
 import (
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/render/units"
+	"github.com/lrstanley/steep/reel/render/units"
 )
 
 func TestNewAdjustment_clamps(t *testing.T) {

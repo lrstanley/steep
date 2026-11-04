@@ -20,11 +20,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/cmd/reel/internal/look"
-	"github.com/lrstanley/x/term/reel/effects"
-	"github.com/lrstanley/x/term/reel/render"
-	syntax "github.com/lrstanley/x/term/tape"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/cmd/reel/internal/look"
+	"github.com/lrstanley/steep/reel/effects"
+	"github.com/lrstanley/steep/reel/render"
+	syntax "github.com/lrstanley/steep/cmd/reel/internal/tape"
 )
 
 // Result is what [Tape.Run] recorded.

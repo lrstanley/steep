@@ -11,8 +11,8 @@ import (
 	"maps"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/render/fonts"
-	"github.com/lrstanley/x/term/reel/render/internal/config"
+	"github.com/lrstanley/steep/reel/render/fonts"
+	"github.com/lrstanley/steep/reel/render/internal/config"
 )
 
 // Option configures a [Renderer] at construction time via [New] or [MustNew] only.

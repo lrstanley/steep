@@ -21,10 +21,10 @@ import (
 	"time"
 
 	"github.com/lrstanley/clix/v2"
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/effects"
-	"github.com/lrstanley/x/term/reel/render"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/effects"
+	"github.com/lrstanley/steep/reel/render"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // Flags are the command's flags.

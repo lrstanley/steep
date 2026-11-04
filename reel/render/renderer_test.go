@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/render/fonts"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/render/fonts"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 func TestRendererCloseSemantics(t *testing.T) {

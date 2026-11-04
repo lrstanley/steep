@@ -19,10 +19,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/cmd/reel/internal/spec"
-	"github.com/lrstanley/x/term/reel/vt"
-	syntax "github.com/lrstanley/x/term/tape"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/cmd/reel/internal/spec"
+	"github.com/lrstanley/steep/reel/vt"
+	syntax "github.com/lrstanley/steep/cmd/reel/internal/tape"
 )
 
 // The marks a run appends for Hide and Show, and at its end. A Hide that

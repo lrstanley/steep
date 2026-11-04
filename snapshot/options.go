@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lrstanley/x/term/steep/internal/xansi"
+	"github.com/lrstanley/steep/internal/xansi"
 )
 
 const envUpdateSnapshots = "UPDATE_SNAPSHOTS"

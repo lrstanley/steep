@@ -7,7 +7,7 @@ package vt
 import (
 	"errors"
 
-	"github.com/lrstanley/x/term/reel/vt/internal/wasmvt"
+	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
 )
 
 // SearchStatus is how far a [Search] has gotten.

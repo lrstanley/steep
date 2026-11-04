@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/steep/snapshot"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/snapshot"
 )
 
 // typeAndWait is a test helper that wraps the harness, whose actions the
@@ -59,8 +59,8 @@ func TestSource(t *testing.T) {
 	}
 
 	findNote(t, notes(t, h.Timeline()), kindStart, map[string]any{
-		"package": "github.com/lrstanley/x/term/steep",
-		"module":  "github.com/lrstanley/x/term/steep",
+		"package": "github.com/lrstanley/steep",
+		"module":  "github.com/lrstanley/steep",
 		"dir":     ".",
 	})
 }

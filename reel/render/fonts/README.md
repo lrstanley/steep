@@ -146,7 +146,7 @@ for pid, eid, lid in ((3, 1, 0x409), (1, 0, 0)):
     names.setName(ps, 6, pid, eid, lid)
     names.setName(
         "Symbol subset of DejaVu Sans Mono 2.37, renamed per the Bitstream Vera "
-        "and Arev font licenses. Bundled with github.com/lrstanley/x/term/reel/render.",
+        "and Arev font licenses. Bundled with github.com/lrstanley/steep/reel/render.",
         10, pid, eid, lid)
 font.save(sys.argv[2])
 ' dejavu-fonts-ttf-2.37/ttf/DejaVuSansMono.ttf DejaVuSansMonoSymbols-Regular.ttf

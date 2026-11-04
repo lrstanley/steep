@@ -7,8 +7,8 @@ package render
 import (
 	"image/color"
 
-	icol "github.com/lrstanley/x/term/reel/render/internal/color"
-	"github.com/lrstanley/x/term/reel/vt"
+	icol "github.com/lrstanley/steep/reel/render/internal/color"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // ResolveColor resolves a terminal color with the renderer's palette and

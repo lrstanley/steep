@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/steep"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep"
 )
 
 // TestInspectorSamples records the sample casts reel's inspector
-// (term/reel/inspector) offers, into the directory REEL_INSPECTOR_SAMPLES names.
+// (reel/inspector) offers, into the directory REEL_INSPECTOR_SAMPLES names.
 // It is skipped without it. One sample is of a failing test, so its
 // failures are kept from failing this one.
 func TestInspectorSamples(t *testing.T) {

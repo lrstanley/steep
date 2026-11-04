@@ -12,12 +12,12 @@ import (
 	"sync"
 	"unicode"
 
-	"github.com/lrstanley/x/term/reel/render/fonts"
-	"github.com/lrstanley/x/term/reel/render/internal/codepoints"
-	"github.com/lrstanley/x/term/reel/render/internal/config"
-	idraw "github.com/lrstanley/x/term/reel/render/internal/draw"
-	"github.com/lrstanley/x/term/reel/render/internal/metrics"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/render/fonts"
+	"github.com/lrstanley/steep/reel/render/internal/codepoints"
+	"github.com/lrstanley/steep/reel/render/internal/config"
+	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
+	"github.com/lrstanley/steep/reel/render/internal/metrics"
+	"github.com/lrstanley/steep/reel/vt"
 	xfont "golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 )

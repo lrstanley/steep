@@ -44,7 +44,7 @@ The site's generated assets are not committed:
   [`wasm`](wasm). Its tests run natively: `cd wasm && go test ./...`.
 - `bun run samples` records the sample casts the landing page offers into
   `public/samples`, by running `TestInspectorSamples` in steep's
-  [simple example](../../steep/_examples/simple/samples_test.go), with
+  [simple example](../../_examples/steep-simple/samples_test.go), with
   sources recorded.
 
 `bun run assets` runs both.

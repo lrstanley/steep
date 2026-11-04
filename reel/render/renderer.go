@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/render/internal/config"
-	"github.com/lrstanley/x/term/reel/render/internal/fontset"
-	imetrics "github.com/lrstanley/x/term/reel/render/internal/metrics"
-	"github.com/lrstanley/x/term/reel/render/internal/raster"
-	"github.com/lrstanley/x/term/reel/render/types"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/render/internal/config"
+	"github.com/lrstanley/steep/reel/render/internal/fontset"
+	imetrics "github.com/lrstanley/steep/reel/render/internal/metrics"
+	"github.com/lrstanley/steep/reel/render/internal/raster"
+	"github.com/lrstanley/steep/reel/render/types"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // Renderer rasterizes and renders a [vt.Screen] using bundled fonts, derived cell

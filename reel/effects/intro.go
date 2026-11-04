@@ -7,8 +7,8 @@ package effects
 import (
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // Intro returns an effect that shows a card of lines for d before the first

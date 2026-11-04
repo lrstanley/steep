@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/internal/testutil"
+	"github.com/lrstanley/steep/reel/internal/testutil"
 )
 
 // describer is a [MarkChecker] that describes itself as a, or fails with

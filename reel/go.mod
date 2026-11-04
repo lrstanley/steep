@@ -1,4 +1,4 @@
-module github.com/lrstanley/x/term/reel
+module github.com/lrstanley/steep/reel
 
 go 1.27.2
 

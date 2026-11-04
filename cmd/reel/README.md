@@ -6,7 +6,7 @@ programs for agents and tests, and turns asciicast files into GIFs, videos,
 and stills, with reel's renderer and effects.
 
 ```console
-go install github.com/lrstanley/x/term/reel/cmd/reel@latest
+go install github.com/lrstanley/steep/cmd/reel@latest
 ```
 
 Run `reel --help`, or `reel <command> --help`, for every flag. Commands that

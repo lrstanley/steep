@@ -5,7 +5,7 @@
 package fontset
 
 import (
-	"github.com/lrstanley/x/term/reel/render/fonts"
+	"github.com/lrstanley/steep/reel/render/fonts"
 	xfont "golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 )

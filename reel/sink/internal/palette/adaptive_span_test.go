@@ -12,7 +12,7 @@ import (
 	"image"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/sink/internal/testutil"
+	"github.com/lrstanley/steep/reel/sink/internal/testutil"
 )
 
 // referenceWriteSpan is the per-pixel implementation writeSpan must match.

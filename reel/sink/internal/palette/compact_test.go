@@ -11,7 +11,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/sink/internal/testutil"
+	"github.com/lrstanley/steep/reel/sink/internal/testutil"
 )
 
 // syntheticPalettedFrames returns deterministic frames using a skewed spread of

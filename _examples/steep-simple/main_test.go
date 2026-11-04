@@ -7,8 +7,8 @@ package main
 import (
 	"testing"
 
-	"github.com/lrstanley/x/term/steep"
-	"github.com/lrstanley/x/term/steep/snapshot"
+	"github.com/lrstanley/steep"
+	"github.com/lrstanley/steep/snapshot"
 )
 
 func TestModel(t *testing.T) {

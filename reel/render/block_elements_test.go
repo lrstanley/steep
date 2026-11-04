@@ -9,7 +9,7 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 func blockTestPalette() (fg, bg color.NRGBA, opt Option) {

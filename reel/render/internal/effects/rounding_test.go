@@ -14,9 +14,9 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	icol "github.com/lrstanley/x/term/reel/render/internal/color"
-	"github.com/lrstanley/x/term/reel/render/internal/effects"
-	"github.com/lrstanley/x/term/reel/render/units"
+	icol "github.com/lrstanley/steep/reel/render/internal/color"
+	"github.com/lrstanley/steep/reel/render/internal/effects"
+	"github.com/lrstanley/steep/reel/render/units"
 )
 
 type roundingWindowContext struct {

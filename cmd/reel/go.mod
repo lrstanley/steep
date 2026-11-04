@@ -1,12 +1,6 @@
-module github.com/lrstanley/x/term/reel/cmd/reel
+module github.com/lrstanley/steep/cmd/reel
 
 go 1.27.2
-
-// The CLI lives next to reel and tape; build against the workspace copies.
-replace (
-	github.com/lrstanley/x/term/reel => ../..
-	github.com/lrstanley/x/term/tape => ../../../tape
-)
 
 require (
 	charm.land/lipgloss/v2 v2.0.6
@@ -15,8 +9,7 @@ require (
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/lrstanley/bubbletint/v2 v2.0.4
 	github.com/lrstanley/clix/v2 v2.0.7
-	github.com/lrstanley/x/term/reel v0.0.0
-	github.com/lrstanley/x/term/tape v0.0.0
+	github.com/lrstanley/steep/reel v0.0.0
 )
 
 require (

@@ -17,7 +17,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/lrstanley/clix/v2"
-	"github.com/lrstanley/x/term/reel"
+	"github.com/lrstanley/steep/reel"
 )
 
 // Flags are reel's commands.

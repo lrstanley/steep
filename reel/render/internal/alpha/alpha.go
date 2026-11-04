@@ -10,7 +10,7 @@ import (
 	"image/color"
 	"image/draw"
 
-	"github.com/lrstanley/x/term/reel/render/internal/pool"
+	"github.com/lrstanley/steep/reel/render/internal/pool"
 )
 
 // glyphAlphaPool recycles glyph mask images on the draw hot path.

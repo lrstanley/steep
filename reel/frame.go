@@ -9,9 +9,9 @@ import (
 	"image"
 	"time"
 
-	"github.com/lrstanley/x/term/reel/render"
-	"github.com/lrstanley/x/term/reel/sink"
-	"github.com/lrstanley/x/term/reel/vt"
+	"github.com/lrstanley/steep/reel/render"
+	"github.com/lrstanley/steep/reel/sink"
+	"github.com/lrstanley/steep/reel/vt"
 )
 
 // CellFrame is the terminal's screen and state at an offset into the

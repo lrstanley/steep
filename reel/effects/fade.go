@@ -11,7 +11,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/lrstanley/x/term/reel"
+	"github.com/lrstanley/steep/reel"
 )
 
 // fadeLevels is how many steps the [Keys] overlay fades out in. Each step
