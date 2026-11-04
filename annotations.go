@@ -455,6 +455,8 @@ func (h *Harness) noteMessage(msg uv.Event) {
 	}
 	var n messageNote
 	n.Type, n.Value = valueNote(msg)
+	h.endMu.Lock()
+	defer h.endMu.Unlock()
 	_ = h.record(&n)
 }
 
@@ -475,6 +477,8 @@ func (h *Harness) noteExit(err error) {
 	if err != nil && !n.Killed {
 		n.Error = err.Error()
 	}
+	h.endMu.Lock()
+	defer h.endMu.Unlock()
 	_ = h.record(&n)
 }
 

@@ -53,8 +53,11 @@ type Harness struct {
 	cfg      options
 
 	resultMu sync.RWMutex
-	result   *runResult
-	done     chan struct{}
+	// endMu keeps what the program notes out of the end of the recording,
+	// between the result and where [Harness.Close] cuts it.
+	endMu  sync.Mutex
+	result *runResult
+	done   chan struct{}
 
 	// imager draws [Harness.Image] and [Harness.ImageInto].
 	imager *reel.Imager
@@ -188,14 +191,7 @@ func (h *Harness) Close() {
 
 	cfg := collectOptions(h.tb, h.mergedOpts()...)
 
-	// The recording ends here, on the last screen the test saw, leaving out
-	// the program's exit repaint. The result is recorded first so the
-	// recording holds it.
-	h.annotate(h.newResultNote())
-	h.markEvent(HookClose)
-	// Without labels, Between cannot fail.
-	recording, _ := h.session.Timeline().Between("", "")
-	defer h.exportRecording(recording)
+	defer h.exportRecording(h.endRecording())
 
 	// Unblock the program's input loop before Quit.
 	h.session.Terminal().CloseReader()

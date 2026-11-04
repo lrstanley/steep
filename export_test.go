@@ -733,14 +733,49 @@ func TestExportOnPanic(t *testing.T) {
 		t.Fatalf("files = %q, want %q\n%s", got, want, out)
 	}
 
-	// The recording holds the result, with the stack of the panic. The test's
-	// context is canceled by now, so the program may exit, and note it, on
-	// either side of the result.
+	// The recording ends on the result, with the stack of the panic.
 	got := notes(t, readCast(t, filepath.Join(dir, want[0])))
-	n := findNote(t, got, kindResult, map[string]any{"failed": true, "panicked": true})
+	n := findNote(t, got[len(got)-1:], kindResult, map[string]any{"failed": true, "panicked": true})
 	if stack, _ := n.fields["stack"].(string); !strings.HasPrefix(stack, "panic(") || !strings.Contains(stack, "TestExportOnPanic") {
 		t.Fatalf("stack = %q", stack)
 	}
+}
+
+// busyTick is the message of busyModel.
+type busyTick struct{}
+
+// busyModel handles messages as fast as it can, so the program is always
+// about to note one.
+type busyModel struct{}
+
+func (m busyModel) tick() tea.Msg { return busyTick{} }
+
+func (m busyModel) Init() tea.Cmd { return m.tick }
+
+func (m busyModel) Update(msg uv.Event) (tea.Model, tea.Cmd) {
+	if _, ok := msg.(busyTick); ok {
+		return m, m.tick
+	}
+	return m, nil
+}
+
+func (m busyModel) View() tea.View { return tea.NewView("busy") }
+
+// TestRecordingEndsOnResult checks that nothing the program notes lands
+// between the result and where the recording is cut.
+func TestRecordingEndsOnResult(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	h := NewHarness(t, busyModel{}, exportOptions(dir,
+		WithRecording(reel.Profile{Outputs: reel.MustFiles("rec.cast")}),
+		WithRecordMessages(true),
+		WithExportAlways(),
+	)...)
+	h.Wait("busy")
+	h.Close()
+
+	got := notes(t, readCast(t, filepath.Join(dir, "rec.cast")))
+	findNote(t, got[len(got)-1:], kindResult, map[string]any{"failed": false})
 }
 
 func viewField(view, prefix string) string {

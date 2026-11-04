@@ -375,6 +375,21 @@ func (h *Harness) markEvent(event HookEvent) {
 	h.markCount[event]++
 }
 
+// endRecording records the result and returns the recording, which ends
+// there, on the last screen the test saw, leaving out the program's exit
+// repaint. What the program notes from now on comes after the recording's end.
+func (h *Harness) endRecording() *reel.Timeline {
+	h.tb.Helper()
+	result := h.newResultNote()
+	h.endMu.Lock()
+	defer h.endMu.Unlock()
+	h.annotate(result)
+	h.markEvent(HookClose)
+	// Without labels, Between cannot fail.
+	recording, _ := h.session.Timeline().Between("", "")
+	return recording
+}
+
 // exportRecording exports tl, the recording up to [Harness.Close], as the
 // policy says. A skipped test that did not fail exports nothing. A failure
 // to export is a test error, except for missing marks (see [WithRecording]).
