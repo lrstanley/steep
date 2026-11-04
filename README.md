@@ -18,7 +18,6 @@
 
 
 
-
   <a href="https://github.com/lrstanley/steep/actions?query=workflow%3Atest+event%3Apush">
     <img title="GitHub Workflow Status (test @ master)" src="https://img.shields.io/github/actions/workflow/status/lrstanley/steep/test.yml?branch=master&label=test&style=flat-square">
   </a>
@@ -58,7 +57,9 @@
 
   - [Features](#sparkles-features)
   - [Usage](#gear-usage)
+    - [Recording](#recording)
     - [Related libraries](#related-libraries)
+  - [Development](#hammer_and_wrench-development)
   - [Support &amp; Assistance](#raising_hand_man-support--assistance)
   - [Contributing](#handshake-contributing)
   - [License](#balance_scale-license)
