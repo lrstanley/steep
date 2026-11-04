@@ -2,17 +2,105 @@ name: test
 
 on:
   pull_request:
-    branches: [master, v2-exp]
+    branches: [master]
     paths-ignore: [".gitignore", "**/*.md", ".github/ISSUE_TEMPLATE/**"]
     types: [opened, edited, reopened, synchronize, unlocked]
   push:
-    branches: [master, v2-exp]
+    branches: [master]
     paths-ignore: [".gitignore", "**/*.md", ".github/ISSUE_TEMPLATE/**"]
 
+# go.work is gitignored, and steep and cmd/reel may need changes to reel that
+# aren't published yet, so each job makes its own workspace. .github/release.sh
+# checks each module without one.
+env:
+  GO_WORK_USE: . ./_examples ./cmd/reel ./reel
+
 jobs:
+  go-versions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      versions: ${{ steps.versions.outputs.versions }}
+      latest: ${{ steps.latest.outputs.version }}
+    steps:
+      - uses: lrstanley/.github/composite/go-versions@master
+        id: versions
+        with:
+          version: many
+          num-minor: 1
+          num-patch: 2
+      - uses: lrstanley/.github/composite/go-versions@master
+        id: latest
+        with:
+          version: latest
   go-test:
-    uses: lrstanley/.github/.github/workflows/lang-go-test-matrix.yml@master
-    with: { num-minor: 1, num-patch: 2 }
+    needs: [go-versions]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ${{ fromJSON(needs.go-versions.outputs.versions) }}
+        module: [".", _examples, cmd/reel, reel]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: true
+      - uses: lrstanley/.github/composite/install-go@master
+        with:
+          version: ${{ matrix.go-version }}
+      - run: go work init $GO_WORK_USE
+      - working-directory: ${{ matrix.module }}
+        env:
+          GORACE: exitcode=1 halt_on_error=1
+        # reel's TestSessionWaitIdle and TestSessionWaitSettle fail under -race.
+        run: go test -v ${{ matrix.module != 'reel' && '-race -count 3 -cpu 1,4' || '' }} -timeout 10m ./...
   go-lint:
-    uses: lrstanley/.github/.github/workflows/lang-go-lint.yml@master
-    secrets: inherit
+    needs: [go-versions]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # not _examples, whose replace directives are intentional.
+        module: [".", cmd/reel, reel]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: true
+      - uses: lrstanley/.github/composite/install-go@master
+        with:
+          version: ${{ needs.go-versions.outputs.latest }}
+      - run: go work init $GO_WORK_USE
+      - uses: lrstanley/.github/composite/golangci-lint@master
+        with:
+          working-directory: ${{ matrix.module }}
+  codecov:
+    needs: [go-versions]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      checks: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: true
+      - uses: lrstanley/.github/composite/install-go@master
+        with:
+          version: ${{ needs.go-versions.outputs.latest }}
+      - run: go work init $GO_WORK_USE
+      - run: |
+          go test -coverprofile=coverage-steep.txt -timeout 5m ./...
+          go test -coverprofile=coverage-reel.txt -timeout 5m ./reel/...
+          go test -coverprofile=coverage-cli.txt -timeout 5m ./cmd/reel/...
+      - uses: codecov/codecov-action@v7
+        with:
+          files: coverage-steep.txt,coverage-reel.txt,coverage-cli.txt
+          token: ${{ secrets.CODECOV_TOKEN }}

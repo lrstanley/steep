@@ -15,7 +15,7 @@
 //
 // The Wasm module is built from one Ghostty commit. [GhosttyRev] must
 // match GHOSTTY_REV in vt/build/Dockerfile. Rebuild from the module root
-// with `task generate` after changing the pin. That rebuilds the
+// with `task vt:generate` after changing the pin. That rebuilds the
 // module and regenerates abi.gen.go from ghostty_type_json. Struct
 // layouts are not stable across commits. Use the generated constants.
 //

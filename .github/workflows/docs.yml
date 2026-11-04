@@ -24,4 +24,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: lrstanley/.github/composite/install-node@master
-      - run: make docs-build
+      - uses: lrstanley/.github/composite/invoke-task@master
+        with:
+          task: docs:build
