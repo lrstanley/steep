@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -121,6 +122,32 @@ func TestHarness(t *testing.T) {
 	finalModel := h.FinalModelAs[rootTestModel]()
 	if finalModel.text != "done" {
 		t.Fatalf("final model text = %q, want done", finalModel.text)
+	}
+}
+
+// stuckInitModel blocks in Init until release closes.
+type stuckInitModel struct {
+	rootTestModel
+
+	release chan struct{}
+}
+
+func (m stuckInitModel) Init() tea.Cmd {
+	<-m.release
+	return nil
+}
+
+// TestCloseStuckInit checks that a program stuck in its model's Init fails the
+// test when closed, rather than hanging it.
+func TestCloseStuckInit(t *testing.T) {
+	t.Parallel()
+	ftb := &fakeTB{TB: t}
+	m := stuckInitModel{release: make(chan struct{})}
+	t.Cleanup(func() { close(m.release) })
+	h := NewHarness(ftb, m, WithIgnoreEnv(true), WithWindowSize(20, 2), WithTimeout(50*time.Millisecond))
+	runFailing(h.Close)
+	if errs := strings.Join(ftb.errors(), "\n"); !strings.Contains(errs, "waiting for the bubble tea program to finish") {
+		t.Fatalf("errors = %q, want a failure to stop the program", errs)
 	}
 }
 

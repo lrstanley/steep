@@ -149,6 +149,18 @@ func TestWait_timeout(t *testing.T) {
 	}
 }
 
+func TestWait_timeoutPercent(t *testing.T) {
+	t.Parallel()
+	tb := &fakeTB{TB: t}
+	h := NewComponentHarness(tb, &mutableViewModel{text: "hi"}, WithWindowSize(80, 1), WithIgnoreEnv(true))
+	h.Wait("text=hi")
+	runFailing(func() { h.Wait("100%", WithTimeout(20*time.Millisecond)) })
+	errs := strings.Join(tb.errors(), "\n")
+	if !strings.Contains(errs, `Wait("100%"): `) || !strings.Contains(errs, "text=hi") || strings.Contains(errs, "%!") {
+		t.Fatalf("errors = %q, want the reason as written and the last screen", errs)
+	}
+}
+
 func TestWaitStrings(t *testing.T) {
 	t.Parallel()
 	h := NewComponentHarness(t, &mutableViewModel{text: "ab"}, WithWindowSize(80, 1))

@@ -215,3 +215,21 @@ func TestColorProfileEnvMatchesDetection(t *testing.T) {
 		}
 	}
 }
+
+// TestFailureReason checks that a reason is prefixed as text, as it can hold
+// what a test passed, such as the percent sign of Wait("100%").
+func TestFailureReason(t *testing.T) {
+	t.Parallel()
+	for reason, want := range map[string]string{
+		"":     "got 1",
+		"Wait": "Wait: got 1",
+		"100%": "100%: got 1",
+	} {
+		ftb := &fakeTB{TB: t}
+		options{reason: reason}.Errorf(ftb, "got %d", 1)
+		runFailing(func() { options{reason: reason}.Fatalf(ftb, "got %d", 1) })
+		if got := ftb.errors(); !slices.Equal(got, []string{want, want}) {
+			t.Errorf("reason %q: errors = %q, want %q twice", reason, got, want)
+		}
+	}
+}

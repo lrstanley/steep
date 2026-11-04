@@ -19,6 +19,9 @@ type observer struct {
 	model    tea.Model
 	messages *broker.Broker[uv.Event]
 
+	// started closes when the program is past its setup, just before it runs
+	// the model's Init, which can take as long as it likes.
+	started chan struct{}
 	// firstEvent closes once the first message, other than a mutate
 	// request, has been through Update.
 	firstEvent     chan struct{}
@@ -100,6 +103,7 @@ func (o *observer) handled(msg uv.Event) {
 // message in a broker and serves [Harness.Mutate] requests.
 func newObserver(model tea.Model) *observer {
 	return &observer{
+		started:    make(chan struct{}),
 		firstEvent: make(chan struct{}),
 		model:      model,
 		messages:   broker.New[uv.Event](broker.WithMaxHistory(0)),
@@ -107,6 +111,7 @@ func newObserver(model tea.Model) *observer {
 }
 
 func (o *observer) Init() tea.Cmd {
+	close(o.started)
 	return o.currentModel().Init()
 }
 

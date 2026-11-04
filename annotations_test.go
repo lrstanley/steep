@@ -18,6 +18,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/lrstanley/steep/reel"
 	"github.com/lrstanley/steep/reel/vt"
 	"github.com/lrstanley/steep/snapshot"
@@ -292,6 +293,46 @@ func TestAnnotationsWaitOutcomes(t *testing.T) {
 
 // TestDoneOutcome checks how a wait's context says it ended: a wait that
 // ended for another reason, such as the session closing, failed.
+// stuckModel blocks in Update until release closes, so the harness never sees
+// its first message.
+type stuckModel struct {
+	rootTestModel
+
+	release chan struct{}
+}
+
+func (m stuckModel) Update(uv.Event) (tea.Model, tea.Cmd) {
+	<-m.release
+	return m, nil
+}
+
+// TestAnnotationsReadyOutcomes checks the outcome of a harness whose program
+// never becomes ready, which is decided as it is for any other wait.
+func TestAnnotationsReadyOutcomes(t *testing.T) {
+	t.Parallel()
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	expired, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	t.Cleanup(cancel)
+	for _, tc := range []struct {
+		name string
+		opt  Option
+		want outcome
+	}{
+		{"timeout", WithTimeout(30 * time.Millisecond), outcomeTimeout},
+		{"canceled", WithContext(canceled), outcomeCanceled},
+		{"parent deadline", WithContext(expired), outcomeTimeout},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			m := stuckModel{release: make(chan struct{})}
+			h := NewHarness(t, m, WithIgnoreEnv(true), WithWindowSize(20, 2), tc.opt)
+			close(m.release)
+			findNote(t, notes(t, h.Timeline()), kindReady, map[string]any{"outcome": string(tc.want)})
+		})
+	}
+}
+
 func TestDoneOutcome(t *testing.T) {
 	t.Parallel()
 	canceled, cancel := context.WithCancel(context.Background())

@@ -205,7 +205,16 @@ func (h *Harness) Close() {
 	select {
 	case <-h.done:
 	case <-ctx.Done():
-		h.program.Kill()
+		// Kill races with the setup in Run, which a dead context or a test that
+		// ends early can still be in. Waiting for it can't hang the test, as
+		// waitFinished gives up on the program.
+		go func() {
+			select {
+			case <-h.observer.started:
+				h.program.Kill()
+			case <-h.done:
+			}
+		}()
 	}
 	// The test's context is canceled during cleanups.
 	cfg.ctx = context.Background()
@@ -215,8 +224,8 @@ func (h *Harness) Close() {
 func (h *Harness) waitStarted(cfg options) {
 	h.tb.Helper()
 
-	timer := time.NewTimer(cfg.timeout)
-	defer timer.Stop()
+	ctx, cancel := context.WithTimeoutCause(cfg.ctx, cfg.timeout, errWaitTimeout)
+	defer cancel()
 
 	note := func(o outcome) {
 		h.annotate(&readyNote{Outcome: o, ElapsedMS: time.Since(h.start).Milliseconds()})
@@ -225,10 +234,8 @@ func (h *Harness) waitStarted(cfg options) {
 	case <-h.observer.firstEvent:
 		note(outcomeReady)
 		h.hook(HookReady, nil)()
-	case <-timer.C:
-		note(outcomeTimeout)
-	case <-cfg.ctx.Done():
-		note(outcomeCanceled)
+	case <-ctx.Done():
+		note(doneOutcome(ctx))
 	}
 }
 

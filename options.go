@@ -131,18 +131,23 @@ func (o options) validate() options {
 
 func (o options) Errorf(tb testing.TB, format string, args ...any) {
 	tb.Helper()
-	if o.reason != "" {
-		format = o.reason + ": " + format
-	}
-	tb.Errorf(format, args...)
+	tb.Errorf("%s", o.failure(format, args...))
 }
 
 func (o options) Fatalf(tb testing.TB, format string, args ...any) {
 	tb.Helper()
+	tb.Fatalf("%s", o.failure(format, args...))
+}
+
+// failure formats a failure message, prefixed with the reason. The reason is
+// not part of the format, as it can hold what a test passed, such as the
+// percent sign of Wait("100%").
+func (o options) failure(format string, args ...any) string {
+	msg := fmt.Sprintf(format, args...)
 	if o.reason != "" {
-		format = o.reason + ": " + format
+		return o.reason + ": " + msg
 	}
-	tb.Fatalf(format, args...)
+	return msg
 }
 
 // Option configures a [Harness] or assertion helper. Options given to
