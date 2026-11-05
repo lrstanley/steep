@@ -1,6 +1,6 @@
 import tailwindcss from '@tailwindcss/vite'
 
-// A static, client-only app: `bun run generate` writes .output/public, which
+// A static, client-only app: `bun run build` writes .output/public, which
 // any static host serves. Set NUXT_APP_BASE_URL when it is served from a
 // subpath, such as a GitHub Pages project site.
 export default defineNuxtConfig({

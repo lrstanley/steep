@@ -1,0 +1,15 @@
+// Deploys the static inspector build as an assets-only Worker (no "main", so no Worker code runs).
+// https://developers.cloudflare.com/workers/static-assets/
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "steep-inspector",
+  "compatibility_date": "2026-11-03",
+  // opt out of wrangler's usage metrics (overrides the user's own preference).
+  "send_metrics": false,
+  "routes": [{ "pattern": "inspector.getsteep.dev", "custom_domain": true }],
+  "assets": {
+    "directory": "./.output/public",
+    // unknown paths get the generated 404.html, with a 404 status.
+    "not_found_handling": "404-page"
+  }
+}

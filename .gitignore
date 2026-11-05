@@ -21,6 +21,7 @@ dist
 /inspector/.nuxt
 /inspector/.output
 /inspector/.data
+/inspector/.wrangler
 /inspector/public/reel.wasm
 /inspector/public/wasm_exec.js
 /inspector/public/samples

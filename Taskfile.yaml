@@ -128,6 +128,12 @@ tasks:
     deps: [inspector:install]
     cmds:
       - bun run test
+  inspector:typecheck:
+    desc: typecheck the inspector
+    dir: inspector
+    deps: [inspector:install]
+    cmds:
+      - bun run typecheck
 
   # the documentation site.
   docs:install:

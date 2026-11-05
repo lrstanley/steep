@@ -56,6 +56,12 @@ The site's generated assets are not committed:
 `NUXT_APP_BASE_URL` when building for a subpath, such as
 `NUXT_APP_BASE_URL=/x/ bun run build` for a GitHub Pages project site.
 
+The hosted site is an assets-only Cloudflare Worker (see
+[`wrangler.jsonc`](wrangler.jsonc)), deployed by Workers Builds with the root
+directory `inspector`, the build command
+`bun install --frozen-lockfile && bun run build`, and the deploy command
+`bunx wrangler deploy`.
+
 `reel.wasm` is about 21 MB, 9 MB gzipped: most of it is the libghostty-vt
 emulator (itself wasm2go output) and reel's embedded fonts.
 

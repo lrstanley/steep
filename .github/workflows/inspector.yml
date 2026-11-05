@@ -1,0 +1,50 @@
+name: inspector
+
+# typechecks, tests, and builds the inspector. deployment is handled by Cloudflare Workers Builds, see
+# inspector/wrangler.jsonc.
+#
+# the site is built from most of the repo (reel, steep, the examples), so this ignores only what it
+# can't use. like Workers Builds, this has no go.work: "task setup" could hide a build that fails there.
+
+on:
+  pull_request:
+    branches: [master]
+    paths-ignore: ["docs/**", "cmd/**", ".gitignore", "**/*.md", ".github/ISSUE_TEMPLATE/**"]
+    types: [opened, edited, reopened, synchronize, unlocked]
+  push:
+    branches: [master]
+    paths-ignore: ["docs/**", "cmd/**", ".gitignore", "**/*.md", ".github/ISSUE_TEMPLATE/**"]
+  workflow_dispatch: {}
+
+concurrency:
+  group: inspector-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inspector:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: lrstanley/.github/composite/go-versions@master
+        id: go-version
+        with:
+          version: latest
+      - uses: lrstanley/.github/composite/install-go@master
+        with:
+          version: ${{ steps.go-version.outputs.version }}
+      - uses: lrstanley/.github/composite/install-node@master
+      # as Workers Builds does: the task's plain install would accept a stale bun.lock.
+      - working-directory: inspector
+        run: bun install --frozen-lockfile
+      - uses: lrstanley/.github/composite/invoke-task@master
+        with:
+          task: inspector:typecheck
+      - uses: lrstanley/.github/composite/invoke-task@master
+        with:
+          task: inspector:test
+      - uses: lrstanley/.github/composite/invoke-task@master
+        with:
+          task: inspector:build
