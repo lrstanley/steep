@@ -170,3 +170,46 @@ func TestFailureTBRecords(t *testing.T) {
 		t.Fatalf("messages = %q, want %q", got, want)
 	}
 }
+
+// panicModel panics in Update on "u", or in a command on "c".
+type panicModel struct{ rootTestModel }
+
+func (m panicModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
+		switch key.String() {
+		case "u":
+			panic("boom in Update")
+		case "c":
+			return m, func() tea.Msg { panic("boom in a command") }
+		}
+	}
+	next, cmd := m.rootTestModel.Update(msg)
+	return panicModel{next.(rootTestModel)}, cmd //nolint:forcetypeassert // rootTestModel returns itself.
+}
+
+// TestPanicFailsTest checks that a panicking program fails the test, whether
+// the test waits for its end or the harness finds out as it closes.
+func TestPanicFailsTest(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, key string
+		end       func(h *Harness)
+	}{
+		{"Update, WaitFinished", "u", func(h *Harness) { h.WaitFinished() }},
+		{"command, WaitFinished", "c", func(h *Harness) { h.WaitFinished() }},
+		{"Update, FinalModel", "u", func(h *Harness) { h.FinalModel() }},
+		{"Update, Close", "u", func(h *Harness) { <-h.done; h.Close() }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ftb := &fakeTB{TB: t}
+			h := NewHarness(ftb, panicModel{}, WithWindowSize(20, 2), WithIgnoreEnv(true), WithTimeout(5*time.Second))
+			h.Key(tc.key)
+			runFailing(func() { tc.end(h) })
+			if errs := ftb.errors(); !strings.Contains(strings.Join(errs, "\n"), tea.ErrProgramPanic.Error()) {
+				t.Errorf("errors = %q, want the panic", errs)
+			}
+			findNote(t, notes(t, h.Timeline()), kindExit, map[string]any{"error": "program was killed: " + tea.ErrProgramPanic.Error()})
+		})
+	}
+}

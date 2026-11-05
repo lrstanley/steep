@@ -473,9 +473,11 @@ func (n *exitNote) clip()      { n.Error = reel.ClipText(n.Error, &n.Truncated) 
 // noteExit records how the program ended. It runs on the program's
 // goroutine.
 func (h *Harness) noteExit(err error) {
-	n := exitNote{Killed: errors.Is(err, tea.ErrProgramKilled)}
-	if err != nil && !n.Killed {
+	var n exitNote
+	if programFailed(err) {
 		n.Error = err.Error()
+	} else {
+		n.Killed = errors.Is(err, tea.ErrProgramKilled)
 	}
 	h.endMu.Lock()
 	defer h.endMu.Unlock()

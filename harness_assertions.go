@@ -16,8 +16,9 @@ import (
 )
 
 // WaitFinished waits for the program to finish. It fails the test if the
-// program returned an error other than [tea.ErrProgramKilled]. A command's
-// nonzero exit status is not an error (see [Harness.ExitStatus]).
+// program failed: it returned an error other than [tea.ErrProgramKilled], or it
+// panicked, which Bubble Tea reports as killed. A command's nonzero exit status
+// is not an error (see [Harness.ExitStatus]).
 //
 // See also [Harness.FinalModel].
 func (h *Harness) WaitFinished(opts ...Option) {
@@ -38,7 +39,7 @@ func (h *Harness) waitFinished(cfg options, w *waitRecord) {
 	defer cancel()
 	select {
 	case <-h.done:
-		if h.runErr != nil && !errors.Is(h.runErr, tea.ErrProgramKilled) {
+		if programFailed(h.runErr) {
 			w.ended(outcomeFailed)
 			h.tb.Fatalf("the program failed: %v", h.runErr)
 		}
@@ -47,6 +48,15 @@ func (h *Harness) waitFinished(cfg options, w *waitRecord) {
 		w.ended(doneOutcome(ctx))
 		h.tb.Fatalf("waiting for the program to finish: %v", context.Cause(ctx))
 	}
+}
+
+// programFailed reports whether err, from the program's end, is a failure of
+// the program. Killing it, as the harness does one that won't quit, isn't.
+func programFailed(err error) bool {
+	if errors.Is(err, tea.ErrProgramPanic) {
+		return true
+	}
+	return err != nil && !errors.Is(err, tea.ErrProgramKilled)
 }
 
 // Sleep lets the program run for d, such as to hold on a screen in a
