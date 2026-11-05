@@ -16,7 +16,7 @@ package wasmvt
 const (
 	ABISchema         = 1
 	ABILibraryVersion = "0.1.0-dev"
-	ABIHash           = "a04d40d271515d2524afd8dd3798357e0a5d938eac3615340022736aab5bc329"
+	ABIHash           = "5d997a1c0a91ad949a3061607a4995b2efe83ed2cb0fac77b47e7c140ca0e456"
 	ABIPointerSize    = 4
 	ABIUsizeSize      = 4
 	ABIMaxAlignment   = 16
@@ -396,6 +396,7 @@ const (
 	StyleInvisibleOff                                        = 61
 	StyleItalicOff                                           = 57
 	StyleOverlineOff                                         = 63
+	StyleRapidBlinkOff                                       = 68
 	StyleSizeOff                                             = 0
 	StyleStrikethroughOff                                    = 62
 	StyleUnderlineOff                                        = 64
@@ -1121,6 +1122,7 @@ const (
 	SgrAttributeTagItalic                             int32 = 4
 	SgrAttributeTagMaxValue                           int32 = 2147483647
 	SgrAttributeTagOverline                           int32 = 11
+	SgrAttributeTagRapidBlink                         int32 = 31
 	SgrAttributeTagResetBg                            int32 = 26
 	SgrAttributeTagResetBlink                         int32 = 14
 	SgrAttributeTagResetBold                          int32 = 3

@@ -1,0 +1,161 @@
+diff --git a/include/ghostty/vt/sgr.h b/include/ghostty/vt/sgr.h
+index b8aecb6..63bf21d 100644
+--- a/include/ghostty/vt/sgr.h
++++ b/include/ghostty/vt/sgr.h
+@@ -90,6 +90,7 @@ typedef enum GHOSTTY_ENUM_TYPED {
+   GHOSTTY_SGR_ATTR_BRIGHT_FG_8 = 28,
+   GHOSTTY_SGR_ATTR_BG_256 = 29,
+   GHOSTTY_SGR_ATTR_FG_256 = 30,
++  GHOSTTY_SGR_ATTR_RAPID_BLINK = 31,
+   GHOSTTY_SGR_ATTR_MAX_VALUE = GHOSTTY_ENUM_MAX_VALUE,
+ } GhosttySgrAttributeTag;
+ 
+diff --git a/include/ghostty/vt/style.h b/include/ghostty/vt/style.h
+index b6bf860..fbd3654 100644
+--- a/include/ghostty/vt/style.h
++++ b/include/ghostty/vt/style.h
+@@ -105,6 +105,7 @@ typedef struct {
+   bool strikethrough;
+   bool overline;
+   int underline; /**< One of GHOSTTY_SGR_UNDERLINE_* values */
++  bool rapid_blink; /**< SGR 6. blink is also set. */
+ } GhosttyStyle;
+ 
+ /**
+diff --git a/src/terminal/Screen.zig b/src/terminal/Screen.zig
+index 820455e..ce71213 100644
+--- a/src/terminal/Screen.zig
++++ b/src/terminal/Screen.zig
+@@ -2422,10 +2422,17 @@ pub fn setAttribute(
+ 
+         .blink => {
+             self.cursor.style.flags.blink = true;
++            self.cursor.style.flags.rapid_blink = false;
++        },
++
++        .rapid_blink => {
++            self.cursor.style.flags.blink = true;
++            self.cursor.style.flags.rapid_blink = true;
+         },
+ 
+         .reset_blink => {
+             self.cursor.style.flags.blink = false;
++            self.cursor.style.flags.rapid_blink = false;
+         },
+ 
+         .inverse => {
+diff --git a/src/terminal/Terminal.zig b/src/terminal/Terminal.zig
+index 2667c51..0703cc8 100644
+--- a/src/terminal/Terminal.zig
++++ b/src/terminal/Terminal.zig
+@@ -3932,7 +3932,7 @@ pub fn printAttributes(self: *Terminal, buf: []u8) ![]const u8 {
+     }
+ 
+     if (pen.flags.blink) {
+-        attrs[i] = 5;
++        attrs[i] = if (pen.flags.rapid_blink) 6 else 5;
+         i += 1;
+     }
+ 
+diff --git a/src/terminal/c/style.zig b/src/terminal/c/style.zig
+index bea4d07..689b13d 100644
+--- a/src/terminal/c/style.zig
++++ b/src/terminal/c/style.zig
+@@ -70,6 +70,7 @@ pub const Style = extern struct {
+     strikethrough: bool,
+     overline: bool,
+     underline: c_int,
++    rapid_blink: bool,
+ 
+     /// The default (empty) style in C representation. C
+     pub const default: Style = .{
+@@ -85,6 +86,7 @@ pub const Style = extern struct {
+         .strikethrough = false,
+         .overline = false,
+         .underline = 0,
++        .rapid_blink = false,
+     };
+ 
+     // fromStyle writes the eight bool fields as one 8-byte store,
+@@ -136,6 +138,7 @@ pub const Style = extern struct {
+         };
+ 
+         out.underline = @intFromEnum(s.flags.underline);
++        out.rapid_blink = s.flags.rapid_blink;
+     }
+ 
+     pub fn fromStyle(s: style.Style) Style {
+@@ -165,7 +168,8 @@ pub fn style_is_default(s: *const Style) callconv(lib.calling_conv) bool {
+         s.invisible == false and
+         s.strikethrough == false and
+         s.overline == false and
+-        s.underline == 0;
++        s.underline == 0 and
++        s.rapid_blink == false;
+ }
+ 
+ test "default style" {
+diff --git a/src/terminal/sgr.zig b/src/terminal/sgr.zig
+index 3fecd44..df1b512 100644
+--- a/src/terminal/sgr.zig
++++ b/src/terminal/sgr.zig
+@@ -77,6 +77,9 @@ pub const Attribute = union(Tag) {
+     /// Set foreground color as 256-color palette.
+     @"256_fg": u8,
+ 
++    /// Blink the text, faster. Added last so the other tags keep their values.
++    rapid_blink,
++
+     pub const Tag = lib.Enum(
+         lib.target,
+         &.{
+@@ -111,6 +114,7 @@ pub const Attribute = union(Tag) {
+             "8_bright_fg",
+             "256_bg",
+             "256_fg",
++            "rapid_blink",
+         },
+     );
+ 
+@@ -301,7 +305,7 @@ pub const Parser = struct {
+ 
+             5 => return .blink,
+ 
+-            6 => return .blink,
++            6 => return .rapid_blink,
+ 
+             7 => return .inverse,
+ 
+@@ -725,7 +729,7 @@ test "sgr: blink" {
+ 
+     {
+         const v = testParse(&[_]u16{6});
+-        try testing.expect(v == .blink);
++        try testing.expect(v == .rapid_blink);
+     }
+ 
+     {
+diff --git a/src/terminal/style.zig b/src/terminal/style.zig
+index 701356e..9691d5c 100644
+--- a/src/terminal/style.zig
++++ b/src/terminal/style.zig
+@@ -38,7 +38,9 @@ pub const Style = struct {
+         strikethrough: bool = false,
+         overline: bool = false,
+         underline: sgr.Attribute.Underline = .none,
+-        _padding: u5 = 0,
++        /// SGR 6. Set along with blink, for what can't tell them apart.
++        rapid_blink: bool = false,
++        _padding: u4 = 0,
+     };
+ 
+     /// The color for an SGR attribute. A color can come from multiple
+@@ -380,7 +382,7 @@ pub const Style = struct {
+                 len += 4;
+             }
+             if (self.style.flags.blink) {
+-                buf[len..][0..4].* = "\x1b[5m".*;
++                buf[len..][0..4].* = if (self.style.flags.rapid_blink) "\x1b[6m".* else "\x1b[5m".*;
+                 len += 4;
+             }
+             if (self.style.flags.inverse) {

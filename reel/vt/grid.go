@@ -377,7 +377,11 @@ func (t *Terminal) applyStyle(x, y int) {
 	if t.mod.U8(base, wasmvt.StyleItalicOff) != 0 {
 		cell.Style.Attrs |= AttrItalic
 	}
-	if t.mod.U8(base, wasmvt.StyleBlinkOff) != 0 {
+	// SGR 6 sets both flags.
+	switch {
+	case t.mod.U8(base, wasmvt.StyleRapidBlinkOff) != 0:
+		cell.Style.Attrs |= AttrRapidBlink
+	case t.mod.U8(base, wasmvt.StyleBlinkOff) != 0:
 		cell.Style.Attrs |= AttrBlink
 	}
 	if t.mod.U8(base, wasmvt.StyleInverseOff) != 0 {
@@ -428,22 +432,42 @@ func (t *Terminal) applyLink(x, y int) {
 	if t.mod.Xghostty_terminal_grid_ref(t.term, point, ref) != 0 {
 		return
 	}
-	buf := ref + 32
-	lenPtr := buf + 128
-	t.mod.Zero(lenPtr, 4)
-	rc := t.mod.Xghostty_grid_ref_hyperlink_uri(ref, buf, 128, lenPtr)
-	if rc != 0 {
-		return
-	}
-	n := int(t.mod.U32(lenPtr, 0))
-	if n <= 0 {
+	uri := t.linkText(t.mod.Xghostty_grid_ref_hyperlink_uri, ref)
+	if uri == "" {
 		return
 	}
 	cell := t.grid.CellAt(x, y)
 	if cell == nil {
 		return
 	}
-	cell.Link.URL = string(append([]byte(nil), t.mod.Slice(buf, n)...))
+	cell.Link.URL = uri
+	if id := t.linkText(t.mod.Xghostty_grid_ref_hyperlink_id, ref); id != "" {
+		cell.Link.Params = "id=" + id
+	}
+}
+
+// linkText returns the text read writes of the hyperlink at ref, in the
+// scratch after it if it fits, as most do, or else in memory of its own.
+func (t *Terminal) linkText(read func(ref, buf, capN, lenPtr int32) int32, ref int32) string {
+	const capN = 128
+	buf := ref + 32
+	lenPtr := buf + capN
+	t.mod.Zero(lenPtr, 4)
+	rc := read(ref, buf, capN, lenPtr)
+	if rc == wasmvt.ResultOutOfSpace {
+		n := wasmvt.Int32(int(t.mod.U32(lenPtr, 0)))
+		big, err := t.mod.Alloc(int(n))
+		if err != nil {
+			return ""
+		}
+		defer t.mod.Free(big, int(n))
+		buf = big
+		rc = read(ref, big, n, lenPtr)
+	}
+	if rc != 0 {
+		return ""
+	}
+	return string(t.mod.Slice(buf, int(t.mod.U32(lenPtr, 0))))
 }
 
 // readCursorLocked reads GhosttyRenderStateCursor into scratch. The

@@ -31,6 +31,14 @@ COPY kitty-freestanding.patch /kitty-freestanding.patch
 # glossary, with a generation that changes whenever it does.
 COPY glyph-glossary.patch /glyph-glossary.patch
 
+# The C API reads a cell's hyperlink URI, but not its OSC 8 id. The patch
+# exports it.
+COPY hyperlink-id.patch /hyperlink-id.patch
+
+# Ghostty treats SGR 6 as SGR 5. The patch keeps which one a style asked for,
+# with SGR 6 also setting blink, so everything that reads blink stays as it was.
+COPY rapid-blink.patch /rapid-blink.patch
+
 RUN mkdir -p /src \
 	&& cd /src \
 	&& git init -q \
@@ -39,6 +47,8 @@ RUN mkdir -p /src \
 	&& git checkout --detach --quiet FETCH_HEAD \
 	&& git apply /kitty-freestanding.patch \
 	&& git apply /glyph-glossary.patch \
+	&& git apply /hyperlink-id.patch \
+	&& git apply /rapid-blink.patch \
 	&& zig build -Demit-lib-vt -Dtarget=wasm32-freestanding -Dcpu=generic -Doptimize=ReleaseSmall \
 	&& mv zig-out/bin/ghostty-vt.wasm /ghostty-vt.wasm \
 	&& rm -rf /src

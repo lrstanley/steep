@@ -89,6 +89,8 @@ func TestRedraw(t *testing.T) {
 			"\x1b]10;#112233\x07\x1b]11;#445566\x07\x1b]12;#778899\x07text",
 		"palette":                "\x1b]4;1;#010203;200;#aabbcc\x07\x1b[31mred\x1b[38;5;200mpink",
 		"reverse colors":         "\x1b[?5h\x1b[31mred",
+		"rapid blink":            "\x1b[5mslow\x1b[6mfast\x1b[25mnone",
+		"link with an id":        "\x1b]8;id=one;https://a.example\x07a\x1b]8;;\x07b",
 		"trailing blank rows":    "a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\n",
 		"blank rows in history":  "a\r\n\r\n\r\nb\r\n\r\nc\r\nd\r\ne\r\n\r\n\r\n",
 		"blank with history":     "\r\n\r\n\r\n\r\n\r\n\r\n",

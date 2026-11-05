@@ -64,7 +64,8 @@ type Style struct {
 type Link struct {
 	// URL is the OSC 8 target. Empty means the cell has no link.
 	URL string
-	// Params is the OSC 8 parameter string, such as an id. It may be empty.
+	// Params is the OSC 8 parameters the emulator keeps, which is only the
+	// id, as "id=value". It is empty for a link without one.
 	Params string
 }
 

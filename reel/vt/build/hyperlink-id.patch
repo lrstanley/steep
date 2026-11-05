@@ -1,0 +1,85 @@
+diff --git a/include/ghostty/vt/grid_ref.h b/include/ghostty/vt/grid_ref.h
+index c43791d..e8dd96c 100644
+--- a/include/ghostty/vt/grid_ref.h
++++ b/include/ghostty/vt/grid_ref.h
+@@ -190,6 +190,20 @@ GHOSTTY_API GhosttyResult ghostty_grid_ref_hyperlink_uri(
+     size_t buf_len,
+     size_t *out_len);
+ 
++/**
++ * Get the explicit OSC 8 id of the hyperlink at the grid reference's
++ * position. It writes no bytes for a cell with no hyperlink, or for a
++ * hyperlink without an id. Otherwise it works as
++ * ghostty_grid_ref_hyperlink_uri() does.
++ *
++ * @ingroup grid_ref
++ */
++GHOSTTY_API GhosttyResult ghostty_grid_ref_hyperlink_id(
++    const GhosttyGridRef *ref,
++    uint8_t *buf,
++    size_t buf_len,
++    size_t *out_len);
++
+ /**
+  * Get the style of the cell at the grid reference's position.
+  *
+diff --git a/src/lib_vt.zig b/src/lib_vt.zig
+index 0be9fdc..58817a8 100644
+--- a/src/lib_vt.zig
++++ b/src/lib_vt.zig
+@@ -413,6 +413,7 @@ comptime {
+             @export(&c.grid_ref_row, .{ .name = "ghostty_grid_ref_row" });
+             @export(&c.grid_ref_graphemes, .{ .name = "ghostty_grid_ref_graphemes" });
+             @export(&c.grid_ref_hyperlink_uri, .{ .name = "ghostty_grid_ref_hyperlink_uri" });
++            @export(&c.grid_ref_hyperlink_id, .{ .name = "ghostty_grid_ref_hyperlink_id" });
+             @export(&c.grid_ref_style, .{ .name = "ghostty_grid_ref_style" });
+             @export(&c.tracked_grid_ref_free, .{ .name = "ghostty_tracked_grid_ref_free" });
+             @export(&c.tracked_grid_ref_has_value, .{ .name = "ghostty_tracked_grid_ref_has_value" });
+diff --git a/src/terminal/c/grid_ref.zig b/src/terminal/c/grid_ref.zig
+index 20f49be..aee4d6d 100644
+--- a/src/terminal/c/grid_ref.zig
++++ b/src/terminal/c/grid_ref.zig
+@@ -127,6 +127,31 @@ pub fn grid_ref_hyperlink_uri(
+     return .success;
+ }
+ 
++pub fn grid_ref_hyperlink_id(
++    ref: *const CGridRef,
++    out_buf: ?[*]u8,
++    buf_len: usize,
++    out_len: *usize,
++) callconv(lib.calling_conv) Result {
++    const p = ref.toPin() orelse return .invalid_value;
++    const terminal_page = p.node.page();
++    const cell = terminal_page.getRowAndCell(p.x, p.y).cell;
++
++    out_len.* = 0;
++    if (!cell.hyperlink) return .success;
++    const link_id = terminal_page.lookupHyperlink(cell) orelse return .success;
++    const entry = terminal_page.hyperlink_set.get(terminal_page.memory, link_id);
++    const id = switch (entry.id) {
++        .explicit => |slice| slice.slice(terminal_page.memory),
++        .implicit => return .success,
++    };
++
++    out_len.* = id.len;
++    if (out_buf == null or buf_len < id.len) return .out_of_space;
++    @memcpy(out_buf.?[0..id.len], id);
++    return .success;
++}
++
+ pub fn grid_ref_style(
+     ref: *const CGridRef,
+     out: ?*style_c.Style,
+diff --git a/src/terminal/c/main.zig b/src/terminal/c/main.zig
+index cd82486..b87179d 100644
+--- a/src/terminal/c/main.zig
++++ b/src/terminal/c/main.zig
+@@ -254,6 +254,7 @@ pub const grid_ref_cell = grid_ref.grid_ref_cell;
+ pub const grid_ref_row = grid_ref.grid_ref_row;
+ pub const grid_ref_graphemes = grid_ref.grid_ref_graphemes;
+ pub const grid_ref_hyperlink_uri = grid_ref.grid_ref_hyperlink_uri;
++pub const grid_ref_hyperlink_id = grid_ref.grid_ref_hyperlink_id;
+ pub const grid_ref_style = grid_ref.grid_ref_style;
+ pub const tracked_grid_ref_free = grid_ref_tracked.tracked_grid_ref_free;
+ pub const tracked_grid_ref_has_value = grid_ref_tracked.tracked_grid_ref_has_value;
