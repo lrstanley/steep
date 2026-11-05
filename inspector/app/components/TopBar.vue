@@ -2,7 +2,7 @@
 import { FolderOpenIcon, XIcon } from '@lucide/vue'
 import { formatBytes, formatTime } from '~/lib/format'
 
-const { summary, fileName, fileSize, status, wasmProgress, close } = useInspector()
+const { summary, fileName, fileSize, loading, booting, wasmProgress, close } = useInspector()
 const picker = useTemplateRef<{ open: () => void }>('picker')
 
 const facts = computed(() => {
@@ -18,9 +18,10 @@ const facts = computed(() => {
   ]
 })
 
-const booting = computed(() => status.value === 'booting')
 const progress = computed(() => {
   const { loaded, total } = wasmProgress.value
+  if (!loaded)
+    return ''
   return total ? `${Math.round((loaded / total) * 100)}%` : formatBytes(loaded)
 })
 </script>
@@ -56,7 +57,7 @@ const progress = computed(() => {
         <Spinner />
         Loading reel {{ progress }}
       </span>
-      <span v-else-if="status === 'loading'" class="flex items-center gap-2 text-xs text-muted-foreground">
+      <span v-else-if="loading" class="flex items-center gap-2 text-xs text-muted-foreground">
         <Spinner />
         Replaying
       </span>

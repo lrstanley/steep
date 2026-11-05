@@ -14,14 +14,16 @@ import { defaultView, readView, writeView } from '~/lib/view'
 // One inspector per page: the state lives at module scope and every component
 // shares it through useInspector().
 
-type Status = 'booting' | 'idle' | 'loading' | 'ready' | 'error'
-
 // Source is where the open cast came from, which the address names: a cast
 // kept in this browser, by id, or one fetched from a URL.
 type Source = { kind: 'cast', id: string } | { kind: 'url', url: string }
 
-const status = ref<Status>('booting')
+// loading is whether a cast is opening, which can begin before reel's module
+// has started, as booted says.
+const loading = ref(false)
 const fatal = ref('')
+const booted = ref(false)
+const booting = computed(() => !booted.value && !fatal.value)
 const wasmProgress = ref({ loaded: 0, total: 0 })
 const fileName = ref('')
 const fileSize = ref(0)
@@ -68,14 +70,10 @@ function boot() {
   if (client)
     return
   client = createWorkerClient(useRuntimeConfig().app.baseURL, {
-    ready: () => {
-      if (status.value === 'booting')
-        status.value = 'idle'
-    },
+    ready: () => booted.value = true,
     progress: value => wasmProgress.value = value,
     fatal: (err) => {
       invalidate()
-      status.value = 'error'
       fatal.value = err.message
     },
   })
@@ -126,12 +124,13 @@ function invalidate() {
   source.value = null
   hoverCell.value = null
   highlightColor.value = null
+  loading.value = false
   return session
 }
 
 function beginOpen() {
   const next = invalidate()
-  status.value = 'loading'
+  loading.value = true
   void rpc('unload', [next.generation]).catch(() => {})
   return next
 }
@@ -157,23 +156,20 @@ async function openBytes(active: InspectorSession, name: string, bytes: Uint8Arr
     const s = await rpc('load', [active.generation, bytes, frameScale.value])
     if (session !== active)
       return
-    summary.value = s
     lanes.value = buildLanes(s)
     applyView(opts.view ?? { ...defaultView(), axis: axis.value, speed: speed.value, tab: panelTab.value })
     fileName.value = name
     fileSize.value = bytes.length
     frame.value = null
-    status.value = 'ready'
+    summary.value = s
+    loading.value = false
     source.value = opts.source ?? { kind: 'cast', id: name }
     seek(opts.at ?? 0)
     writeUrl(!opts.restoring)
     remember(name, bytes)
   }
   catch (err) {
-    if (session !== active)
-      return
-    status.value = 'idle'
-    toast.error(`Couldn't open ${name}`, { description: (err as Error).message })
+    openFailed(active, `Couldn't open ${name}`, err)
   }
 }
 
@@ -188,9 +184,9 @@ async function openFile(file: File) {
 }
 
 function openFailed(active: InspectorSession, message: string, err: unknown) {
-  if (session !== active || fatal.value)
+  if (session !== active)
     return
-  status.value = 'idle'
+  loading.value = false
   toast.error(message, { description: (err as Error).message })
 }
 
@@ -229,7 +225,6 @@ async function openUrl(url: string, opts: OpenOptions = {}) {
 function close(restoring = false) {
   const next = invalidate()
   void rpc('unload', [next.generation]).catch(() => {})
-  status.value = fatal.value ? 'error' : 'idle'
   writeUrl(!restoring)
 }
 
@@ -354,7 +349,7 @@ async function restore() {
 }
 
 function frameTarget(index = cursor.value) {
-  if (!summary.value || !display.value || status.value !== 'ready')
+  if (!display.value)
     return null
   return { generation: session.generation, index, scale: frameScale.value, display: { ...display.value } }
 }
@@ -530,8 +525,9 @@ const current = computed(() => (cursor.value >= 0 ? summary.value?.events[cursor
 export function useInspector() {
   return {
     generation,
-    status,
+    loading,
     fatal,
+    booting,
     wasmProgress,
     fileName,
     fileSize,
