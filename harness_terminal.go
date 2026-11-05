@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/color"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/lrstanley/steep/reel"
 	"github.com/lrstanley/steep/reel/vt"
@@ -86,11 +87,16 @@ func (h *Harness) Height() int {
 func (h *Harness) Dimensions() (width, height int) { return h.session.Terminal().Size() }
 
 // Resize resizes the terminal, which sends the program a
-// [tea.WindowSizeMsg].
+// [tea.WindowSizeMsg], or a command a SIGWINCH.
 func (h *Harness) Resize(width, height int) *Harness {
 	h.tb.Helper()
 	defer h.hook(HookTerminal, nil)()
 	h.check(h.session.Resize(width, height))
+	// A model has no pseudo-terminal to signal it, and the terminal reports
+	// the size itself only to a program that turned on in-band resizes.
+	if h.program != nil && !h.ModeSetting(ansi.ModeInBandResize).IsSet() {
+		h.program.Send(tea.WindowSizeMsg{Width: width, Height: height})
+	}
 	return h
 }
 

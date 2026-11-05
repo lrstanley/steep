@@ -113,6 +113,13 @@ func TestHarness_terminalDimensionsResizeInBandMsgs(t *testing.T) {
 	}
 }
 
+func TestHarness_resizeSendsWindowSize(t *testing.T) {
+	t.Parallel()
+	h := newTerminalHarness(t, 11, 7)
+	h.Resize(30, 12)
+	waitMessagesContainWindowSize(t, h, 30, 12)
+}
+
 func TestHarness_terminalColors(t *testing.T) {
 	t.Parallel()
 	h := newTerminalHarness(t, 5, 3)
