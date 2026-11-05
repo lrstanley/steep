@@ -130,8 +130,8 @@ func (h *Harness) WaitNot[T string | []byte | []string](contents T, opts ...Opti
 
 // waitScreen records note and waits for cond with [reel.Session.Wait],
 // recording its end, and fails the test if the timeout ([WithTimeout])
-// passes first.
-func (h *Harness) waitScreen(cond reel.Condition, note waitNote, opts []Option) {
+// passes first. It returns what cond found.
+func (h *Harness) waitScreen(cond reel.Condition, note waitNote, opts []Option) []reel.Match {
 	h.tb.Helper()
 	cfg := collectOptions(h.tb, h.mergedOpts(opts...)...)
 	w := cfg.startWait(note)
@@ -144,6 +144,7 @@ func (h *Harness) waitScreen(cond reel.Condition, note waitNote, opts []Option) 
 		cfg.Fatalf(h.tb, "%v\nlast output:\n%s", err, waitLast(err))
 	}
 	w.satisfied(res.Matches)
+	return res.Matches
 }
 
 // waitLast returns the last screen a failed [reel.Session] wait saw.

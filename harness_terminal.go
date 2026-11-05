@@ -322,7 +322,8 @@ func (h *Harness) Mouse(action vt.MouseAction, button vt.MouseButton, x, y int) 
 }
 
 // MouseClick sends a press and release at (x, y) (see
-// [reel.Session.Click]). Pass [reel.Repeat] for a double click.
+// [reel.Session.Click]). Pass [reel.Repeat] for a double click. To click what
+// is on the screen instead of a fixed cell, see [Harness.Locate].
 func (h *Harness) MouseClick(button vt.MouseButton, x, y int, opts ...reel.InputOption) *Harness {
 	h.tb.Helper()
 	meta := InputMeta{Kind: InputKindClick, Button: buttonName(button)}
@@ -362,6 +363,68 @@ func (h *Harness) MouseDrag(button vt.MouseButton, x1, y1, x2, y2 int, opts ...r
 // LeftDrag is [Harness.MouseDrag] with the left mouse button.
 func (h *Harness) LeftDrag(x1, y1, x2, y2 int, opts ...reel.InputOption) *Harness {
 	return h.MouseDrag(vt.MouseLeft, x1, y1, x2, y2, opts...)
+}
+
+// Locate waits until cond holds for the screen, as [Harness.WaitFor] does,
+// and returns the cell where cond's first match starts, so a test can click
+// what the program drew without knowing where it drew it:
+//
+//	h.Locate(reel.Contains("[ Save ]")).LeftClick()
+//	h.Locate(reel.Contains("Name:")).Offset(6, 0).LeftClick()
+//
+// The location is not updated if the program redraws afterward. A condition
+// that holds without locating anything, such as [reel.NotContains] or
+// [reel.ScreenFunc], fails the test.
+func (h *Harness) Locate(cond reel.Condition, opts ...Option) Location {
+	h.tb.Helper()
+	note := waitNote{WaitMeta: WaitMeta{Kind: WaitKindCondition}, Condition: cond.String()}
+	defer h.hook(HookWait, note.WaitMeta)()
+	matches := h.waitScreen(cond, note, opts)
+	if len(matches) == 0 {
+		h.tb.Fatalf("steep: %s holds but locates nothing", cond)
+	}
+	return Location{X: matches[0].Col, Y: matches[0].Row, h: h}
+}
+
+// Location is a cell of the screen, returned by [Harness.Locate].
+type Location struct {
+	// X and Y are the cell's column and row, from 0.
+	X, Y int
+
+	h *Harness
+}
+
+// Offset returns the location x columns to the right and y rows below l.
+// Negative values go left and up.
+func (l Location) Offset(x, y int) Location {
+	l.X += x
+	l.Y += y
+	return l
+}
+
+// MouseClick is [Harness.MouseClick] at l. It fails the test if l is off the
+// screen, where the program would only see a release at the screen's edge.
+func (l Location) MouseClick(button vt.MouseButton, opts ...reel.InputOption) *Harness {
+	l.h.tb.Helper()
+	if bounds := l.h.Bounds(); !image.Pt(l.X, l.Y).In(bounds) {
+		l.h.tb.Fatalf("steep: click at (%d, %d) is off the %dx%d screen", l.X, l.Y, bounds.Dx(), bounds.Dy())
+	}
+	return l.h.MouseClick(button, l.X, l.Y, opts...)
+}
+
+// LeftClick is [Location.MouseClick] with the left mouse button.
+func (l Location) LeftClick(opts ...reel.InputOption) *Harness {
+	return l.MouseClick(vt.MouseLeft, opts...)
+}
+
+// MiddleClick is [Location.MouseClick] with the middle mouse button.
+func (l Location) MiddleClick(opts ...reel.InputOption) *Harness {
+	return l.MouseClick(vt.MouseMiddle, opts...)
+}
+
+// RightClick is [Location.MouseClick] with the right mouse button.
+func (l Location) RightClick(opts ...reel.InputOption) *Harness {
+	return l.MouseClick(vt.MouseRight, opts...)
 }
 
 // Progress returns the latest OSC 9;4 progress report.
