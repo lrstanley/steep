@@ -162,8 +162,6 @@ type Terminal struct {
 	fgDefault     color.Color
 	bgDefault     color.Color
 	cursorDefault color.Color
-	// hasCursor is true when the host or the program set a cursor color.
-	hasCursor bool
 	// palette is the last [Terminal.paletteLocked]. It is replaced, never
 	// changed in place, so a [State] can share it. paletteFresh is true
 	// while no write or reset could have changed it since.
@@ -344,7 +342,6 @@ func (t *Terminal) resetStateLocked() {
 	t.grid = nil
 	t.invalidateRowWords()
 	t.gridFresh = false
-	t.hasCursor = false
 	t.paletteFresh = false
 	t.glyphsFresh = false
 	t.kitty.reset()
@@ -564,22 +561,24 @@ func (t *Terminal) ResizeRequest() (cols, rows int, ok bool) {
 	return t.resizeCols, t.resizeRows, t.resizeOK
 }
 
-// Foreground returns the override color, or the default when the override is clear.
+// Foreground returns the color cells without their own are drawn in: the one
+// the program set with OSC 10, else the host's, else the emulator's default.
 func (t *Terminal) Foreground() color.NRGBA {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.shownColor(t.fgOverride, t.fgDefault, wasmvt.TerminalDataColorForeground, t.fg)
+	return t.readRGB(wasmvt.TerminalDataColorForeground, t.fg)
 }
 
-// Background returns the override color, or the default when the override is clear.
+// Background returns the color behind cells without their own: the one the
+// program set with OSC 11, else the host's, else the emulator's default.
 func (t *Terminal) Background() color.NRGBA {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.shownColor(t.bgOverride, t.bgDefault, wasmvt.TerminalDataColorBackground, t.bg)
+	return t.readRGB(wasmvt.TerminalDataColorBackground, t.bg)
 }
 
 // CursorColor returns the cursor color and whether the host or the program
-// (OSC 12) set one.
+// set one. The program's, with OSC 12, comes first.
 func (t *Terminal) CursorColor() (color.NRGBA, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -587,14 +586,10 @@ func (t *Terminal) CursorColor() (color.NRGBA, bool) {
 }
 
 func (t *Terminal) cursorColorLocked() (color.NRGBA, bool) {
-	if t.cursorOverride == nil && t.cursorDefault == nil {
-		// Without a host color, Ghostty reports one only once the program
-		// sets it. Otherwise the read falls back to t.cursor, which is
-		// transparent.
-		c := t.readRGB(wasmvt.TerminalDataColorCursor, t.cursor)
-		return c, c.A != 0
-	}
-	return t.shownColor(t.cursorOverride, t.cursorDefault, wasmvt.TerminalDataColorCursor, t.cursor), true
+	// Ghostty reports no cursor color until one is set, so the read falls back
+	// to t.cursor, which is transparent.
+	c := t.readRGB(wasmvt.TerminalDataColorCursor, t.cursor)
+	return c, c.A != 0
 }
 
 // HostColors returns the foreground, background, and cursor colors the host
@@ -613,7 +608,10 @@ func (t *Terminal) HostColors() (fg, bg, cursor color.Color) {
 	return host(t.fgOverride, t.fgDefault), host(t.bgOverride, t.bgDefault), host(t.cursorOverride, t.cursorDefault)
 }
 
-// SetForeground sets the current foreground. Nil clears it back to the default.
+// SetForeground sets the current foreground. Nil clears it back to the
+// default. A color the program set with OSC 10 stays in front of it until the
+// program resets it with OSC 110, as with a terminal's configured colors. The
+// same goes for the other host colors and OSC 11 and 12.
 func (t *Terminal) SetForeground(c color.Color) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -634,7 +632,6 @@ func (t *Terminal) SetCursorColor(c color.Color) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.cursorOverride = c
-	t.hasCursor = c != nil || t.cursorDefault != nil
 	return t.applyColorLocked(wasmvt.TerminalOptionColorCursor, firstColor(c, t.cursorDefault))
 }
 
@@ -665,21 +662,10 @@ func (t *Terminal) SetDefaultCursorColor(c color.Color) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.cursorDefault = c
-	t.hasCursor = t.cursorOverride != nil || c != nil
 	if t.cursorOverride != nil {
 		return nil
 	}
 	return t.applyColorLocked(wasmvt.TerminalOptionColorCursor, c)
-}
-
-func (t *Terminal) shownColor(override, def color.Color, data int32, fallback color.NRGBA) color.NRGBA {
-	if override != nil {
-		return colorNRGBA(override)
-	}
-	if def != nil {
-		return colorNRGBA(def)
-	}
-	return t.readRGB(data, fallback)
 }
 
 func firstColor(a, b color.Color) color.Color {
@@ -948,7 +934,6 @@ func (t *Terminal) clearPooledLocked() {
 	t.unknown = nil
 	t.fgOverride, t.bgOverride, t.cursorOverride = nil, nil, nil
 	t.fgDefault, t.bgDefault, t.cursorDefault = nil, nil, nil
-	t.hasCursor = false
 	for _, opt := range [...]int32{
 		wasmvt.TerminalOptionColorForeground,
 		wasmvt.TerminalOptionColorBackground,

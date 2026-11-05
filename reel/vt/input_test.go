@@ -246,3 +246,40 @@ func TestEncodeMouseHover(t *testing.T) {
 		}
 	}
 }
+
+// TestProgramColorsWin checks that the host's colors are what a program's
+// replace, in the state and in what the program reads, until it resets them.
+func TestProgramColorsWin(t *testing.T) {
+	t.Parallel()
+	term := openTest(t, 8, 2)
+	host := color.NRGBA{R: 1, G: 2, B: 3, A: 0xff}
+	program := color.NRGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff}
+	for _, set := range []func(color.Color) error{term.SetForeground, term.SetBackground, term.SetCursorColor} {
+		if err := set(host); err != nil {
+			t.Fatal(err)
+		}
+	}
+	check := func(when string, want color.NRGBA) {
+		t.Helper()
+		st := term.State()
+		if st.Foreground != want || st.Background != want || st.CursorColor != want || !st.CursorColorSet {
+			t.Errorf("%s: state = %v, %v, %v (%v), want %v", when, st.Foreground, st.Background, st.CursorColor, st.CursorColorSet, want)
+		}
+	}
+	check("host", host)
+	if _, err := term.Write([]byte("\x1b]10;#123456\x07\x1b]11;#123456\x07\x1b]12;#123456\x07")); err != nil {
+		t.Fatal(err)
+	}
+	check("program", program)
+	replies, err := term.WriteReplies([]byte("\x1b]10;?\x07"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "\x1b]10;rgb:1212/3434/5656\x07"; string(replies) != want {
+		t.Errorf("OSC 10 query = %q, want %q", replies, want)
+	}
+	if _, err := term.Write([]byte("\x1b]110\x07\x1b]111\x07\x1b]112\x07")); err != nil {
+		t.Fatal(err)
+	}
+	check("reset", host)
+}
