@@ -82,6 +82,12 @@ func TestSessionQueries(t *testing.T) {
 		{"\x1b[14t", Query{Query: "xtwinops", Param: "14", Reply: "\x1b[4;40;100t"}},
 		{"\x1b[18t", Query{Query: "xtwinops", Param: "18", Reply: "\x1b[8;2;10t"}},
 		{"\x1b[1;1;1;1;2;2*y", Query{Query: "decrqcra", Reply: "\x1bP1!~FF3D\x1b\\"}},
+		{"\x1bZ", Query{Query: "da1", Reply: "\x1b[?64c"}},
+		{"\x1b]5522;type=read\x1b\\", Query{Query: "kitty_clipboard", Reply: "\x1b]5522;type=read:status=OK\x1b\\\x1b]5522;type=read:status=DONE\x1b\\"}},
+		{"\x1b]7501;?\x1b\\", Query{Query: "program_status", Reply: "\x1b]7501;?:states=idle,working,done,blocked,error:kinds=permission,question,auth\x1b\\"}},
+		{"\x1b_Ga=q,i=7,s=1,v=1,f=24;AAAA\x1b\\", Query{Query: "kitty_graphics", Param: "7", Reply: "\x1b_Gi=7;OK\x1b\\"}},
+		{"\x1b_25a1;s\x1b\\", Query{Query: "glyph", Param: "s", Reply: "\x1b_25a1;s;fmt=glyf\x1b\\"}},
+		{"\x1b_25a1;q;cp=e000\x1b\\", Query{Query: "glyph", Param: "q", Reply: "\x1b_25a1;q;cp=e000;status=\x1b\\"}},
 	} {
 		t.Run(strings.Trim(strings.ReplaceAll(tc.request, "\x1b", "ESC"), "\x07\x05"), func(t *testing.T) {
 			t.Parallel()
@@ -113,6 +119,59 @@ func TestSessionQueries(t *testing.T) {
 				t.Fatalf("program read %q, want %q", replies, want.Reply)
 			}
 		})
+	}
+}
+
+// TestSessionQueriesUnasked checks the replies to commands that aren't
+// queries, which are recorded without a request.
+func TestSessionQueriesUnasked(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		write string
+		query string
+		param string
+	}{
+		{"\x1b_Ga=T,i=8,s=1,v=1,f=24;AAAA\x1b\\", "kitty_graphics", "8"},
+		{"\x1b_25a1;r;cp=0041;AAAA\x1b\\", "glyph", "r"},
+		{"\x1b[?2048h", "in_band_resize", ""},
+	} {
+		s := openTest(t, 10, 2)
+		write(t, s, tc.write)
+		got := sessionQueries(t, s)
+		if len(got) != 1 || got[0].Query != tc.query || got[0].Param != tc.param || got[0].Request != "" || got[0].Reply == "" {
+			t.Errorf("%q: queries = %#v, want a reply to %s", tc.write, got, tc.query)
+		}
+	}
+}
+
+// TestSessionQueriesKittyImages checks that a transmission's reply doesn't
+// land on a query about another image.
+func TestSessionQueriesKittyImages(t *testing.T) {
+	t.Parallel()
+	s := openTest(t, 10, 2)
+	write(t, s, "\x1b_Ga=T,i=8,s=1,v=1,f=24;AAAA\x1b\\\x1b_Ga=q,i=7,s=1,v=1,f=24;AAAA\x1b\\")
+	got := sessionQueries(t, s)
+	if len(got) != 2 {
+		t.Fatalf("queries = %#v, want the query and the transmission's reply", got)
+	}
+	if got[0].Param != "7" || got[0].Reply != "\x1b_Gi=7;OK\x1b\\" {
+		t.Errorf("query = %#v", got[0])
+	}
+	if got[1].Param != "8" || got[1].Request != "" || got[1].Reply != "\x1b_Gi=8;OK\x1b\\" {
+		t.Errorf("transmission = %#v", got[1])
+	}
+}
+
+// TestSessionQueriesClipboard checks that each read keeps all of its replies.
+func TestSessionQueriesClipboard(t *testing.T) {
+	t.Parallel()
+	s := openTest(t, 10, 2)
+	const read = "\x1b]5522;type=read\x1b\\"
+	write(t, s, read+read)
+	const reply = "\x1b]5522;type=read:status=OK\x1b\\\x1b]5522;type=read:status=DONE\x1b\\"
+	got := sessionQueries(t, s)
+	if len(got) != 2 || got[0].Reply != reply || got[1].Reply != reply {
+		t.Fatalf("queries = %#v, want two with the reply %q", got, reply)
 	}
 }
 

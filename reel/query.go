@@ -24,16 +24,18 @@ const QueryKind = "reel.query"
 type Query struct {
 	// Query names what was asked: "enq", "da1", "da2", "da3", "xtversion",
 	// "dsr", "cpr", "color_scheme", "decrqm", "osc_color", "osc52",
-	// "kitty_keyboard", "decrqss", "xtgettcap", "xtwinops", "decrqcra", or
-	// "unknown" for a reply to no known query. [AnnotationSchema] describes
-	// what each asks.
+	// "kitty_clipboard", "kitty_keyboard", "kitty_graphics", "glyph",
+	// "program_status", "decrqss", "xtgettcap", "xtwinops", "in_band_resize",
+	// "decrqcra", or "unknown" for a reply to no known query.
+	// [AnnotationSchema] describes what each asks.
 	Query string `json:"query"`
 	// Param is what the query asked about, if it names one: the mode for
 	// "decrqm" ("?" prefixed for DEC private modes, such as "?2026"), the
 	// OSC number for "osc_color" (such as "11"), the selection for "osc52",
 	// the setting for "decrqss", ";"-joined capability names for
-	// "xtgettcap", the operation for "xtwinops" (such as "14"), and the
-	// status for "dsr" and "cpr" (such as "5", "6", or "?6").
+	// "xtgettcap", the operation for "xtwinops" (such as "14"), the verb for
+	// "glyph" (such as "s"), the image id for "kitty_graphics", and the status for "dsr" and "cpr" (such as "5",
+	// "6", or "?6").
 	Param string `json:"param,omitzero"`
 	// Request is the query as written. It is empty for a reply whose query
 	// was not found in the same output, such as one split across writes.
@@ -62,7 +64,7 @@ func queries(out, replies []byte) []Query {
 		match := func(q Query) bool {
 			return q.Query == r.Query && (r.Param == "" || q.Param == r.Param)
 		}
-		i := slices.IndexFunc(qs, func(q Query) bool { return q.Reply == "" && match(q) })
+		i := slices.IndexFunc(qs, func(q Query) bool { return q.awaitsReply() && match(q) })
 		if i < 0 {
 			i = lastIndexFunc(qs, match)
 		}
@@ -79,6 +81,17 @@ func queries(out, replies []byte) []Query {
 		q.Reply = ClipText(q.Reply, &q.Truncated)
 	}
 	return qs
+}
+
+// awaitsReply reports whether q takes the next reply of its kind. A Kitty
+// clipboard read has several, up to a status other than OK or DATA.
+func (q Query) awaitsReply() bool {
+	if q.Query != "kitty_clipboard" {
+		return q.Reply == ""
+	}
+	i := strings.LastIndex(q.Reply, "status=")
+	status := q.Reply[max(i, 0):]
+	return i < 0 || strings.HasPrefix(status, "status=OK") || strings.HasPrefix(status, "status=DATA")
 }
 
 // queryAnnotation returns q's [QueryKind] annotation. A Query always
@@ -103,14 +116,14 @@ func lastIndexFunc[E any](s []E, f func(E) bool) int {
 // ctlSeq is an escape sequence or control character in terminal bytes.
 type ctlSeq struct {
 	raw []byte
-	// intro is '[' for CSI, ']' for OSC, 'P' for DCS, or the control
-	// character.
+	// intro is '[' for CSI, ']' for OSC, 'P' for DCS, '_' for APC, 'Z' for
+	// DECID, or the control character.
 	intro byte
 	// marker is a CSI or DCS private marker ("<", "=", ">", or "?").
 	marker, params, inter string
 	final                 byte
-	// data is an OSC's text, or a DCS's text after its final byte. It
-	// aliases the scanned bytes to avoid copying the many OSCs (such as
+	// data is an OSC's or APC's text, or a DCS's text after its final byte.
+	// It aliases the scanned bytes to avoid copying the many OSCs (such as
 	// hyperlinks) that are neither queries nor replies.
 	data []byte
 }
@@ -126,8 +139,8 @@ func (s ctlSeq) firstParam() string {
 var queryFinals = []byte("Rcnpqtuy")
 
 // scanSeqs calls yield for each CSI sequence in b ending in one of
-// queryFinals, each OSC and DCS sequence, and each ENQ and ACK. Sequences
-// cut off by the end of b are skipped.
+// queryFinals, each OSC, DCS, and APC sequence, and each DECID, ENQ, and ACK.
+// Sequences cut off by the end of b are skipped.
 func scanSeqs(b []byte, yield func(ctlSeq)) {
 	for {
 		i := bytes.IndexAny(b, "\x1b\x05\x06")
@@ -164,7 +177,10 @@ func scanSeqs(b []byte, yield func(ctlSeq)) {
 			s.marker, s.params, s.inter = parseHead(head)
 			yield(s)
 			b = b[n:]
-		case ']', 'P':
+		case 'Z':
+			yield(ctlSeq{raw: b[:2], intro: 'Z'})
+			b = b[2:]
+		case ']', 'P', '_':
 			body, n, ok := stringBody(b)
 			if !ok {
 				if n == 0 {
@@ -174,7 +190,7 @@ func scanSeqs(b []byte, yield func(ctlSeq)) {
 				continue
 			}
 			s := ctlSeq{raw: b[:n], intro: b[1]}
-			if b[1] == ']' {
+			if b[1] != 'P' {
 				s.data = body
 			} else {
 				head, rest := splitHead(body)
@@ -217,7 +233,7 @@ func parseHead(head []byte) (marker, params, inter string) {
 	return marker, s[:i], s[i:]
 }
 
-// stringBody returns the text of the OSC or DCS sequence at the start of b
+// stringBody returns the text of the OSC, DCS, or APC sequence at the start of b
 // (up to its BEL or ST terminator) and the sequence's length. It reports
 // false if another escape cuts it short (n is the length before that
 // escape) or b ends first (n is 0).
@@ -244,8 +260,12 @@ func requestOf(s ctlSeq) (Query, bool) {
 	switch s.intro {
 	case 0x05:
 		return Query{Query: "enq"}, true
+	case 'Z':
+		return Query{Query: "da1"}, true
 	case '[':
 		return csiRequest(s)
+	case '_':
+		return apcRequest(s.data)
 	case ']':
 		num, rest, _ := bytes.Cut(s.data, []byte(";"))
 		switch {
@@ -254,6 +274,13 @@ func requestOf(s ctlSeq) (Query, bool) {
 		case string(num) == "52" && bytes.HasSuffix(rest, []byte(";?")):
 			sel, _, _ := bytes.Cut(rest, []byte(";"))
 			return Query{Query: "osc52", Param: string(sel)}, true
+		case string(num) == "5522":
+			meta, _, _ := bytes.Cut(rest, []byte(";"))
+			if listHas(meta, ":", "type=read") {
+				return Query{Query: "kitty_clipboard"}, true
+			}
+		case string(num) == "7501" && string(rest) == "?":
+			return Query{Query: "program_status"}, true
 		}
 	case 'P':
 		if s.marker != "" || s.params != "" || s.final != 'q' {
@@ -267,6 +294,46 @@ func requestOf(s ctlSeq) (Query, bool) {
 		}
 	}
 	return Query{}, false
+}
+
+// apcRequest returns the query the APC sequence with text data asks, if it is
+// one. Other Kitty graphics and Glyph Protocol commands are replied to as well,
+// so their replies are recorded without a request.
+func apcRequest(data []byte) (Query, bool) {
+	head, rest, _ := bytes.Cut(data, []byte(";"))
+	switch {
+	case bytes.HasPrefix(head, []byte("G")) && listHas(head[1:], ",", "a=q"):
+		return Query{Query: "kitty_graphics", Param: kittyImageID(head[1:])}, true
+	case string(head) == glyphAPC:
+		verb, _, _ := bytes.Cut(rest, []byte(";"))
+		if v := string(verb); v == "s" || v == "q" {
+			return Query{Query: "glyph", Param: v}, true
+		}
+	}
+	return Query{}, false
+}
+
+// kittyImageID returns the i key of Kitty graphics control data.
+func kittyImageID(control []byte) string {
+	for field := range bytes.SplitSeq(control, []byte(",")) {
+		if id, ok := bytes.CutPrefix(field, []byte("i=")); ok {
+			return string(id)
+		}
+	}
+	return ""
+}
+
+// glyphAPC is the first field of a Glyph Protocol APC sequence.
+const glyphAPC = "25a1"
+
+// listHas reports whether list, separated by sep, has item.
+func listHas(list []byte, sep, item string) bool {
+	for field := range bytes.SplitSeq(list, []byte(sep)) {
+		if string(field) == item {
+			return true
+		}
+	}
+	return false
 }
 
 // csiRequest returns the query the CSI sequence s asks, if it is one.
@@ -328,6 +395,8 @@ func replyOf(s ctlSeq) Query {
 			return Query{Query: "decrqm", Param: s.marker + s.firstParam()}
 		case s.final == 'u' && s.marker == "?":
 			return Query{Query: "kitty_keyboard"}
+		case s.final == 't' && s.firstParam() == "48":
+			return Query{Query: "in_band_resize"}
 		case s.final == 't':
 			// A report's first parameter is its operation minus ten,
 			// except the window state, reported as 1 or 2.
@@ -348,6 +417,19 @@ func replyOf(s ctlSeq) Query {
 		case string(num) == "52":
 			sel, _, _ := bytes.Cut(rest, []byte(";"))
 			return Query{Query: "osc52", Param: string(sel)}
+		case string(num) == "5522":
+			return Query{Query: "kitty_clipboard"}
+		case string(num) == "7501":
+			return Query{Query: "program_status"}
+		}
+	case '_':
+		head, rest, _ := bytes.Cut(s.data, []byte(";"))
+		switch {
+		case bytes.HasPrefix(head, []byte("G")):
+			return Query{Query: "kitty_graphics", Param: kittyImageID(head[1:])}
+		case string(head) == glyphAPC:
+			verb, _, _ := bytes.Cut(rest, []byte(";"))
+			return Query{Query: "glyph", Param: string(verb)}
 		}
 	case 'P':
 		switch {
