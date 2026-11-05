@@ -58,8 +58,9 @@ type options struct {
 	// into, or nil to record nothing.
 	harness *Harness
 
+	// envVars is nil unless [WithEnvVars] set it.
 	envVars []string
-	// color is 0 to leave envVars as they are.
+	// color is 0 to leave the environment as it is.
 	color ColorProfile
 
 	ctx           context.Context
@@ -93,12 +94,7 @@ func defaultOptions() options {
 		checkInterval: DefaultCheckInterval,
 		settleTimeout: DefaultSettleTimeout,
 		scrollOnInput: true,
-		envVars: []string{
-			// Force TTY mode, since we're not connecting to a real TTY/PTY.
-			"TTY_FORCE=1",
-			term256,
-		},
-		ctx: context.Background(),
+		ctx:           context.Background(),
 	}
 }
 
@@ -179,7 +175,7 @@ func WithWindowSize(width, height int) Option {
 }
 
 // WithContext sets the parent context for blocking waits and the running
-// [tea.Program]. A [Harness] defaults to the test's context, canceled on
+// program. A [Harness] defaults to the test's context, canceled on
 // interrupt; other helpers default to [context.Background].
 func WithContext(ctx context.Context) Option {
 	if ctx == nil {
@@ -192,9 +188,9 @@ func WithContext(ctx context.Context) Option {
 }
 
 // WithProgramOptions appends [tea.ProgramOption] values for [NewHarness] and
-// [NewComponentHarness]. Environment, context, input, output,
-// [tea.WithoutSignals], and [tea.WithWindowSize] are always set by the
-// harness and cannot be replaced here.
+// [NewComponentHarness], and has no effect on [NewExecHarness]. Environment,
+// context, input, output, [tea.WithoutSignals], and [tea.WithWindowSize] are
+// always set by the harness and cannot be replaced here.
 func WithProgramOptions(opts ...tea.ProgramOption) Option {
 	return func(cfg *options) {
 		cfg.programOpts = append(cfg.programOpts, opts...)
@@ -360,6 +356,9 @@ func WithSource(enable bool) Option {
 // The program sees the whole test process environment, which in CI may hold
 // tokens and credentials. [WithRecordMessages] does not record it, but the
 // program can still read and draw it.
+//
+// For [NewExecHarness], vars and the test process environment replace those of
+// the same name in cmd's environment.
 func WithEnvVars(vars ...string) Option {
 	return func(cfg *options) {
 		current := map[string]string{}
@@ -460,6 +459,9 @@ func (p ColorProfile) teaProfile() colorprofile.Profile {
 //
 // It overrides the color variables of [WithEnvVars], whatever the order. A
 // [tea.WithColorProfile] passed through [WithProgramOptions] wins over it.
+//
+// For [NewExecHarness], it also overrides those of cmd's environment, and
+// without it the command's color support is as [reel.Exec] sets it.
 func WithColor(p ColorProfile) Option {
 	return func(cfg *options) {
 		cfg.color = p

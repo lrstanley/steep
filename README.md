@@ -87,6 +87,21 @@ func TestModel(t *testing.T) {
 }
 ```
 
+`NewExecHarness` drives a command on a pseudo-terminal instead, such as a built
+binary or a program that doesn't use Bubble Tea, with the same inputs, waits,
+assertions, snapshots, and recordings. Only what needs the program's model or
+messages, such as `Mutate` and `WaitMessage`, isn't available.
+
+```go
+func TestBinary(t *testing.T) {
+	h := steep.NewExecHarness(t, exec.Command("./myapp", "--flag"))
+	h.Wait("ready").Key("q")
+	if status := h.ExitStatus(); status != 0 {
+		t.Errorf("exit status = %d", status)
+	}
+}
+```
+
 ### Recording
 
 Everything the program draws is kept in the session's timeline, and nothing is

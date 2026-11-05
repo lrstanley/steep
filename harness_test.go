@@ -146,7 +146,7 @@ func TestCloseStuckInit(t *testing.T) {
 	t.Cleanup(func() { close(m.release) })
 	h := NewHarness(ftb, m, WithIgnoreEnv(true), WithWindowSize(20, 2), WithTimeout(50*time.Millisecond))
 	runFailing(h.Close)
-	if errs := strings.Join(ftb.errors(), "\n"); !strings.Contains(errs, "waiting for the bubble tea program to finish") {
+	if errs := strings.Join(ftb.errors(), "\n"); !strings.Contains(errs, "waiting for the program to finish") {
 		t.Fatalf("errors = %q, want a failure to stop the program", errs)
 	}
 }

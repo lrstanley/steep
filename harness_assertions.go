@@ -15,8 +15,9 @@ import (
 	"github.com/lrstanley/steep/reel"
 )
 
-// WaitFinished waits for the [tea.Program] to finish. It fails the test if
-// the program returned an error other than [tea.ErrProgramKilled].
+// WaitFinished waits for the program to finish. It fails the test if the
+// program returned an error other than [tea.ErrProgramKilled]. A command's
+// nonzero exit status is not an error (see [Harness.ExitStatus]).
 //
 // See also [Harness.FinalModel].
 func (h *Harness) WaitFinished(opts ...Option) {
@@ -39,12 +40,12 @@ func (h *Harness) waitFinished(cfg options, w *waitRecord) {
 	case <-h.done:
 		if h.runErr != nil && !errors.Is(h.runErr, tea.ErrProgramKilled) {
 			w.ended(outcomeFailed)
-			h.tb.Fatalf("bubble tea program failed: %v", h.runErr)
+			h.tb.Fatalf("the program failed: %v", h.runErr)
 		}
 		w.ended(outcomeSatisfied)
 	case <-ctx.Done():
 		w.ended(doneOutcome(ctx))
-		h.tb.Fatalf("waiting for the bubble tea program to finish: %v", context.Cause(ctx))
+		h.tb.Fatalf("waiting for the program to finish: %v", context.Cause(ctx))
 	}
 }
 

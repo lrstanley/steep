@@ -26,6 +26,7 @@ var harnessHookExcluded = func() map[string]bool {
 		"FinalModel", "FinalModelAs", "mergedOpts", "waitStarted", "snapshotOpts", "textSnapshotOpts",
 		"FilterMessagesType", "FilterMessagesFunc",
 		"check", "waitFinished", "waitScreen", "assertScreen",
+		"stopProgram", "ready", "noteReady", "requireProgram", "ExitStatus",
 		"LeftClick", "MiddleClick", "RightClick", "LeftDrag",
 		"KeyUp", "KeyDown", "KeyLeft", "KeyRight", "KeyEsc", "KeyDelete",
 		"KeyBackspace", "KeyCtrlC", "KeyCtrlD",
@@ -41,6 +42,7 @@ func TestHookInstrumentation(t *testing.T) {
 	files := []string{
 		"harness.go",
 		"harness_assertions.go",
+		"harness_exec.go",
 		"harness_snapshot.go",
 		"harness_terminal.go",
 	}

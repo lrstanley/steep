@@ -41,14 +41,23 @@ var _ MessageCollector = (*Harness)(nil)
 // message Wait* functions of the same names check any [Viewable] or
 // [MessageCollector] and return a result instead: whether an Assert*
 // passed, or the message that satisfied a Wait*.
+//
+// A harness from [NewExecHarness] runs a command rather than a [tea.Program]:
+// methods that need the program or its model fail the test.
 type Harness struct {
 	tb       testing.TB
 	failures *failureTB
 	session  *reel.Session
+	// program and observer are nil for a command, and process is nil for a
+	// [tea.Program].
 	program  *tea.Program
 	observer *observer
+	process  *reel.Process
 	opts     []Option
 	cfg      options
+
+	// stop ends the program for [Harness.Close].
+	stop func(cfg options)
 
 	// endMu keeps what the program notes out of the end of the recording,
 	// between the result and where [Harness.Close] cuts it.
@@ -77,6 +86,57 @@ type Harness struct {
 // timeout for the model's first message, and registers [Harness.Close] as a
 // test cleanup.
 func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
+	tb.Helper()
+	h := newHarness(tb, opts)
+	cfg := h.cfg
+	h.stop = h.stopProgram
+	h.observer = newObserver(model)
+	if cfg.recordMessages {
+		h.observer.onMessage = h.noteMessage
+	}
+
+	env, programOpts := cfg.envVars, cfg.programOpts
+	if env == nil {
+		// Force TTY mode, since we're not connecting to a real TTY/PTY.
+		env = []string{"TTY_FORCE=1", term256}
+	}
+	if cfg.color != 0 {
+		env = cfg.color.env(env)
+		programOpts = append([]tea.ProgramOption{tea.WithColorProfile(cfg.color.teaProfile())}, programOpts...)
+	}
+	h.program = tea.NewProgram(
+		h.observer,
+		append(
+			programOpts,
+			tea.WithEnvironment(env),
+			tea.WithContext(cfg.ctx),
+			tea.WithInput(h.session),
+			tea.WithOutput(h.session),
+			tea.WithoutSignals(),
+			tea.WithWindowSize(cfg.width, cfg.height),
+		)...,
+	)
+
+	h.observer.outputSeq = h.session.Terminal().OutputSeq
+	h.observer.send = h.program.Send
+
+	go func() {
+		_, h.runErr = h.program.Run()
+		h.noteExit(h.runErr)
+		close(h.done)
+	}()
+
+	// Registered before waiting, so a startup failure still cleans up.
+	h.tb.Cleanup(h.Close)
+
+	h.waitStarted(cfg)
+
+	return h
+}
+
+// newHarness returns a harness with its terminal and recording open, and no
+// program running in it yet.
+func newHarness(tb testing.TB, opts []Option) *Harness {
 	tb.Helper()
 	failures := &failureTB{TB: tb}
 	tb = failures
@@ -112,7 +172,6 @@ func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
 		tb:        tb,
 		failures:  failures,
 		session:   session,
-		observer:  newObserver(model),
 		done:      make(chan struct{}),
 		cfg:       cfg,
 		imager:    imager,
@@ -123,42 +182,7 @@ func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
 	// Clipped, so one call's appends cannot write into another's.
 	h.opts = slices.Clip(append(slices.Clone(opts), withHarness(h)))
 	failures.note = h.noteFailure
-	if cfg.recordMessages {
-		h.observer.onMessage = h.noteMessage
-	}
 	h.annotate(newStartNote(tb.Name(), cfg))
-
-	env, programOpts := cfg.envVars, cfg.programOpts
-	if cfg.color != 0 {
-		env = cfg.color.env(env)
-		programOpts = append([]tea.ProgramOption{tea.WithColorProfile(cfg.color.teaProfile())}, programOpts...)
-	}
-	h.program = tea.NewProgram(
-		h.observer,
-		append(
-			programOpts,
-			tea.WithEnvironment(env),
-			tea.WithContext(cfg.ctx),
-			tea.WithInput(h.session),
-			tea.WithOutput(h.session),
-			tea.WithoutSignals(),
-			tea.WithWindowSize(cfg.width, cfg.height),
-		)...,
-	)
-
-	h.observer.outputSeq = h.session.Terminal().OutputSeq
-	h.observer.send = h.program.Send
-
-	go func() {
-		_, h.runErr = h.program.Run()
-		h.noteExit(h.runErr)
-		close(h.done)
-	}()
-
-	// Registered before waiting, so a startup failure still cleans up.
-	tb.Cleanup(h.Close)
-
-	h.waitStarted(cfg)
 
 	return h
 }
@@ -194,6 +218,15 @@ func (h *Harness) Close() {
 
 	defer h.exportRecording(h.endRecording())
 
+	h.stop(cfg)
+	// The test's context is canceled during cleanups.
+	cfg.ctx = context.Background()
+	h.waitFinished(cfg, nil)
+}
+
+// stopProgram asks the [tea.Program] to quit, and kills it if it has not by
+// the timeout.
+func (h *Harness) stopProgram(cfg options) {
 	// Unblock the program's input loop before Quit.
 	h.session.Terminal().CloseReader()
 
@@ -216,9 +249,6 @@ func (h *Harness) Close() {
 			}
 		}()
 	}
-	// The test's context is canceled during cleanups.
-	cfg.ctx = context.Background()
-	h.waitFinished(cfg, nil)
 }
 
 func (h *Harness) waitStarted(cfg options) {
@@ -227,15 +257,31 @@ func (h *Harness) waitStarted(cfg options) {
 	ctx, cancel := context.WithTimeoutCause(cfg.ctx, cfg.timeout, errWaitTimeout)
 	defer cancel()
 
-	note := func(o outcome) {
-		h.annotate(&readyNote{Outcome: o, ElapsedMS: time.Since(h.start).Milliseconds()})
-	}
 	select {
 	case <-h.observer.firstEvent:
-		note(outcomeReady)
-		h.hook(HookReady, nil)()
+		h.ready()
 	case <-ctx.Done():
-		note(doneOutcome(ctx))
+		h.noteReady(doneOutcome(ctx))
+	}
+}
+
+// ready records that the program has started.
+func (h *Harness) ready() {
+	h.tb.Helper()
+	h.noteReady(outcomeReady)
+	h.hook(HookReady, nil)()
+}
+
+func (h *Harness) noteReady(o outcome) {
+	h.annotate(&readyNote{Outcome: o, ElapsedMS: time.Since(h.start).Milliseconds()})
+}
+
+// requireProgram fails the test if the harness runs a command, as method
+// needs a [tea.Program].
+func (h *Harness) requireProgram(method string) {
+	h.tb.Helper()
+	if h.program == nil {
+		h.tb.Fatalf("steep: Harness.%s needs a tea.Program, and this harness runs a command (see NewExecHarness)", method)
 	}
 }
 
@@ -258,6 +304,7 @@ func (h *Harness) mergedOpts(call ...Option) []Option {
 // or the mouse helpers, which go through the terminal as real input would.
 func (h *Harness) SendProgram(msg uv.Event) *Harness {
 	h.tb.Helper()
+	h.requireProgram("SendProgram")
 	msgType := reflect.TypeOf(msg)
 	defer h.hook(HookProgram, nil, func(got uv.Event) int {
 		if reflect.TypeOf(got) == msgType {
@@ -275,6 +322,7 @@ func (h *Harness) SendProgram(msg uv.Event) *Harness {
 // QuitProgram requests a graceful shutdown of the [tea.Program].
 func (h *Harness) QuitProgram() *Harness {
 	h.tb.Helper()
+	h.requireProgram("QuitProgram")
 	defer h.hook(HookClose, nil)()
 	h.annotate(&programNote{Action: "quit"})
 	h.program.Quit()
@@ -290,6 +338,7 @@ func (h *Harness) QuitProgram() *Harness {
 // or the test fails.
 func (h *Harness) Mutate[M any](fn func(M) M, opts ...Option) *Harness {
 	h.tb.Helper()
+	h.requireProgram("Mutate")
 	defer h.hook(HookProgram, nil, responseTo[mutateMsg])()
 
 	if fn == nil {
@@ -330,6 +379,7 @@ func (h *Harness) Mutate[M any](fn func(M) M, opts ...Option) *Harness {
 // model.
 func (h *Harness) FinalModel(opts ...Option) tea.Model {
 	h.tb.Helper()
+	h.requireProgram("FinalModel")
 	h.WaitFinished(opts...)
 	return h.observer.currentModel()
 }
@@ -350,6 +400,7 @@ func (h *Harness) FinalModelAs[M any](opts ...Option) M {
 // MessageHistory returns a copy of all messages the model received.
 func (h *Harness) MessageHistory() iter.Seq[uv.Event] {
 	h.tb.Helper()
+	h.requireProgram("MessageHistory")
 	return h.observer.messages.History()
 }
 
@@ -359,6 +410,7 @@ func (h *Harness) MessageHistory() iter.Seq[uv.Event] {
 // newer messages, which [Harness.MessageHistory] still has.
 func (h *Harness) Messages(ctx context.Context) iter.Seq[uv.Event] {
 	h.tb.Helper()
+	h.requireProgram("Messages")
 	return h.observer.messages.SubscribeAll(ctx)
 }
 
@@ -367,6 +419,7 @@ func (h *Harness) Messages(ctx context.Context) iter.Seq[uv.Event] {
 // only 32 messages, and a loop that falls further behind misses the newer ones.
 func (h *Harness) LiveMessages(ctx context.Context) iter.Seq[uv.Event] {
 	h.tb.Helper()
+	h.requireProgram("LiveMessages")
 	return h.observer.messages.Subscribe(ctx)
 }
 

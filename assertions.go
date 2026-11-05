@@ -335,8 +335,11 @@ func WaitSettleMessages(tb testing.TB, log MessageCollector, opts ...Option) {
 	var last atomic.Pointer[time.Time]
 	last.Store(new(time.Now()))
 
+	// Called here, as a collector can fail the test, which only stops its own
+	// goroutine.
+	messages := IgnoreMessagesReflect(tb, log.LiveMessages(ctx), cfg.settleIgnore...)
 	go func() {
-		for msg := range IgnoreMessagesReflect(tb, log.LiveMessages(ctx), cfg.settleIgnore...) {
+		for msg := range messages {
 			observedMessages.Observe(msg)
 			last.Store(new(time.Now()))
 		}

@@ -255,7 +255,8 @@ type Hook func(event HookEvent, stage HookStage, metadata any) error
 
 // While exporting, responses says which message the action causes, for
 // actions whose metadata does not (see [inputResponses]), so its mark can wait
-// for the program to paint it. Without one, output of any kind counts.
+// for the program to paint it. Without one, or for a command, whose messages
+// the harness cannot see, output of any kind counts.
 func (h *Harness) hook(event HookEvent, metadata any, responses ...func(uv.Event) int) func() {
 	h.tb.Helper()
 	var seq uint64
@@ -266,7 +267,7 @@ func (h *Harness) hook(event HookEvent, metadata any, responses ...func(uv.Event
 		if len(responses) > 0 {
 			want, match = 1, responses[0]
 		}
-		if want > 0 {
+		if want > 0 && h.observer != nil {
 			watch = h.observer.watchPaint(want, match)
 		}
 	}

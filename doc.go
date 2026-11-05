@@ -14,6 +14,15 @@
 // Use NewComponentHarness for components that expose View() string and an Update
 // method through the asynchronous [tea.Program] runtime.
 //
+// Use NewExecHarness for a command, which need not use Bubble Tea, on a
+// pseudo-terminal:
+//
+//	h := steep.NewExecHarness(t, exec.Command("./myapp"))
+//	h.Wait("ready").Key("q")
+//	if status := h.ExitStatus(); status != 0 {
+//		t.Errorf("exit status = %d", status)
+//	}
+//
 // # Hooks
 //
 // Harness actions invoke [Hook] callbacks from [WithHooks] before and after
