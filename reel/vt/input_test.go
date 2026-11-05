@@ -220,3 +220,29 @@ func TestHostColorsClearedOnCheckout(t *testing.T) {
 		t.Fatalf("reused terminal palette = %v, want nil", p)
 	}
 }
+
+// TestEncodeMouseHover checks motion with no button, after an event that had
+// one: a program tracking all motion gets it, and one tracking drags doesn't.
+func TestEncodeMouseHover(t *testing.T) {
+	t.Parallel()
+	term := openTest(t, 8, 2)
+	hover := MouseEvent{Action: MouseMotion, Button: MouseUnknown, X: 3, Y: 1}
+	for _, tc := range []struct{ modes, want string }{
+		{"\x1b[?1003h\x1b[?1006h", "\x1b[<35;4;2M"},
+		{"\x1b[?1003l\x1b[?1002h", ""},
+	} {
+		if _, err := term.Write([]byte(tc.modes)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := term.EncodeMouse(MouseEvent{Action: MousePress, Button: MouseLeft}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := term.EncodeMouse(hover)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != tc.want {
+			t.Errorf("after %q: hover = %q, want %q", tc.modes, got, tc.want)
+		}
+	}
+}

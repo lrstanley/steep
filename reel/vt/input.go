@@ -135,7 +135,13 @@ func (t *Terminal) EncodeMouse(m MouseEvent) ([]byte, error) {
 		return nil, err
 	}
 	t.mod.Xghostty_mouse_event_set_action(t.mouseEv, int32(m.Action))
-	t.mod.Xghostty_mouse_event_set_button(t.mouseEv, int32(m.Button))
+	// The event outlives this call, so a button from the last one has to go.
+	// Without one, motion is reported as hover.
+	if m.Button == MouseUnknown {
+		t.mod.Xghostty_mouse_event_clear_button(t.mouseEv)
+	} else {
+		t.mod.Xghostty_mouse_event_set_button(t.mouseEv, int32(m.Button))
+	}
 	pos, err := t.mod.Alloc(8)
 	if err != nil {
 		return nil, err
