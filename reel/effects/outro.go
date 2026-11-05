@@ -31,6 +31,8 @@ type outro struct {
 	lines func(cols, rows int) []Line
 }
 
+func (outro) Priority() int { return reel.PriorityCard }
+
 func (e outro) Start(ctx *reel.Context) (reel.Stage, error) {
 	if e.d <= 0 || e.lines == nil {
 		return nil, nil //nolint:nilnil // A nil stage leaves the recording alone.
@@ -52,11 +54,13 @@ func (e outro) Start(ctx *reel.Context) (reel.Stage, error) {
 
 // HoldLast returns an effect that plays the last frame of the terminal for
 // at least d, such as so a failing screen can be read. A last frame that is
-// not the terminal's, such as a card, is left alone, so list HoldLast before
-// [Outro] to hold the screen before the card. The speed does not scale d.
+// not the terminal's, such as a card, is left alone, so the screen is held
+// before the card of an [Outro]. The speed does not scale d.
 func HoldLast(d time.Duration) reel.Effect { return holdLast(d) }
 
 type holdLast time.Duration
+
+func (holdLast) Priority() int { return reel.PriorityPause }
 
 func (e holdLast) Start(*reel.Context) (reel.Stage, error) {
 	if e <= 0 {

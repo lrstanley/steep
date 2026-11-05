@@ -34,7 +34,7 @@ func TestOutro(t *testing.T) {
 	} {
 		var in []reel.Frame
 		out := exportFrames(t, tl, reel.Profile{
-			Effects: []reel.Effect{recordFrames{&in}, tc.effect},
+			Effects: []reel.Effect{recordFrames{&in, 1}, tc.effect},
 			Speed:   2,
 		})
 		if !tc.card {

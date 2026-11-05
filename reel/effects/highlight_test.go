@@ -68,6 +68,9 @@ func highlightFrames(t *testing.T, tl *reel.Timeline, effects ...reel.Effect) (i
 // effectFunc is an [reel.Effect] whose stage is fn.
 type effectFunc func(f reel.Frame, emit func(reel.Frame))
 
+// Priority runs the function before the effects under test.
+func (effectFunc) Priority() int { return 1 }
+
 func (e effectFunc) Start(*reel.Context) (reel.Stage, error) { return reel.Stage(e), nil }
 
 // TestHighlightCells checks a fixed rectangle of cells, dimmed around and
@@ -143,6 +146,8 @@ func TestHighlightBetween(t *testing.T) {
 // terminal frame.
 type cardEffect struct{}
 
+func (cardEffect) Priority() int { return 1 }
+
 func (cardEffect) Start(*reel.Context) (reel.Stage, error) {
 	return func(f reel.Frame, emit func(reel.Frame)) {
 		card := image.NewNRGBA(f.Image.Rect)
@@ -159,7 +164,7 @@ func TestHighlightCard(t *testing.T) {
 	t.Parallel()
 	tl := buildTimeline(t, 6, 2, "", output(0, "abc"))
 	var cards []reel.Frame
-	_, out := highlightFrames(t, tl, cardEffect{}, recordFrames{&cards}, Highlight(Rows(0, 2), Outline(nil, 0)))
+	_, out := highlightFrames(t, tl, cardEffect{}, recordFrames{&cards, 2}, Highlight(Rows(0, 2), Outline(nil, 0)))
 	if len(out) != 2 || out[0].Cells != nil || out[0].Image != cards[0].Image || !out[0].Isolated || out[0].Delay != 50*ms {
 		t.Fatalf("frames %+v, want the card untouched and the terminal frame", infoOf(out))
 	}

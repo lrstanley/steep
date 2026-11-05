@@ -5,14 +5,8 @@
 package look
 
 import (
-	"fmt"
-	"slices"
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/effects"
 )
 
 func TestMerge(t *testing.T) {
@@ -51,18 +45,5 @@ func TestRender(t *testing.T) {
 	}
 	if len(opts) == 0 || len(warnings) != 1 || !strings.Contains(warnings[0], "No Such Font") {
 		t.Errorf("Render = %d options, warnings %q", len(opts), warnings)
-	}
-}
-
-func TestArrange(t *testing.T) {
-	keys := effects.Keys(time.Second)
-	redact := effects.Redact(effects.Text("x"))
-	hide := effects.Hide(effects.HideBetween("a", "b"))
-	zoom := effects.Zoom(effects.Row(0))
-	got := Arrange([]reel.Effect{keys, zoom, hide, redact})
-	want := []reel.Effect{redact, hide, keys, zoom}
-	// Effects are not comparable, but these are each of their own type.
-	if !slices.EqualFunc(got, want, func(a, b reel.Effect) bool { return fmt.Sprintf("%T", a) == fmt.Sprintf("%T", b) }) {
-		t.Errorf("Arrange = %v, want concealers, then cutters, then the rest in order", got)
 	}
 }

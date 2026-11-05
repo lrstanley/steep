@@ -339,10 +339,10 @@ func TestExportCastEffects(t *testing.T) {
 			Zoom(Text("hunter2"), Scale(2), Between("a", "b")),
 			Highlight(customRegion{}),
 			Highlight(Text("line"), Outline(nil, 2)),
-			Keys(500 * ms),
-			Intro(200 * ms),
 			Pause(PauseAtMarks(100*ms, "b")),
+			Keys(500 * ms),
 			Toasts(WithToastDuration(500*ms), WithToastCorner(BottomRight), WithClipboardToasts()),
+			Intro(200 * ms),
 		}
 		first := filepath.Join(dir, "first.cast")
 		p := reel.Profile{

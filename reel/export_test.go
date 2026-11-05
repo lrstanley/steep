@@ -11,6 +11,7 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -749,9 +750,9 @@ func TestExportConcealer(t *testing.T) {
 	}{
 		{"cast", MustFiles("x.gif", "x.cast"), []Effect{concealer{true}}, ErrRawOutput, "asciicast"},
 		{"cast only", MustFiles("x.cast"), []Effect{concealer{true}, keep}, ErrRawOutput, "asciicast"},
-		{"order", MustFiles("x.gif"), []Effect{concealer{true}, keep, concealer{true}}, nil, "effect 2 (reel.concealer) conceals, so it must come before effect 1"},
+		{"order", MustFiles("x.gif"), []Effect{concealer{true}, keep, late{concealer{true}}}, nil, "effect reel.late conceals, so its priority must be below that of"},
 		{"wrapped cast", MustFiles("x.gif", "x.cast"), []Effect{wrapped{concealer{true}}}, ErrRawOutput, "asciicast"},
-		{"wrapped order", MustFiles("x.gif"), []Effect{keep, wrapped{wrapped{concealer{true}}}}, nil, "conceals, so it must come before effect 0"},
+		{"wrapped order", MustFiles("x.gif"), []Effect{keep, wrapped{late{concealer{true}}}}, nil, "conceals, so its priority must be below that of"},
 	} {
 		dir := t.TempDir()
 		var outputs []File
@@ -898,6 +899,43 @@ func TestExportStillEffects(t *testing.T) {
 type wrapped struct{ Effect }
 
 func (w wrapped) Unwrap() Effect { return w.Effect }
+
+// late wraps a concealer, and runs after everything else.
+type late struct{ concealer }
+
+func (late) Priority() int { return PriorityCard + 1 }
+
+// ranked is an effect with a priority, named so a test can tell them apart.
+type ranked struct {
+	name     string
+	priority int
+}
+
+func (ranked) Start(*Context) (Stage, error) { return nil, nil } //nolint:nilnil // A nil stage leaves the recording alone.
+func (r ranked) Priority() int               { return r.priority }
+
+func TestSortEffects(t *testing.T) {
+	t.Parallel()
+	plain := Effect(wrapped{})
+	cuts := Effect(cutter{on: true})
+	concealed := Effect(concealer{true})
+	card := ranked{"card", PriorityCard}
+	first := ranked{"first", PriorityOverlay}
+	second := ranked{"second", PriorityOverlay}
+	between := wrapped{ranked{"between", PriorityOverlay - 10}}
+	lowest := ranked{"lowest", math.MinInt}
+	highest := ranked{"highest", math.MaxInt}
+
+	in := []Effect{highest, card, first, plain, between, second, cuts, concealed, lowest}
+	got := sortEffects(in)
+	want := []Effect{lowest, concealed, cuts, between, first, second, plain, card, highest}
+	if !slices.Equal(got, want) {
+		t.Errorf("sortEffects = %#v, want %#v", got, want)
+	}
+	if in[0] != highest {
+		t.Error("sortEffects changed the profile's slice")
+	}
+}
 
 // stillEffect is a [StillEffect] that runs its stage.
 type stillEffect struct{ stage effectFunc }

@@ -207,8 +207,31 @@ func markLabels(out File, tl *Timeline) ([]string, error) {
 	return labels, nil
 }
 
+// sortEffects returns effects in the order they run: by priority, and those
+// of the same priority as listed.
+func sortEffects(effects []Effect) []Effect {
+	out := slices.Clone(effects)
+	slices.SortStableFunc(out, func(a, b Effect) int { return cmp.Compare(effectPriority(a), effectPriority(b)) })
+	return out
+}
+
+// effectPriority returns e's priority: its own, from anything in its Unwrap
+// chain, or else the priority of what it does.
+func effectPriority(e Effect) int {
+	if p, ok := effectAs[Prioritizer](e); ok {
+		return p.Priority()
+	}
+	switch {
+	case conceals(e):
+		return PriorityConceal
+	case cuts(e):
+		return PriorityCut
+	}
+	return PriorityDefault
+}
+
 // checkEffects enforces the ordering and output rules of [Concealer] and
-// [Cutter].
+// [Cutter] on effects in the order they run.
 func (o *outputs) checkEffects(effects []Effect) error {
 	n := 0
 	for n < len(effects) && conceals(effects[n]) {
@@ -216,7 +239,7 @@ func (o *outputs) checkEffects(effects []Effect) error {
 	}
 	for i := n + 1; i < len(effects); i++ {
 		if conceals(effects[i]) {
-			return fmt.Errorf("reel: effect %d (%T) conceals, so it must come before effect %d (%T), which does not", i, effects[i], n, effects[n])
+			return fmt.Errorf("reel: effect %T conceals, so its priority must be below that of %T, which does not", effects[i], effects[n])
 		}
 	}
 	if len(o.casts) > 0 && (n > 0 || slices.ContainsFunc(effects, cuts)) {

@@ -103,6 +103,44 @@ type Effect interface {
 	Start(ctx *Context) (Stage, error)
 }
 
+// Prioritizer is implemented by an [Effect] with a place of its own in the
+// chain. [Export] and [Record] run a profile's effects by priority, lowest
+// first, and effects of the same priority in the order the profile lists
+// them. The effects of this module use the Priority constants, which leave
+// room to run an effect of a caller's own between them, such as with
+// PriorityZoom + 10.
+type Prioritizer interface {
+	Effect
+	// Priority returns the effect's place in the chain.
+	Priority() int
+}
+
+// The priorities of the effects in this module.
+const (
+	// PriorityConceal is for effects that hide secrets, which see frames
+	// first. A [Concealer] has it unless it is also a [Prioritizer].
+	PriorityConceal = 100
+	// PriorityCut is for effects that cut stretches of the recording, so the
+	// effects after them leave out what is cut. A [Cutter] has it unless it
+	// is also a [Prioritizer].
+	PriorityCut = 200
+	// PriorityZoom is for zooms, which draw over the effects before them.
+	PriorityZoom = 300
+	// PriorityHighlight is for effects that dim the frame, so the overlays
+	// after them are not dimmed.
+	PriorityHighlight = 400
+	// PriorityPause is for effects that hold frames, so the overlays after
+	// them show what they showed when a pause started.
+	PriorityPause = 500
+	// PriorityOverlay is for overlays, such as of the keys pressed.
+	PriorityOverlay = 600
+	// PriorityDefault is the priority of an effect that has no other.
+	PriorityDefault = 700
+	// PriorityCard is for effects that add cards around the recording, which
+	// no other effect need draw on.
+	PriorityCard = 800
+)
+
 // EffectKind is the [Annotation] kind the effects package describes its
 // effects with.
 const EffectKind = "reel.effect"
@@ -131,7 +169,8 @@ type MarkChecker interface {
 // Concealer is implemented by an [Effect] that hides part of what a
 // recording shows, such as a secret. If any effect in a profile Conceals:
 //
-//   - every such effect must be listed before every effect that does not;
+//   - every such effect must run before every effect that does not, which a
+//     priority of its own can break (see [Prioritizer]);
 //   - no output may bypass the effects, as asciicast outputs do;
 //   - it also runs on the stills of [File.Marks], like a [StillEffect].
 //
@@ -159,7 +198,7 @@ type Cutter interface {
 
 // StillEffect is implemented by an [Effect] that also runs on the stills
 // of [File.Marks]. Stills run through only these and [Concealer] effects,
-// in profile order, started separately on their own [Context]. Each still
+// by priority, then in profile order, started separately on their own [Context]. Each still
 // is given as a one-frame recording ([Frame.First] and [Frame.Last] set,
 // one [Context.Step] long). The first frame the last effect emits is the
 // still, so a stage must emit before it returns; emitting nothing is an

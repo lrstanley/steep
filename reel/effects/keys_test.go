@@ -136,7 +136,7 @@ func TestKeysOverlay(t *testing.T) {
 	)
 	var in []reel.Frame
 	out := exportFrames(t, tl, reel.Profile{
-		Effects: []reel.Effect{recordFrames{&in}, Keys(300 * ms)},
+		Effects: []reel.Effect{recordFrames{&in, 1}, Keys(300 * ms)},
 	})
 	if len(in) != 1 {
 		t.Fatalf("%d terminal frames, want 1", len(in))
@@ -199,7 +199,7 @@ func TestKeysTiming(t *testing.T) {
 		{FPS: 100},
 	} {
 		var in []reel.Frame
-		p.Effects = []reel.Effect{recordFrames{&in}, Keys(400 * ms)}
+		p.Effects = []reel.Effect{recordFrames{&in, 1}, Keys(400 * ms)}
 		out := exportFrames(t, tl, p)
 		if got, want := totalDelay(out), totalDelay(in); got != want {
 			t.Errorf("speed %v fps %d: overlay changed the recording length from %v to %v", p.Speed, p.FPS, want, got)
@@ -272,7 +272,7 @@ func TestKeysLeavesAlone(t *testing.T) {
 	} {
 		var in []reel.Frame
 		out := exportFrames(t, cut, reel.Profile{
-			Effects: []reel.Effect{Intro(500 * ms), recordFrames{&in}, Keys(tc.shown)},
+			Effects: []reel.Effect{cardEffect{}, recordFrames{&in, 2}, Keys(tc.shown)},
 		})
 		if len(out) != 2 || out[0].Cells != nil {
 			t.Fatalf("%s: %d frames, want the intro card and the terminal", tc.name, len(out))

@@ -163,10 +163,9 @@ func WithMouseParts(p MouseParts) MouseOption {
 // A session sends a mouse event only when the program asked for it, so
 // events the program never saw are not drawn either.
 //
-// List Mouse after [Zoom], so the pointer is drawn where the zoom draws its
-// cell, and after [Highlight], so it is not dimmed. With zooms that overlap
-// in time, the pointer follows the last of them. A [Hide] listed before
-// Mouse leaves out the ripples of presses in what it cuts.
+// The pointer is drawn where a [Zoom] draws its cell, and a [Highlight] does
+// not dim it. With zooms that overlap in time, the pointer follows the last
+// of them. The ripples of presses in what a [Hide] cuts are left out.
 func Mouse(opts ...MouseOption) reel.Effect {
 	m := mouse{
 		pointer: pointerFill,
@@ -202,6 +201,8 @@ func (e mouse) check() error {
 	}
 	return nil
 }
+
+func (mouse) Priority() int { return reel.PriorityOverlay }
 
 func (e mouse) Start(ctx *reel.Context) (reel.Stage, error) {
 	if err := e.check(); err != nil {

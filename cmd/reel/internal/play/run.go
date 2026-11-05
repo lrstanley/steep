@@ -342,7 +342,7 @@ func (t *Tape) plan(st settings, cfg runConfig, warnings *[]string) (plan, error
 		}
 	}
 	st.Profile(&pl.profile)
-	pl.profile.Effects = look.Arrange(slices.Concat(cfg.profile.Effects, t.effects, t.hideEffects(), st.Effects()))
+	pl.profile.Effects = slices.Concat(cfg.profile.Effects, t.effects, t.hideEffects(), st.Effects())
 	return pl, nil
 }
 

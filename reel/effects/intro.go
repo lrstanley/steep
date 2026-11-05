@@ -25,6 +25,8 @@ type intro struct {
 	lines []Line
 }
 
+func (intro) Priority() int { return reel.PriorityCard }
+
 func (e intro) Start(ctx *reel.Context) (reel.Stage, error) {
 	lines := e.lines
 	if len(lines) == 0 && ctx.Title != "" {

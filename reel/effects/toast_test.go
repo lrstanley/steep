@@ -88,7 +88,7 @@ func TestToastsTiming(t *testing.T) {
 	var in []reel.Frame
 	out := exportFrames(t, tl, reel.Profile{
 		Rasterizer: toastRast,
-		Effects:    []reel.Effect{recordFrames{&in}, Toasts(WithToastDuration(600 * ms))},
+		Effects:    []reel.Effect{recordFrames{&in, 1}, Toasts(WithToastDuration(600 * ms))},
 	})
 	if got, want := totalDelay(out), totalDelay(in); got != want {
 		t.Errorf("toasts changed the recording length from %v to %v", want, got)
@@ -126,7 +126,7 @@ func TestToastsTiming(t *testing.T) {
 	for _, p := range []reel.Profile{{Speed: 2}, {FPS: 30}} {
 		in = nil
 		p.Rasterizer = toastRast
-		p.Effects = []reel.Effect{recordFrames{&in}, Toasts(WithToastDuration(600 * ms))}
+		p.Effects = []reel.Effect{recordFrames{&in, 1}, Toasts(WithToastDuration(600 * ms))}
 		out = exportFrames(t, tl, p)
 		if got, want := totalDelay(out), totalDelay(in); got != want {
 			t.Errorf("x%v %dfps: toasts changed the recording length from %v to %v", p.Speed, p.FPS, want, got)
@@ -171,7 +171,7 @@ func TestToastsNarrow(t *testing.T) {
 		var in []reel.Frame
 		out := exportFrames(t, tl, reel.Profile{
 			Rasterizer: toastRast,
-			Effects:    []reel.Effect{recordFrames{&in}, Toasts()},
+			Effects:    []reel.Effect{recordFrames{&in, 1}, Toasts()},
 		})
 		shown := overlaid(in, out)
 		if slices.Contains(shown, true) != tc.shown {
@@ -211,7 +211,7 @@ func TestToastsLeavesAlone(t *testing.T) {
 	var in []reel.Frame
 	out := exportFrames(t, cut, reel.Profile{
 		Rasterizer: toastRast,
-		Effects:    []reel.Effect{Intro(500 * ms), Hide(HideBetween("hide", "show")), recordFrames{&in}, Toasts(WithToastDuration(5 * time.Second))},
+		Effects:    []reel.Effect{cardEffect{}, Hide(HideBetween("hide", "show")), recordFrames{&in, reel.PriorityCut}, Toasts(WithToastDuration(5 * time.Second))},
 	})
 	if out[0].Cells != nil {
 		t.Fatal("first frame is not the intro card")
@@ -234,7 +234,7 @@ func TestToastsPaused(t *testing.T) {
 	var in []reel.Frame
 	out := exportFrames(t, tl, reel.Profile{
 		Rasterizer: toastRast,
-		Effects:    []reel.Effect{Pause(PauseAtMarks(time.Second, "pause"), WithoutBadge()), recordFrames{&in}, Toasts(WithToastDuration(600 * ms))},
+		Effects:    []reel.Effect{Pause(PauseAtMarks(time.Second, "pause"), WithoutBadge()), recordFrames{&in, reel.PriorityPause}, Toasts(WithToastDuration(600 * ms))},
 	})
 	var paused, after time.Duration
 	for i, shown := range overlaid(in, out) {
@@ -307,7 +307,7 @@ func TestToastsClipboard(t *testing.T) {
 		var in []reel.Frame
 		out := exportFrames(t, cut, reel.Profile{
 			Rasterizer: toastRast,
-			Effects:    []reel.Effect{recordFrames{&in}, Toasts(append(tc.opts, WithToastDuration(500*ms))...)},
+			Effects:    []reel.Effect{recordFrames{&in, 1}, Toasts(append(tc.opts, WithToastDuration(500*ms))...)},
 		})
 		var shownFor time.Duration
 		for i, shown := range overlaid(in, out) {

@@ -37,7 +37,8 @@ type Profile struct {
 	Rasterizer Rasterizer
 	// Encode configures every frame output (see the sink package).
 	Encode []sink.Option
-	// Effects transform frames in order. See [Concealer] for ordering rules
+	// Effects transform frames, by priority and then in the order listed
+	// (see [Prioritizer]). See [Concealer] for the rules on hiding secrets
 	// and [Describer] for how asciicast outputs record them.
 	Effects []Effect
 	// FPS sets the delay grid: frames play whole steps of
@@ -63,7 +64,7 @@ type Profile struct {
 // [Timeline.WriteCast], with [Profile.Title] and the drawn palette in its
 // header. It bypasses the effects, so it cannot be combined with a
 // [Concealer] or [Cutter]. Instead, it records each [Describer] effect's description,
-// in profile order, as an [Annotation] at the start of the file. These
+// in the order they run, as an [Annotation] at the start of the file. These
 // replace the timeline's existing annotations of [EffectKind] and of the
 // described kinds, so re-exporting a file with its own effects does not
 // duplicate them. Effects that are not Describers, or whose Describe

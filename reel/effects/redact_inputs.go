@@ -26,7 +26,7 @@ type typedRedaction struct {
 // RedactInputs returns an effect that hides the text region matches from
 // the typed text [Keys] shows, as a • for each character, so a password
 // typed with "hunter2\n" shows as "•••••••⏎". It changes no frame and only
-// affects the Keys listed after it; an effect of a caller's own that reads
+// affects Keys; an effect of a caller's own that reads
 // the timeline's input still sees what was typed. It is a
 // [reel.Concealer].
 //
@@ -58,6 +58,8 @@ type redactInputs typedRedaction
 
 // Conceals implements [reel.Concealer].
 func (redactInputs) Conceals() bool { return true }
+
+func (redactInputs) Priority() int { return reel.PriorityConceal }
 
 func (e redactInputs) Start(ctx *reel.Context) (reel.Stage, error) {
 	if e.region == nil {

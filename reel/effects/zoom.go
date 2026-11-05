@@ -79,8 +79,7 @@ func (o Timing) applyZoom(z *zoom) {
 // wherever the text moves.
 //
 // Sharp zooms are drawn from the cells, over whatever effects before Zoom
-// drew; see the package documentation for where to list it. A nil region
-// is an error from Start.
+// drew. A nil region is an error from Start.
 func Zoom(region Region, opts ...ZoomOption) reel.Effect {
 	z := zoom{region: region, ax: 0.5, ay: 0.5}
 	for _, opt := range opts {
@@ -100,6 +99,8 @@ type zoom struct {
 	scaleSet bool
 	ax, ay   float64
 }
+
+func (zoom) Priority() int { return reel.PriorityZoom }
 
 func (e zoom) Start(ctx *reel.Context) (reel.Stage, error) {
 	inUnit := func(f float64) bool { return f >= 0 && f <= 1 }

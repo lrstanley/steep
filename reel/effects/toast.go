@@ -80,7 +80,7 @@ func WithClipboardToasts() ToastOption {
 // terminal's cell grid.
 //
 // Only the notifications in the timeline's window are shown, and a [Hide]
-// listed before Toasts leaves out those that arrive in what it cuts.
+// leaves out those that arrive in what it cuts.
 func Toasts(opts ...ToastOption) reel.Effect {
 	t := toasts{corner: TopRight}
 	for _, o := range opts {
@@ -94,6 +94,8 @@ type toasts struct {
 	corner    Corner
 	clipboard bool
 }
+
+func (toasts) Priority() int { return reel.PriorityOverlay }
 
 func (e toasts) Start(ctx *reel.Context) (reel.Stage, error) {
 	if err := e.corner.check("toast"); err != nil {

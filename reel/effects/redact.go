@@ -123,6 +123,8 @@ type redact struct {
 // Conceals implements [reel.Concealer].
 func (redact) Conceals() bool { return true }
 
+func (redact) Priority() int { return reel.PriorityConceal }
+
 func (e redact) Start(ctx *reel.Context) (reel.Stage, error) {
 	switch {
 	case e.region == nil:

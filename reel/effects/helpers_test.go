@@ -6,12 +6,14 @@ package effects
 
 import (
 	"bytes"
+	"cmp"
 	json "encoding/json/v2"
 	"flag"
 	"fmt"
 	"image"
 	"image/draw"
 	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -60,8 +62,14 @@ func buildTimeline(t *testing.T, cols, rows int, title string, events ...event) 
 }
 
 // recordFrames is an [reel.Effect] that appends every frame it sees to
-// frames and passes it on.
-type recordFrames struct{ frames *[]reel.Frame }
+// frames and passes it on. It runs at the priority at, or else after every
+// other effect.
+type recordFrames struct {
+	frames *[]reel.Frame
+	at     int
+}
+
+func (e recordFrames) Priority() int { return cmp.Or(e.at, math.MaxInt) }
 
 func (e recordFrames) Start(*reel.Context) (reel.Stage, error) {
 	return func(f reel.Frame, emit func(reel.Frame)) {
@@ -79,7 +87,7 @@ func exportFrames(t *testing.T, tl *reel.Timeline, p reel.Profile) []reel.Frame 
 	if p.Rasterizer == nil {
 		p.Rasterizer = testutil.Rasterizer{}
 	}
-	p.Effects = append(slices.Clip(p.Effects), recordFrames{&frames})
+	p.Effects = append(slices.Clip(p.Effects), recordFrames{frames: &frames})
 	if err := reel.Export(t.Context(), tl, p); err != nil {
 		t.Fatal(err)
 	}
@@ -155,4 +163,31 @@ func readPNG(t *testing.T, path string) *image.NRGBA {
 	out := image.NewNRGBA(img.Bounds())
 	draw.Draw(out, out.Rect, img, img.Bounds().Min, draw.Src)
 	return out
+}
+
+// TestPriorities checks the order the package documentation gives.
+func TestPriorities(t *testing.T) {
+	t.Parallel()
+	groups := [][]reel.Effect{
+		{Redact(Text("x")), RedactInputs(Text("x"))},
+		{Hide(HideBetween("a", "b"))},
+		{Zoom(Row(0))},
+		{Highlight(Row(0))},
+		{Pause(), HoldLast(time.Second)},
+		{Keys(time.Second), Mouse(), Toasts()},
+		{Intro(time.Second), Outro(time.Second)},
+	}
+	last := math.MinInt
+	for _, group := range groups {
+		first := group[0].(reel.Prioritizer).Priority() //nolint:forcetypeassert // A failure here is the test failing.
+		if first <= last {
+			t.Errorf("%T has priority %d, want it above %d", group[0], first, last)
+		}
+		for _, e := range group {
+			if got := e.(reel.Prioritizer).Priority(); got != first { //nolint:forcetypeassert // As above.
+				t.Errorf("%T has priority %d, want %d", e, got, first)
+			}
+		}
+		last = first
+	}
 }

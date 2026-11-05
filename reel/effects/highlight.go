@@ -68,8 +68,7 @@ func Padding(px int) HighlightOption {
 // it darkens all of the frame but the region and its [Padding] (see
 // [DimOthers]), and can draw an [Outline] around them. The region is matched
 // on each terminal frame, so a [Text] region follows its text. It takes the
-// [Timing] options and works with any [reel.Rasterizer]. See the package
-// documentation for where to list it.
+// [Timing] options and works with any [reel.Rasterizer].
 //
 // A nil region is an error from Start.
 func Highlight(region Region, opts ...HighlightOption) reel.Effect {
@@ -92,6 +91,8 @@ type highlight struct {
 	pad    int
 	padSet bool
 }
+
+func (highlight) Priority() int { return reel.PriorityHighlight }
 
 func (e highlight) Start(ctx *reel.Context) (reel.Stage, error) {
 	switch {

@@ -74,9 +74,9 @@
 // of the hook events it names.
 //
 // steep adds two effects to those in the effects package: [Logo], an
-// animated intro, and [Outro], a PASS or FAIL card. Effects run in the order
-// the profile lists them, so [effects.Pause] before Outro pauses on the screen
-// the test failed on:
+// animated intro, and [Outro], a PASS or FAIL card. Effects run by priority
+// (see [reel.Prioritizer]), so [effects.Pause] pauses on the screen the test
+// failed on before the card shows:
 //
 //	steep.WithRecording(reel.Profile{
 //		Effects: []reel.Effect{

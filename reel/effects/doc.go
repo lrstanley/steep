@@ -25,7 +25,8 @@
 //
 // # Order
 //
-// Effects run in the order a profile lists them. List them as:
+// Effects run by priority (see [reel.Prioritizer]), whatever order a profile
+// lists them in, and those of one priority in the order listed:
 //
 //  1. Redact and RedactInputs, which are [reel.Concealer] values and must
 //     come first.
@@ -34,11 +35,12 @@
 //  3. Zoom, which draws its zoomed cells over what the effects before it
 //     drew, and which Mouse draws the pointer through.
 //  4. Highlight, so the overlays after it are not dimmed.
-//  5. Pause, so its badge is drawn over the effects before it.
+//  5. Pause and HoldLast, so the pause's badge is drawn over the effects
+//     before it.
 //  6. Keys, Mouse, and Toasts, which then show the keys, mouse, and toasts
 //     as they were when a pause started.
-//
-// Intro may go anywhere after the concealers.
+//  7. An effect with no priority of its own.
+//  8. Intro and Outro, which no other effect draws on.
 //
 // Each effect keeps per-recording state in the stage it starts, so one
 // effect value can be shared by profiles that record in parallel.

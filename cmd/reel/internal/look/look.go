@@ -9,7 +9,6 @@ package look
 import (
 	"cmp"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -202,32 +201,6 @@ func (l Look) Effects() []reel.Effect {
 		fx = append(fx, effects.Toasts(effects.WithClipboardToasts()))
 	}
 	return fx
-}
-
-// Arrange orders effects gathered from several places as a profile needs
-// them, keeping each group's order: [reel.Concealer] effects that conceal
-// first, as reel requires, then [reel.Cutter] effects, so those after them,
-// such as [effects.Keys], leave out what they cut, then the rest.
-func Arrange(fx []reel.Effect) []reel.Effect {
-	rank := func(e reel.Effect) int {
-		for e != nil {
-			if c, ok := e.(reel.Concealer); ok && c.Conceals() {
-				return 0
-			}
-			if c, ok := e.(reel.Cutter); ok && c.Cuts() {
-				return 1
-			}
-			u, ok := e.(interface{ Unwrap() reel.Effect })
-			if !ok {
-				break
-			}
-			e = u.Unwrap()
-		}
-		return 2
-	}
-	out := slices.Clone(fx)
-	slices.SortStableFunc(out, func(a, b reel.Effect) int { return rank(a) - rank(b) })
-	return out
 }
 
 // firstFamily loads the first installed family of a comma-separated list,

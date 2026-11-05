@@ -156,7 +156,7 @@ func TestHideKeys(t *testing.T) {
 			t.Parallel()
 			var in []reel.Frame
 			out := exportFrames(t, tl, reel.Profile{FPS: hideFPS, Effects: []reel.Effect{
-				Hide(tc.rule), recordFrames{&in}, Keys(time.Second),
+				Hide(tc.rule), recordFrames{&in, reel.PriorityCut}, Keys(time.Second),
 			}})
 			for i, overlay := range overlaid(in, out) {
 				if want := out[i].At >= 400*ms; overlay != want {
@@ -258,7 +258,7 @@ func TestHideMissingMark(t *testing.T) {
 				Outputs:    reel.MustFiles(path),
 				Rasterizer: testutil.Rasterizer{},
 				FPS:        hideFPS,
-				Effects:    []reel.Effect{Hide(HideBetween(tc.hide, tc.show)), recordFrames{&frames}},
+				Effects:    []reel.Effect{Hide(HideBetween(tc.hide, tc.show)), recordFrames{frames: &frames}},
 			})
 			if labels, rest := reel.MissingMarks(err); !slices.Equal(labels, []string{"nope"}) || rest != nil {
 				t.Errorf("Export = %v, want the missing mark nope", err)
@@ -287,7 +287,7 @@ func TestHideRecord(t *testing.T) {
 	profile := func(name, show string, frames ...*[]reel.Frame) reel.Profile {
 		effects := []reel.Effect{Hide(HideBetween("hide", show)), Keys(time.Second)}
 		if frames != nil {
-			effects = []reel.Effect{effects[0], recordFrames{frames[0]}, effects[1], recordFrames{frames[1]}}
+			effects = []reel.Effect{effects[0], recordFrames{frames[0], reel.PriorityCut}, effects[1], recordFrames{frames: frames[1]}}
 		}
 		return reel.Profile{
 			Outputs:    reel.MustFiles(filepath.Join(dir, name+".gif")),

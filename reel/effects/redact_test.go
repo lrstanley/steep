@@ -249,7 +249,7 @@ func TestRedactRenderer(t *testing.T) {
 	err := reel.Export(t.Context(), tl, reel.Profile{
 		Outputs: reel.MustFiles(filepath.Join(t.TempDir(), "out.gif")),
 		Render:  opts,
-		Effects: []reel.Effect{Redact(Text("hunter2")), recordFrames{&frames}},
+		Effects: []reel.Effect{Redact(Text("hunter2")), recordFrames{frames: &frames}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -464,8 +464,7 @@ func TestRedactErrors(t *testing.T) {
 }
 
 // TestRedactOutputs checks that a profile with a redacting effect cannot
-// write an asciicast file, writing nothing, and must list its redacting
-// effects first.
+// write an asciicast file, writing nothing.
 func TestRedactOutputs(t *testing.T) {
 	t.Parallel()
 	tl := buildTimeline(t, 10, 1, "", output(0, "hunter2"), mark(10, "m"))
@@ -478,8 +477,6 @@ func TestRedactOutputs(t *testing.T) {
 		{"cast", reel.MustFiles("out.gif", "out.cast"), []reel.Effect{Redact(Text("hunter2"))}, reel.ErrRawOutput},
 		{"cast only", reel.MustFiles("out.cast"), []reel.Effect{Redact(Text("hunter2"))}, reel.ErrRawOutput},
 		{"inputs cast", reel.MustFiles("out.gif", "out.cast"), []reel.Effect{RedactInputs(Text("hunter2"))}, reel.ErrRawOutput},
-		{"order", reel.MustFiles("out.gif"), []reel.Effect{Keys(time.Second), Redact(Text("hunter2"))}, nil},
-		{"inputs order", reel.MustFiles("out.gif"), []reel.Effect{Keys(time.Second), RedactInputs(Text("hunter2"))}, nil},
 	} {
 		dir := t.TempDir()
 		var outputs []reel.File
@@ -525,7 +522,7 @@ func TestRedactRecord(t *testing.T) {
 		Outputs:    reel.MustFiles(filepath.Join(t.TempDir(), "out.gif")),
 		Rasterizer: testutil.Rasterizer{},
 		FPS:        100,
-		Effects:    []reel.Effect{Redact(Text("hunter2"), Between("secret", "")), recordFrames{&frames}},
+		Effects:    []reel.Effect{Redact(Text("hunter2"), Between("secret", "")), recordFrames{frames: &frames}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -577,7 +574,7 @@ func TestRedactUnreachedMarks(t *testing.T) {
 			Outputs:    reel.MustFiles(filepath.Join(t.TempDir(), "out.gif")),
 			Rasterizer: testutil.Rasterizer{},
 			FPS:        100,
-			Effects:    []reel.Effect{Redact(Text("hunter2"), Between(tc.from, tc.to)), recordFrames{&frames}},
+			Effects:    []reel.Effect{Redact(Text("hunter2"), Between(tc.from, tc.to)), recordFrames{frames: &frames}},
 		})
 		if labels, rest := reel.MissingMarks(err); rest != nil || !slices.Equal(labels, []string{"nope"}) {
 			t.Errorf("between %q and %q: Export = %v, want a NoMarkError for \"nope\"", tc.from, tc.to, err)

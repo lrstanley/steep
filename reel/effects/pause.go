@@ -103,9 +103,8 @@ func WithoutBadge() PauseOption {
 // looping recording's end as finished.
 //
 // The end pause follows the last terminal frame, so a card added after it
-// follows the pause. A [Hide] listed before Pause leaves out the pauses at
-// marks in what it cuts. Effects listed after Pause draw a paused frame as
-// of its moment; see the package documentation for where to list it.
+// follows the pause. A [Hide] leaves out the pauses at marks in what it cuts.
+// Effects that run after Pause draw a paused frame as of its moment.
 //
 // A recording that plays once (sink.WithLoopCount(sink.LoopOnce)) stays on
 // its last frame, badge and all, so such a profile may want WithoutBadge. A
@@ -170,6 +169,8 @@ func (pt pausePoint) check() error {
 	}
 	return nil
 }
+
+func (pause) Priority() int { return reel.PriorityPause }
 
 func (e pause) Start(ctx *reel.Context) (reel.Stage, error) {
 	for _, pt := range e.points {

@@ -6,6 +6,7 @@ package steep
 
 import (
 	"bytes"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -18,6 +19,8 @@ import (
 // frameLog is an effect that keeps every frame it is given, and passes it
 // on.
 type frameLog struct{ frames *[]reel.Frame }
+
+func (frameLog) Priority() int { return math.MaxInt }
 
 func (e frameLog) Start(*reel.Context) (reel.Stage, error) {
 	return func(f reel.Frame, emit func(reel.Frame)) {

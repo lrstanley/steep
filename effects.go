@@ -79,6 +79,8 @@ func Logo(d time.Duration) reel.Effect {
 
 type logo struct{ d time.Duration }
 
+func (logo) Priority() int { return reel.PriorityCard }
+
 func (e logo) Start(ctx *reel.Context) (reel.Stage, error) {
 	if e.d <= 0 {
 		return nil, nil //nolint:nilnil // A nil stage leaves the recording alone.
@@ -175,8 +177,8 @@ func logoFrames(cards *effects.CardRenderer, src *reel.CellFrame, title string, 
 // it shows nothing. Playback speed does not scale d.
 //
 // For a failed test, the last frame before the card plays for at least 3s
-// ([effects.HoldLast]), so the failing screen can be read. List
-// [effects.Pause] before Outro to badge that frame.
+// ([effects.HoldLast]), so the failing screen can be read. An [effects.Pause]
+// badges that frame.
 func Outro(d time.Duration, lines ...effects.Line) reel.Effect {
 	return outro{d: d, lines: lines}
 }
@@ -185,6 +187,8 @@ type outro struct {
 	d     time.Duration
 	lines []effects.Line
 }
+
+func (outro) Priority() int { return reel.PriorityCard }
 
 func (e outro) Start(ctx *reel.Context) (reel.Stage, error) {
 	result, _ := ctx.Meta.(*Result)

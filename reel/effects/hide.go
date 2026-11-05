@@ -67,11 +67,11 @@ func HideUnless(region Region) HideRule {
 // ended. Frames without a terminal, such as cards, are left alone. Without
 // rules, Hide is an error from Start.
 //
-// List Hide before [Keys] and [Pause], so they leave out the keys pressed
-// and the marks in what Hide cuts. Effects listed after Hide see the frames
-// left, and time jumps over each cut. The screen rules match the cells of
-// the frames as the effects before Hide leave them, so after [Redact],
-// which comes first, they match what it hides as hidden. A recording that
+// [Keys] and [Pause] leave out the keys pressed and the marks in what Hide
+// cuts. Effects that run after Hide see the frames left, and time jumps over
+// each cut. The screen rules match the cells of the frames as the effects
+// before Hide leave them, so after [Redact], which comes first, they match
+// what it hides as hidden. A recording that
 // Hide cuts entirely is an error from the export.
 //
 // Hide is a [reel.Cutter]: asciicast outputs hold the timeline as
@@ -114,6 +114,8 @@ func (r screenRule) hides(f *reel.CellFrame) bool {
 
 // Cuts implements [reel.Cutter].
 func (hide) Cuts() bool { return true }
+
+func (hide) Priority() int { return reel.PriorityCut }
 
 func (e hide) Start(ctx *reel.Context) (reel.Stage, error) {
 	if len(e.marks) == 0 && len(e.screens) == 0 {

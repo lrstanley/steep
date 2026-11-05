@@ -72,7 +72,7 @@ func TestPause(t *testing.T) {
 	t.Parallel()
 	var in []reel.Frame
 	out := exportFrames(t, badgeTimeline(t), reel.Profile{
-		Effects: []reel.Effect{recordFrames{&in}, Pause(WithBadgeSize(8))},
+		Effects: []reel.Effect{recordFrames{&in, 1}, Pause(WithBadgeSize(8))},
 	})
 	if len(in) < 2 || len(out) != len(in)+1 {
 		t.Fatalf("%d frames in, %d out, want a pause after them", len(in), len(out))
@@ -563,7 +563,7 @@ func TestPauseStacked(t *testing.T) {
 	t.Parallel()
 	var mid []reel.Frame
 	out := exportFrames(t, badgeTimeline(t), reel.Profile{Effects: []reel.Effect{
-		Pause(WithBadgeSize(8)), recordFrames{&mid}, Pause(PauseAtEnd(500*ms), WithBadgeSize(8)),
+		Pause(WithBadgeSize(8)), recordFrames{&mid, reel.PriorityPause}, Pause(PauseAtEnd(500*ms), WithBadgeSize(8)),
 	}})
 	first, second := out[len(out)-2], out[len(out)-1]
 	if !first.Paused || !second.Paused || first.Delay != time.Second || second.Delay != 500*ms {

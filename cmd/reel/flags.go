@@ -165,6 +165,6 @@ func (f RenderFlags) profile(base ...reel.Effect) (reel.Profile, error) {
 	}
 	p := reel.Profile{Outputs: outputs, Render: opts, Vars: f.Vars}
 	f.Profile(&p)
-	p.Effects = look.Arrange(slices.Concat(base, fx, f.Effects()))
+	p.Effects = slices.Concat(base, fx, f.Effects())
 	return p, nil
 }

@@ -129,6 +129,7 @@ func newRecorder(ctx context.Context, rt *vt.Runtime, tl *Timeline, live bool, p
 	if err != nil {
 		return nil, err
 	}
+	p.Effects = sortEffects(p.Effects)
 	err = outs.checkEffects(p.Effects)
 	if err != nil {
 		return nil, err

@@ -30,9 +30,10 @@
 // deterministic (see [Timeline]). [Record] runs the same pipeline live on a
 // [Session].
 //
-// A [Concealer] effect hides secrets, and a [Cutter] cuts stretches of the
-// timeline out; see them for the rules on their order and outputs. Effects
-// that implement [Describer] are recorded in asciicast outputs as
+// Effects run by priority (see [Prioritizer]), whatever order a profile lists
+// them in. A [Concealer] effect hides secrets, and a [Cutter] cuts stretches
+// of the timeline out; see them for the rules on their outputs. Effects that
+// implement [Describer] are recorded in asciicast outputs as
 // [Annotation] events, so an export of the file can apply them again.
 //
 // Input is recorded as the exact bytes the terminal sent the program, encoded

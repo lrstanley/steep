@@ -58,14 +58,15 @@ var ctrlJ = vt.Key{Code: "J", Mods: vt.ModCtrl}
 // typing "hi\n" shows "hi⏎". Only the input in the timeline's window is
 // shown.
 //
-// The overlay adds a few frames per burst of keys. A [RedactInputs] listed
-// before Keys hides typed text from it, and a [Hide] listed before it the
-// keys pressed in what it cuts.
+// The overlay adds a few frames per burst of keys. A [RedactInputs] hides
+// typed text from it, and a [Hide] the keys pressed in what it cuts.
 func Keys(shown time.Duration) reel.Effect {
 	return keys{shown: shown}
 }
 
 type keys struct{ shown time.Duration }
+
+func (keys) Priority() int { return reel.PriorityOverlay }
 
 func (e keys) Start(ctx *reel.Context) (reel.Stage, error) {
 	if e.shown <= 0 {
