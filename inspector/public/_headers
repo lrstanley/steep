@@ -1,0 +1,10 @@
+# Cloudflare applies every matching rule and joins repeated headers, so later, more specific rules
+# remove the inherited value first with "!".
+/_nuxt/*
+  cache-control: public, max-age=31536000, immutable
+/_nuxt/builds/*
+  ! cache-control
+  cache-control: public, max-age=1, immutable
+/_nuxt/builds/meta/*
+  ! cache-control
+  cache-control: public, max-age=31536000, immutable

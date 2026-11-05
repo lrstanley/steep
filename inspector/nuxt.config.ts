@@ -7,6 +7,9 @@ export default defineNuxtConfig({
   ssr: false,
   compatibilityDate: '2025-01-01',
   devtools: { enabled: false },
+  // Otherwise Nitro detects Workers Builds and uses its cloudflare-module preset, which points
+  // wrangler at a generated config for a Worker entry that doesn't exist, not wrangler.jsonc.
+  nitro: { preset: 'static' },
   css: ['~/assets/css/tailwind.css'],
   app: {
     head: {
