@@ -40,7 +40,7 @@ bun run test       # the frame scheduler, worker client, and timeline geometry
 
 The site's generated assets are not committed:
 
-- `bun run wasm` builds `public/reel.wasm`, after changing reel or
+- `bun run wasm` builds `public/reel.wasm.gzip`, after changing reel or
   [its Go source](../reel/internal/inspector). Its tests run natively:
   `go -C ../reel test ./internal/inspector`.
 - `bun run samples` records the sample casts the landing page offers into
@@ -62,8 +62,11 @@ directory `inspector`, the build command
 `bun install --frozen-lockfile && bun run build`, and the deploy command
 `bunx wrangler deploy`.
 
-`reel.wasm` is about 21 MB, 9 MB gzipped: most of it is the libghostty-vt
-emulator (itself wasm2go output) and reel's embedded fonts.
+The module is about 24 MB, 9 MB gzipped: most of it is the libghostty-vt
+emulator (itself wasm2go output) and reel's embedded fonts. It ships gzipped
+as `reel.wasm.gzip`, which the worker decompresses itself, so it stays well
+under per-file limits such as Cloudflare's 25 MiB and needs no compression from
+the host.
 
 ## Known limits
 

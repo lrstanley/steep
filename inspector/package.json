@@ -3,7 +3,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "wasm": "GOOS=js GOARCH=wasm go -C ../reel build -trimpath -ldflags='-s -w' -o \"$PWD/public/reel.wasm\" ./internal/inspector && cp \"$(go env GOROOT)/lib/wasm/wasm_exec.js\" public/wasm_exec.js",
+    "wasm": "GOOS=js GOARCH=wasm go -C ../reel build -trimpath -ldflags='-s -w' -o \"$PWD/public/reel.wasm\" ./internal/inspector && gzip -9nf -S .gzip public/reel.wasm && cp \"$(go env GOROOT)/lib/wasm/wasm_exec.js\" public/wasm_exec.js",
     "samples": "rm -rf public/samples && mkdir -p public/samples && REEL_INSPECTOR_SAMPLES=\"$PWD/public/samples\" go -C ../_examples test -count=1 -run '^TestInspectorSamples$' ./steep-simple/",
     "assets": "bun run wasm && bun run samples",
     "dev": "bun run assets && nuxt dev",

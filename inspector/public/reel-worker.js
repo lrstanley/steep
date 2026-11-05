@@ -12,27 +12,31 @@ function send(message, transfer = []) { postMessage(message, transfer) }
 // the module downloads, it also gets {progress: {loaded, total}}.
 importScripts('wasm_exec.js')
 
-async function fetchModule() {
-  const res = await fetch('reel.wasm')
-  if (!res.ok) throw new Error(`fetching reel.wasm: ${res.status} ${res.statusText}`)
+/** @param {WebAssembly.Imports} imports */
+async function instantiateModule(imports) {
+  // Not named .gz: some servers label that Content-Encoding: gzip, and the
+  // browser would decompress it before this does. Compression a server adds
+  // on top is harmless, as the browser removes only that.
+  const res = await fetch('reel.wasm.gzip')
+  if (!res.ok) throw new Error(`fetching reel.wasm.gzip: ${res.status} ${res.statusText}`)
   if (!res.body) throw new Error('Missing WebAssembly response body')
   const total = Number(res.headers.get('content-length')) || 0
-  const reader = res.body.getReader()
-  const chunks = []
   let loaded = 0
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    chunks.push(value)
-    loaded += value.length
-    send({ kind: 'progress', progress: { loaded, total } })
-  }
-  return new Blob(chunks).arrayBuffer()
+  const body = res.body
+    .pipeThrough(new TransformStream({
+      transform(chunk, controller) {
+        loaded += chunk.length
+        send({ kind: 'progress', progress: { loaded, total } })
+        controller.enqueue(chunk)
+      },
+    }))
+    .pipeThrough(new DecompressionStream('gzip'))
+  return WebAssembly.instantiateStreaming(new Response(body, { headers: { 'Content-Type': 'application/wasm' } }), imports)
 }
 
 const ready = (async () => {
   const go = new runtime.Go()
-  const { instance } = await WebAssembly.instantiate(await fetchModule(), go.importObject)
+  const { instance } = await instantiateModule(go.importObject)
   go.run(instance).catch(err => send({ kind: 'fatal', error: String(err) }))
 })()
 
