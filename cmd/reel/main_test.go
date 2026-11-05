@@ -138,3 +138,38 @@ func TestTapesIn(t *testing.T) {
 		t.Errorf("tapesIn = %q, want %q", got, want)
 	}
 }
+
+// TestParseCommas checks that a flag's commas stay in its value: FROM,TO, a
+// spec's between=FROM,TO, a regular expression, and a card's text.
+func TestParseCommas(t *testing.T) {
+	tape := filepath.Join(t.TempDir(), "a.tape")
+	if err := os.WriteFile(tape, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f, err := parse(t, "run", tape,
+		"--hide", "a,b",
+		"--highlight", "row=1;between=a,b",
+		"--zoom", "row=1;between=a,b",
+		"--redact", "row=1;between=a,b",
+		"--redact-regexp", "x{1,3}",
+		"--intro-line", "one, two",
+		"--outro-line", "three, four",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := f.Run.EffectFlags
+	for name, got := range map[string][]string{
+		"hide":          e.Hide,
+		"highlight":     e.Highlight,
+		"zoom":          e.Zoom,
+		"redact":        e.Redact,
+		"redact-regexp": e.RedactRegexp,
+		"intro-line":    e.IntroLines,
+		"outro-line":    e.OutroLines,
+	} {
+		if len(got) != 1 {
+			t.Errorf("--%s = %q, want one value", name, got)
+		}
+	}
+}

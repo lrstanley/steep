@@ -41,19 +41,19 @@ func (o OutputFlags) files() ([]reel.File, error) {
 // [look.Look].
 type EffectFlags struct {
 	Intro        time.Duration `name:"intro" placeholder:"DUR" help:"Open on a title card for this long."`
-	IntroLines   []string      `name:"intro-line" placeholder:"TEXT" help:"Line of the intro card, repeatable; defaults to the title."`
+	IntroLines   []string      `sep:"none" name:"intro-line" placeholder:"TEXT" help:"Line of the intro card, repeatable; defaults to the title."`
 	Outro        time.Duration `name:"outro" placeholder:"DUR" help:"End on a card for this long."`
-	OutroLines   []string      `name:"outro-line" placeholder:"TEXT" help:"Line of the outro card, repeatable."`
+	OutroLines   []string      `sep:"none" name:"outro-line" placeholder:"TEXT" help:"Line of the outro card, repeatable."`
 	Pause        bool          `name:"pause" help:"Pause for a second at the end, with a badge."`
 	PauseAt      []string      `name:"pause-at" placeholder:"MARK" help:"Pause for a second at a mark, repeatable."`
 	HoldLast     time.Duration `name:"hold-last" placeholder:"DUR" help:"Hold the last frame for this long."`
 	Mouse        bool          `name:"mouse" help:"Draw the mouse pointer, clicks, and drags."`
-	Hide         []string      `name:"hide" placeholder:"FROM,TO" help:"Cut the window between two marks, repeatable; either may be empty for the start or end."`
-	Highlight    []string      `name:"highlight" placeholder:"SPEC" help:"Highlight a region, repeatable, such as 'rows=2-4;dim=0.4;between=a,b'. ${spec}"`
-	Zoom         []string      `name:"zoom" placeholder:"SPEC" help:"Zoom into a region, repeatable, such as 're=ERROR.*;scale=2'; see --highlight for SPEC."`
-	Redact       []string      `name:"redact" placeholder:"SPEC" help:"Redact a region, repeatable, such as 'env=TOKEN;style=blur'; see --highlight for SPEC."`
+	Hide         []string      `sep:"none" name:"hide" placeholder:"FROM,TO" help:"Cut the window between two marks, repeatable; either may be empty for the start or end."`
+	Highlight    []string      `sep:"none" name:"highlight" placeholder:"SPEC" help:"Highlight a region, repeatable, such as 'rows=2-4;dim=0.4;between=a,b'. ${spec}"`
+	Zoom         []string      `sep:"none" name:"zoom" placeholder:"SPEC" help:"Zoom into a region, repeatable, such as 're=ERROR.*;scale=2'; see --highlight for SPEC."`
+	Redact       []string      `sep:"none" name:"redact" placeholder:"SPEC" help:"Redact a region, repeatable, such as 'env=TOKEN;style=blur'; see --highlight for SPEC."`
 	RedactEnv    []string      `name:"redact-env" placeholder:"NAME" help:"Redact the value of an environment variable wherever it shows, repeatable."`
-	RedactRegexp []string      `name:"redact-regexp" placeholder:"PATTERN" help:"Redact the matches of a regular expression, repeatable."`
+	RedactRegexp []string      `sep:"none" name:"redact-regexp" placeholder:"PATTERN" help:"Redact the matches of a regular expression, repeatable."`
 }
 
 func (e EffectFlags) effects() ([]reel.Effect, error) {
