@@ -5,6 +5,7 @@
 package main
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -44,15 +45,38 @@ var showcaseProfile = reel.Profile{
 }
 
 func TestShowcase(t *testing.T) {
-	h := steep.NewHarness(
-		t, newModel(),
+	runShowcase(t, steep.WithRecording(showcaseProfile))
+}
+
+// TestInspectorSamples records the sample cast of this example that reel's
+// inspector (inspector) offers, into the directory REEL_INSPECTOR_SAMPLES
+// names. It is skipped without it.
+func TestInspectorSamples(t *testing.T) {
+	dir := os.Getenv("REEL_INSPECTOR_SAMPLES")
+	if dir == "" {
+		t.Skip("REEL_INSPECTOR_SAMPLES is not set")
+	}
+	runShowcase(t,
+		steep.WithIgnoreEnv(true),
+		steep.WithSource(true),
+		steep.WithRecordMessages(true),
+		steep.WithExportAlways(),
+		steep.WithArtifacts(dir),
+		steep.WithRecording(reel.Profile{Outputs: reel.MustFiles("showcase.cast"), Title: "showcase"}),
+	)
+}
+
+// runShowcase walks the whole program: the boot, every theme, a deploy that
+// goes live, and one that fails.
+func runShowcase(t *testing.T, opts ...steep.Option) {
+	t.Helper()
+	h := steep.NewHarness(t, newModel(), append([]steep.Option{
 		steep.WithWindowSize(110, 32),
-		steep.WithTimeout(10*time.Second),
+		steep.WithTimeout(10 * time.Second),
 		// steep's terminal reports 256 colors by default; the gradients
 		// need every bit.
 		steep.WithColor(steep.ColorTrueColor),
-		steep.WithRecording(showcaseProfile),
-	)
+	}, opts...)...)
 
 	// Boot: the wordmark sweeps in while OSC 9;4 reports progress.
 	h.Wait("all systems nominal").

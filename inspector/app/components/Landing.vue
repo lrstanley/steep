@@ -6,6 +6,7 @@ const { loading, fatal, recent, openUrl, openStored, forget } = useInspector()
 const picker = useTemplateRef<{ open: () => void }>('picker')
 
 const samples = [
+  { file: 'showcase.cast', title: 'Showcase', about: 'A steep test of a full dashboard: live charts, theme fades, deploys, program status, and every message.' },
   { file: 'failing-wait.cast', title: 'Failing wait', about: 'A steep test whose Wait("Atlantis") times out.' },
   { file: 'table-navigation.cast', title: 'Table navigation', about: 'A passing steep test that moves through a table with the arrow keys.' },
 ]
@@ -65,7 +66,7 @@ function ago(t: number) {
           <FlaskConicalIcon class="size-3.5" />
           Samples
         </h2>
-        <div class="grid gap-2 sm:grid-cols-2">
+        <div class="grid gap-2 sm:grid-cols-3">
           <button
             v-for="s in samples"
             :key="s.file"
