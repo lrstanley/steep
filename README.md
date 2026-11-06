@@ -58,7 +58,6 @@
 
   - [Features](#sparkles-features)
   - [Usage](#gear-usage)
-    - [Recording](#recording)
     - [Related libraries](#related-libraries)
   - [Development](#hammer_and_wrench-development)
   - [Support &amp; Assistance](#raising_hand_man-support--assistance)
@@ -68,97 +67,48 @@
 
 ## :sparkles: Features
 
-**steep** is a test harness for [Bubble Tea](https://github.com/charmbracelet/bubbletea) programs and components. It runs the program in an emulated terminal (a [reel](reel) session), drives it with keys, text, mouse events, and resizes, and asserts on what it draws.
+**steep** is a test harness for terminal programs in Go. It runs your program in an emulated terminal, drives it with
+keys, text, mouse events, and resizes, and checks what it draws, all from `go test`.
 
 > [!WARNING]
 > steep is still pre-1.0. Its API may change drastically until the v1.0.0 release, so expect breaking changes
 > between versions, and pin the version you use.
 
+- :heavy_check_mark: **Three harnesses, one API**: run a Bubble Tea model, a single component, or any command on a
+  pseudo-terminal, with the same inputs, waits, assertions, snapshots, and recordings.
+- :heavy_check_mark: **Waits, not sleeps**: wait on what's on the screen, a regular expression, or a message your model
+  received, so tests don't depend on how fast the machine is.
+- :heavy_check_mark: **Real input**: keys, paste, clicks, and drags go through the terminal as bytes, encoded for whatever
+  keyboard and mouse modes your program asked for. `Locate` clicks what's on the screen rather than a coordinate.
+- :heavy_check_mark: **Snapshots**: golden files of the screen's text, or of every cell and its style.
+- :heavy_check_mark: **Terminal state**: check the title, cursor, clipboard, progress, notifications, and more.
+- :heavy_check_mark: **Recordings of failures**: export a GIF, WebP, video, or `.cast` of any test, with no code changes,
+  through `STEEP_EXPORT_MODE`, and step through it event by event in the
+  [inspector](https://inspector.getsteep.dev).
+- :heavy_check_mark: **No cgo**: the terminal emulator is compiled in, so there's nothing else to install.
+
 ---
 
 ## :gear: Usage
 
+Take a look at the [official documentation](https://getsteep.dev/) for tutorials, guides, and reference, starting with
+[your first test](https://getsteep.dev/steep/first-test). The documentation is also available for LLMs and agents as
+[llms.txt](https://getsteep.dev/llms.txt) and [llms-full.txt](https://getsteep.dev/llms-full.txt), and every page has a
+markdown version.
+
 ```go
-func TestModel(t *testing.T) {
+func TestMenu(t *testing.T) {
 	steep.NewHarness(t, newModel()).
-		Wait("Tokyo").
-		Key("down").
+		Wait("Sencha").
+		KeyDown().
+		Assert("Matcha").
+		Key("enter").
+		Wait("Matcha is ready").
 		AssertSnapshot()
 }
 ```
 
-`NewExecHarness` drives a command on a pseudo-terminal instead, such as a built
-binary or a program that doesn't use Bubble Tea, with the same inputs, waits,
-assertions, snapshots, and recordings. Only what needs the program's model or
-messages, such as `Mutate` and `WaitMessage`, isn't available.
-
-```go
-func TestBinary(t *testing.T) {
-	h := steep.NewExecHarness(t, exec.Command("./myapp", "--flag"))
-	h.Wait("ready").Key("q")
-	if status := h.ExitStatus(); status != 0 {
-		t.Errorf("exit status = %d", status)
-	}
-}
-```
-
-### Recording
-
-Everything the program draws is kept in the session's timeline, and nothing is
-written unless an export policy says so. `WithRecording` takes a `reel.Profile`:
-what to write, how to draw it, and the effects to apply.
-
-```go
-h := steep.NewHarness(t, newModel(),
-	steep.WithRecording(reel.Profile{
-		Outputs: reel.MustFiles("{name}_{status}.gif", "{name}_{status}.cast"),
-		Effects: []reel.Effect{
-			steep.Logo(2 * time.Second),
-			effects.Keys(time.Second),
-			effects.Pause(),
-			steep.Outro(2 * time.Second),
-		},
-	}),
-	steep.WithExportOnFailure(), // or steep.WithExportAlways()
-)
-```
-
-The export runs once, when the harness closes. `effects.Pause()` pauses for a
-second on the last frame, with a pause badge. For a failed test, `steep.Outro`
-stretches that pause to at least 3s, then shows a FAIL card listing the
-failures. Files go to `t.ArtifactDir()` (kept with `go test -artifacts`),
-or to `WithArtifacts(dir)`. The `.cast` file is the recording itself:
-exporting it again with `reel.Export`, the same profile, and the same
-`steep.Result` writes the same GIF.
-
-The `.cast` file also holds what the test did and found, as annotations that
-players ignore: the harness's configuration, each input, wait, assertion,
-and snapshot comparison with its outcome, each failure, the result, and the
-program's terminal queries with the replies. reel's
-[`annotation.schema.json`](reel/annotation.schema.json) describes them.
-`steep.WithRecordMessages(true)` adds every message the model receives,
-except `tea.EnvMsg`, which may hold secrets, and `steep.WithSource(true)`
-the file, line, and function of the test's line behind each annotation and
-mark, with paths relative to the module's root.
-
-Any test can be recorded without changing it:
-
-```sh
-STEEP_EXPORT_MODE=on STEEP_EXPORT='{name}.gif?max-bytes=5MB,{name}.cast' go test -artifacts ./...
-```
-
-| Variable | Sets |
-| --- | --- |
-| `STEEP_EXPORT_MODE` | `on`, `failure`, or `off` |
-| `STEEP_EXPORT` | comma-separated outputs, each a path with optional query parameters (see `reel.ParseFile`), such as `{name}.gif?loop=once`; a path with `{mark}` and no `marks=` or `match=` is a still at each hook mark, `?match=input:*` narrows it to matching marks, and `.snap` writes the screen's text. An entry that does not parse fails the test. |
-| `STEEP_EXPORT_DIR` | the artifacts directory |
-| `STEEP_EXPORT_FPS`, `STEEP_EXPORT_SPEED` | the profile's timing |
-| `STEEP_RENDERER_SCALE`, `STEEP_RENDERER_FONT_FAMILY` | renderer options |
-| `STEEP_RECORD_MESSAGES` | `on` to record every message the model receives |
-| `STEEP_SOURCE` | `on` to record the test's file, line, and function for each annotation and mark (`steep.WithSource`) |
-
-See [`_examples/steep-showcase`](_examples/steep-showcase/main_test.go) for a
-complete example.
+Runnable examples are in [`_examples`](_examples).
 
 <!-- template:begin:goget -->
 <!-- do not edit anything in this "template" block, its auto-generated -->
@@ -169,8 +119,9 @@ go get -u github.com/lrstanley/steep@latest
 
 ### Related libraries
 
-- [reel](reel): records terminals and renders recordings, from Go or with the
-  [`reel` CLI](cmd/reel). steep records through it.
+- [reel](https://getsteep.dev/reel): records terminals and renders recordings, from Go. steep records through it.
+- [`reel` CLI](https://getsteep.dev/cli): the same without Go. It runs VHS tapes, tests with them, drives programs for
+  scripts and agents, and renders `.cast` files.
 - [bubbletint](https://github.com/lrstanley/bubbletint): hundreds of terminal color themes for Bubble Tea and Lip
   Gloss.
 - [bloom](https://bloomfx.dev): a layout, compositing, and animation engine for Bubble Tea programs. Its end-to-end
@@ -187,6 +138,9 @@ task setup
 
 It creates a gitignored `go.work`, so changes to [reel](reel) apply to steep and the CLI straight away, the same as
 in CI. Without it, they build against the reel version they pin. Nothing runs this for you.
+
+`task --list` shows the rest, including the [documentation site](docs) (`task docs:dev`) and the
+[inspector](inspector) (`task inspector:dev`), which needs Go and [Bun](https://bun.sh).
 
 ---
 

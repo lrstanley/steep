@@ -12,6 +12,6 @@ import (
 )
 
 func main() {
-	fmt.Fprintln(os.Stderr, "build with GOOS=js GOARCH=wasm, see the README in the inspector directory")
+	fmt.Fprintln(os.Stderr, "build with GOOS=js GOARCH=wasm, which \"bun run wasm\" in the inspector directory does")
 	os.Exit(1)
 }
