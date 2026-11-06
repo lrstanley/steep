@@ -48,18 +48,27 @@ const (
 // logoSteamX are the cup columns steam rises from.
 var logoSteamX = []int{2, 5, 8}
 
-// logoTea is the tea gradient, top pixel row to bottom. The colors are on the
-// xterm-256 cube, so GIF palettes that include it keep them exact.
-var logoTea = []color.Color{
-	vt.Indexed(229), vt.Indexed(228), vt.Indexed(221), vt.Indexed(220),
-	vt.Indexed(214), vt.Indexed(208), vt.Indexed(202),
-}
-
+// The logo's colors are the site's, in its palette for dark pages.
 var (
+	// logoTea is the tea gradient, top pixel row to bottom.
+	logoTea = []color.Color{
+		color.NRGBA{R: 0xf0, G: 0xf8, B: 0xcf, A: 0xff},
+		color.NRGBA{R: 0xdc, G: 0xef, B: 0xa3, A: 0xff},
+		color.NRGBA{R: 0xc0, G: 0xe0, B: 0x7f, A: 0xff},
+		color.NRGBA{R: 0xa1, G: 0xcd, B: 0x67, A: 0xff},
+		color.NRGBA{R: 0x82, G: 0xb8, B: 0x57, A: 0xff},
+		color.NRGBA{R: 0x65, G: 0xa0, B: 0x4c, A: 0xff},
+		color.NRGBA{R: 0x4c, G: 0x86, B: 0x43, A: 0xff},
+	}
 	// logoEmpty colors pixel rows the tea has not reached yet.
-	logoEmpty = vt.Indexed(237)
+	logoEmpty = color.NRGBA{R: 0x1d, G: 0x30, B: 0x24, A: 0xff}
 	// logoSteam fades from the bottom of a wisp to its top.
-	logoSteam = []color.Color{vt.Indexed(245), vt.Indexed(242), vt.Indexed(239), vt.Indexed(236)}
+	logoSteam = []color.Color{
+		color.NRGBA{R: 0xa6, G: 0xb7, B: 0xa1, A: 0xff},
+		color.NRGBA{R: 0x76, G: 0x85, B: 0x73, A: 0xff},
+		color.NRGBA{R: 0x50, G: 0x5d, B: 0x50, A: 0xff},
+		color.NRGBA{R: 0x2d, G: 0x39, B: 0x2f, A: 0xff},
+	}
 	// logoSway is the sideways drift of a wisp, in half logo pixels.
 	logoSway = []int{0, 0, 1, 1, 1, 0, 0, -1, -1, -1}
 )
