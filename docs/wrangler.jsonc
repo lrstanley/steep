@@ -1,0 +1,17 @@
+// Deploys the static docs build as an assets-only Worker (no "main", so no Worker code runs). The docs workflow
+// runs this on master, after building.
+// https://developers.cloudflare.com/workers/static-assets/
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "steep-docs",
+  "compatibility_date": "2026-11-03",
+  // opt out of wrangler's usage metrics (overrides the user's own preference).
+  "send_metrics": false,
+  "routes": [{ "pattern": "getsteep.dev", "custom_domain": true }],
+  "assets": {
+    "directory": "./dist/public",
+    "not_found_handling": "404-page",
+    // pages are emitted as <path>/index.html but linked (and canonicalized) without a trailing slash.
+    "html_handling": "drop-trailing-slash"
+  }
+}

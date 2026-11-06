@@ -1,0 +1,201 @@
+---
+title: Export cookbook
+description: Common exports, in Go, in a steep test, and with the CLI.
+---
+
+Each recipe is the same export three ways. The formats and effects behave the same in all of them.
+
+## The failure a CI job uploads
+
+Keys, the last screen, and a card with the failures. This is a good default for a test suite. [Running in CI](/steep/ci) has the rest of the job.
+
+```go
+steep.WithRecording(reel.Profile{
+	Outputs: reel.MustFiles("{name}_{status}.webp", "{name}_{status}.cast"),
+	Render:  []render.Option{render.WithWindowChrome(true)},
+	Effects: []reel.Effect{effects.Keys(time.Second), effects.Pause(), steep.Outro(2 * time.Second)},
+}),
+steep.WithExportOnFailure(),
+```
+
+<Demo src="fail-assert.webp" alt="A failing test recorded with keys, a pause, and a FAIL card" cast="fail-assert.cast" />
+
+## A demo for a README
+
+Small, sharp, and looping.
+
+<Tabs items={["reel", "steep", "CLI"]}>
+<Tab value="reel">
+```go
+reel.Export(ctx, tl, reel.Profile{
+	Outputs: reel.MustFiles("demo.webp"),
+	Render: []render.Option{
+		render.WithWindowChrome(true),
+		render.WithPadding(10),
+		render.WithBorderRadius(10),
+	},
+	Effects: []reel.Effect{effects.Keys(time.Second), effects.Pause()},
+})
+```
+</Tab>
+<Tab value="steep">
+```go
+steep.WithRecording(reel.Profile{
+	Outputs: reel.MustFiles("demo.webp"),
+	Render: []render.Option{
+		render.WithWindowChrome(true),
+		render.WithPadding(10),
+		render.WithBorderRadius(10),
+	},
+	Effects: []reel.Effect{effects.Keys(time.Second), effects.Pause()},
+}),
+steep.WithExportAlways(),
+steep.WithArtifacts("testdata"),
+steep.WithSlow(300 * time.Millisecond),
+```
+</Tab>
+<Tab value="CLI">
+```console
+reel export in.cast -o demo.webp --chrome --padding 10 --radius 10 --keys --pause
+```
+</Tab>
+</Tabs>
+
+<Demo src="tour.webp" alt="A framed recording of the shop" cast="tour.cast" />
+
+## A GIF that stays small
+
+`max-bytes` drops the oldest frames to stay under a limit, so the end of the recording survives. That suits CI, where the end is where the failure is.
+
+<Tabs items={["reel", "steep", "CLI"]}>
+<Tab value="reel">
+```go
+Outputs: reel.MustFiles("demo.gif?max-bytes=5MB"),
+```
+</Tab>
+<Tab value="steep">
+```console
+STEEP_EXPORT_MODE=failure STEEP_EXPORT='{name}.gif?max-bytes=5MB' go test -artifacts ./...
+```
+</Tab>
+<Tab value="CLI">
+```console
+reel export in.cast -o 'demo.gif?max-bytes=5MB'
+```
+</Tab>
+</Tabs>
+
+## A video for social media
+
+MP4 plays nearly everywhere. Scale it up, since sites will resize it. Add a card, so that it has a beginning.
+
+<Tabs items={["reel", "steep", "CLI"]}>
+<Tab value="reel">
+```go
+reel.Profile{
+	Outputs: reel.MustFiles("demo.mp4?quality=90"),
+	Render:  []render.Option{render.WithWindowChrome(true), render.WithScale(2)},
+	Effects: []reel.Effect{
+		effects.Intro(2*time.Second, effects.Line{Text: "My tool"}),
+		effects.Keys(time.Second),
+		effects.Pause(),
+	},
+}
+```
+</Tab>
+<Tab value="steep">
+```console
+STEEP_EXPORT_MODE=on STEEP_EXPORT='{name}.mp4?quality=90' STEEP_RENDERER_SCALE=2 go test -artifacts ./...
+```
+</Tab>
+<Tab value="CLI">
+```console
+reel export in.cast -o 'demo.mp4?quality=90' --chrome --font-size 28 --intro 2s --intro-line "My tool" --keys --pause
+```
+</Tab>
+</Tabs>
+
+## A screenshot at each step
+
+<Tabs items={["reel", "steep", "CLI"]}>
+<Tab value="reel">
+```go
+Outputs: reel.MustFiles("shot-{mark}.png?match=step:*"),
+```
+</Tab>
+<Tab value="steep">
+```go
+steep.WithStills(steep.StillPNG, steep.HookInput),
+steep.WithExportAlways(),
+```
+</Tab>
+<Tab value="CLI">
+```console
+reel export in.cast -o 'shot-{mark}.png?match=step:*'
+```
+</Tab>
+</Tabs>
+
+<Demo src="mark-brew-mid.png" alt="A still of the shop during a brew" />
+
+## A recording that hides a secret
+
+Redact first, and leave out `.cast`, which would keep the secret.
+
+<Tabs items={["reel", "steep", "CLI"]}>
+<Tab value="reel">
+```go
+reel.Profile{
+	Outputs: reel.MustFiles("demo.webp"),
+	Effects: []reel.Effect{
+		effects.Redact(effects.Env("API_TOKEN")),
+		effects.RedactInputs(effects.Env("API_TOKEN")),
+		effects.Keys(time.Second),
+	},
+}
+```
+</Tab>
+<Tab value="steep">
+```go
+steep.WithRecording(reel.Profile{
+	Outputs: reel.MustFiles("{name}.webp"),
+	Effects: []reel.Effect{
+		effects.Redact(effects.Env("API_TOKEN")),
+		effects.RedactInputs(effects.Env("API_TOKEN")),
+		effects.Keys(time.Second),
+	},
+}),
+```
+</Tab>
+<Tab value="CLI">
+```console
+reel export in.cast -o demo.webp --redact-env API_TOKEN --keys
+```
+</Tab>
+</Tabs>
+
+<Demo src="effect-redact-blur.webp" alt="The shop with its license key blurred" />
+
+## The last bit of a long recording
+
+<Tabs items={["reel", "steep", "CLI"]}>
+<Tab value="reel">
+```go
+window, err := tl.Between("deploy:start", "")
+// ...
+err = reel.Export(ctx, window, reel.Profile{Outputs: reel.MustFiles("deploy.gif")})
+```
+</Tab>
+<Tab value="steep">
+```go
+window, err := h.Timeline().Between("deploy:start", "close:1")
+// ...
+err = reel.Export(ctx, window, reel.Profile{Outputs: reel.MustFiles("deploy.gif")})
+```
+</Tab>
+<Tab value="CLI">
+```console
+reel export in.cast --between deploy:start, -o deploy.gif
+```
+</Tab>
+</Tabs>

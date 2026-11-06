@@ -1,0 +1,73 @@
+---
+title: Output formats
+description: Every format reel writes, how big each is, and the options it takes.
+---
+
+import sizes from "../../fixtures/format-sizes.json";
+
+An output is a path with optional query parameters, and its extension picks the format. All of these came from one recording of [the shop](/reel), about six seconds long:
+
+<FormatTable sizes={sizes} />
+
+## Choosing one
+
+- **For a README or docs page**, use WebP. Terminal frames compress very well, it loops, and it stays sharp. These docs use it everywhere.
+- **Where WebP won't display**, use GIF. It needs no ffmpeg, and works everywhere, at the cost of a larger file and 256 colors per frame.
+- **To post somewhere**, use MP4. It plays nearly everywhere.
+- **To keep the recording**, use `.cast`. It's small, and every other format can be made from it, later.
+- **To compare screens in a test**, use `.snap` or `.json`.
+
+## Parameters
+
+Each parameter only applies to some formats. An unknown or repeated one is an error, or one on the wrong format. `marks` and `optimize` can repeat.
+
+| Parameter | Formats | Values | Sets |
+| --- | --- | --- | --- |
+| `quality` | `.mp4`, `.webm`, `.webp` | `0` to `100` | How close to the frames, from smallest to lossless. WebP is lossless by default, which for terminal frames is smaller than lossy at any useful quality, so a lower value is rarely what you want. |
+| `loop` | `.gif`, `.webp` | `forever`, `once`, or a number of repeats from `1` | How the animation repeats |
+| `max-bytes` | `.gif` | A size, such as `5MB` or `1.5MiB` | Drops the oldest frames to stay under it |
+| `max-frames` | `.gif` | A number | Keeps only the last frames |
+| `optimize` | `.gif`, `.png` | `none`, `all`, `frames`, `dirty`, `quantize` | The encoder's optimizations. The default is `all`. |
+| `full-chroma` | `.mp4`, `.webm` | A boolean | 4:4:4, which keeps thin colored text sharp. Many browsers and phones don't play it in H.264. |
+| `background` | `.gif`, `.mp4`, `.webm`, `.webp` | `#rgb` or `#rrggbb` | A solid background |
+| `version` | `.cast` | `2` or `3` | The asciicast version. The default is 2. |
+| `marks` | All but `.cast` | A mark's label | A still at that mark. The path must hold `{mark}`. |
+| `match` | All but `.cast` | A pattern, such as `input:*` | A still at each matching mark. The path must hold `{mark}`. |
+
+Options shared by every output of a profile, such as `FPS` and `Speed`, are on the [profile](/reel/exporting) rather than here.
+
+## In Go
+
+`reel.MustFiles` and `reel.ParseFile` read this syntax. To use a value at run time, or to handle errors, use `ParseFile`:
+
+```go
+outputs := reel.MustFiles("out/{timestamp}.gif?max-bytes=5MB&loop=once", "out/{timestamp}.cast")
+
+file, err := reel.ParseFile(os.Getenv("OUTPUT"))
+```
+
+An output can also be a `file://` URL, whose path is percent-decoded. Other schemes are errors.
+
+You can build a `reel.File` directly: its `Options` are `sink.Option` values, such as `sink.WithQuality(90)`.
+
+## In steep and the CLI
+
+The same syntax works in [`STEEP_EXPORT`](/steep/environment#exports) and [`reel -o`](/cli/outputs). The [configurator](/steep/configurator) builds these for you.
+
+## What's different about each
+
+**GIF** has one palette per frame and whole-centisecond delays. Cards and other inserted frames get a palette of their own.
+
+**PNG** without `marks` is the last frame. It gets the badge of an end pause.
+
+**MP4** is H.264, from `libx264`. It has no transparency, and uses black without a `background`.
+
+**WebM** is VP9, from `libvpx-vp9`.
+
+**WebP** is from `libwebp`, and keeps transparency. Builds of ffmpeg without `libwebp` are common, so check `ffmpeg -encoders | grep libwebp` if it fails.
+
+**`.snap`** is the screen's text at the end of the window, or at each mark. Effects don't change it, so it shows what a redaction hides.
+
+**`.json`** is a [`reel.Screen`](https://pkg.go.dev/github.com/lrstanley/steep/reel#Screen) in the same way. It's what a [JSON snapshot](/steep/snapshots#json-snapshots) holds.
+
+**`.cast`** is the timeline itself, with the effects recorded as annotations. It can't be written with a concealer or a cutter.

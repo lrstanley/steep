@@ -144,15 +144,29 @@ tasks:
   docs:dev:
     desc: run the docs' dev server
     dir: docs
-    deps: [docs:install]
+    deps: [docs:install, docs:demos]
     cmds:
       - bun run dev
   docs:build:
     desc: build the docs
     dir: docs
-    deps: [docs:install]
+    deps: [docs:install, docs:demos]
     cmds:
       - bun run build
+  docs:demos:
+    desc: record what the docs show, with the examples and the reel CLI, which needs ffmpeg (--force to re-record)
+    deps: [setup]
+    # written last, so its absence means the files aren't complete.
+    status:
+      - test -f docs/fixtures/demo-sizes.json
+    cmds:
+      - rm -f docs/fixtures/demo-sizes.json
+      - rm -rf docs/public/demos docs/public/casts
+      - mkdir -p docs/public/demos docs/public/casts
+      - cd _examples && STEEP_EXPORT_MODE=on go test -count 1 ./docs-demos/
+      - cd _examples && STEEP_EXPORT_MODE=on STEEP_EXPORT=showcase.webp STEEP_EXPORT_DIR="$PWD/../docs/public/demos" STEEP_RENDERER_SCALE=2 go test -count 1 -run '^TestShowcase$' ./steep-showcase/
+      - bash docs/scripts/cli-demos.sh
+      - bun docs/scripts/demo-sizes.ts
   docs:preview:
     desc: preview the built docs
     dir: docs

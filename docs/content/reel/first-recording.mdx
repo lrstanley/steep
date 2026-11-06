@@ -1,0 +1,134 @@
+---
+title: Your first recording
+description: Run a command in a session, drive it, and export a GIF and a cast.
+---
+
+In this tutorial you'll run a real command in an emulated terminal, type into it, and export the result. You need Go and a directory to work in.
+
+<Steps>
+<Step>
+### Create the module
+
+```console
+mkdir record && cd record
+go mod init example.com/record
+go get github.com/lrstanley/steep/reel@latest
+```
+</Step>
+
+<Step>
+### Run a command in a session
+
+A session owns a terminal. `reel.Exec` runs a command in it on a pseudo-terminal. Put this in `main.go`:
+
+```go title="main.go"
+package main
+
+import (
+	"context"
+	"log"
+	"os/exec"
+	"regexp"
+	"time"
+
+	"github.com/lrstanley/steep/reel"
+	"github.com/lrstanley/steep/reel/effects"
+)
+
+func main() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	s, err := reel.Open(ctx, 72, 16, reel.WithTitle("bash"), reel.WithTypingDelay(60*time.Millisecond))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer s.Close()
+
+	cmd := exec.CommandContext(ctx, "bash", "--norc")
+	proc, err := reel.Exec(ctx, s, cmd)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Wait for the prompt, on the cursor's line.
+	if _, err := s.Wait(ctx, reel.OnCursorLine(reel.Contains("$ "))); err != nil {
+		log.Fatal(err)
+	}
+	if err := s.Type("echo hello from reel\n"); err != nil {
+		log.Fatal(err)
+	}
+	// At the start of a line, so it isn't the command being echoed.
+	if _, err := s.Wait(ctx, reel.Matches(regexp.MustCompile(`(?m)^hello from reel`))); err != nil {
+		log.Fatal(err)
+	}
+	if err := s.Mark("hello:done"); err != nil {
+		log.Fatal(err)
+	}
+	if err := s.Type("exit\n"); err != nil {
+		log.Fatal(err)
+	}
+	if _, err := proc.Wait(); err != nil {
+		log.Fatal(err)
+	}
+
+	err = reel.Export(ctx, s.Timeline(), reel.Profile{
+		Outputs: reel.MustFiles("demo.gif", "demo.cast", "shot-{mark}.png?marks=hello:done"),
+		Effects: []reel.Effect{effects.Keys(time.Second), effects.Pause()},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+```
+</Step>
+
+<Step>
+### Run it
+
+```console
+$ go run .
+$ ls
+demo.cast  demo.gif  go.mod  go.sum  main.go  shot-hello-done.png
+```
+
+Nothing was drawn while the command ran. reel logged what happened, and drew it during the export. Open `demo.gif` to watch it.
+</Step>
+
+<Step>
+### Export it again, differently
+
+`demo.cast` is the whole recording, so you don't need to run the command again. Add this to a new `main.go`, or use the [CLI](/cli/edit-recordings):
+
+```go
+f, err := os.Open("demo.cast")
+if err != nil {
+	log.Fatal(err)
+}
+defer f.Close()
+
+tl, err := reel.ReadTimeline(f)
+if err != nil {
+	log.Fatal(err)
+}
+
+err = reel.Export(ctx, tl, reel.Profile{
+	Outputs: reel.MustFiles("framed.gif"),
+	Render:  []render.Option{render.WithWindowChrome(true), render.WithPadding(12)},
+})
+```
+</Step>
+</Steps>
+
+## What you've learned
+
+- A session holds a terminal and logs everything into a timeline.
+- `Exec` connects a command to a session.
+- An export replays a timeline, so it can run later, any number of times, from a file.
+- A `.cast` is the recording, and the other formats are made from it.
+
+## Next
+
+- [Sessions](/reel/sessions) cover driving a program, and waiting for it.
+- [Output formats](/reel/formats) compares what you can write.
+- [Effects](/reel/effects) changes what the recording shows.

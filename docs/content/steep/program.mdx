@@ -1,0 +1,124 @@
+---
+title: Program and messages
+description: Send messages, change the model directly, quit, and check the messages your model receives.
+---
+
+Prefer keys and clicks, since they test what a user does. These are for what's hard to reach that way. They need a `tea.Program`, so an [exec harness](/steep/harnesses#exec-harness) can't use them.
+
+## SendProgram
+
+`SendProgram` sends a message straight to the program, as something outside it would, such as a `tea.Program.Send` from a background goroutine:
+
+```go
+h.SendProgram(dataLoadedMsg{rows: rows}).Wait("42 rows")
+```
+
+Since input goes through the terminal, mixing the two can deliver them out of order. See [Ordering](/steep/input#ordering).
+
+## Mutate
+
+`Mutate` applies a function to the model on the program's goroutine, as part of its `Update` handling, so it's safe from races.
+
+```go
+steep.NewHarness(t, newModel()).
+	Wait("Sencha").
+	Mutate(func(m *Model) *Model {
+		m.Served = []string{"Matcha"}
+		return m
+	}).
+	Wait("1 served")
+```
+
+The function must take and return the type you passed to the harness, or the test fails. So for a harness of a `*Model`, that's `func(*Model) *Model`.
+
+Use it sparingly, for states that would take too long to reach through the UI, or that would otherwise need test-only code in your model. A test that mutates its way to every screen doesn't check that a user can get there.
+
+## QuitProgram
+
+`QuitProgram` asks the program to shut down gracefully. You only need it to check what happens next, since the cleanup stops the program anyway:
+
+```go
+m := h.QuitProgram().FinalModelAs[*Model]()
+```
+
+## Sleep
+
+`Sleep` lets the program run for a while, such as to hold on a screen in a recording.
+
+```go
+h.Sleep(500 * time.Millisecond)
+```
+
+Don't use it to wait for something to happen. It either wastes time or isn't long enough on a slow machine. [Wait for what you expect](/steep/checks#waiting-and-settling) instead.
+
+## Reaching the session
+
+`Session` returns the [`reel.Session`](/reel/sessions) your program runs in, for what the harness doesn't wrap, such as writing raw bytes to the terminal:
+
+```go
+h.Session().Write([]byte(ansi.SetModeInBandResize))
+```
+
+## Messages
+
+The harness keeps every message your model receives. It's useful when the thing you want to check doesn't draw anything, or to see that a command ran. It needs a `tea.Program`, so an [exec harness](/steep/harnesses#exec-harness) can't use it.
+
+```go
+h := steep.NewHarness(t, newModel())
+
+size := h.WaitMessage[tea.WindowSizeMsg]()
+if size.Width != 80 {
+	t.Errorf("width = %d", size.Width)
+}
+
+h.Key("enter")
+h.WaitLiveMessage[brewDoneMsg]()
+h.RequireHasMessage[tea.KeyPressMsg]()
+```
+
+### Waiting
+
+| Method | Considers | Returns |
+| --- | --- | --- |
+| `WaitMessage[T]()` | History and later messages | The first `T` |
+| `WaitMessageWhere(fn)` | History and later messages | The first `T` that `fn` accepts |
+| `WaitLiveMessage[T]()` | Only messages after the call | The first `T` |
+| `WaitLiveMessageWhere(fn)` | Only messages after the call | The first `T` that `fn` accepts |
+
+Use `WaitLive*` to wait for the response to something you just did. `WaitMessage` might return a matching message from before.
+
+`T` is inferred from `fn` in the `Where` forms:
+
+```go
+msg := h.WaitMessageWhere(func(m tea.KeyPressMsg) bool {
+	return m.String() == "enter"
+})
+```
+
+Keep `fn` quick. A wait that falls 32 messages behind misses the newer ones.
+
+### Asserting
+
+`AssertHasMessage[T]()` and `RequireHasMessage[T]()` check the history as it is, without waiting.
+
+### Reading them yourself
+
+| Method | Returns |
+| --- | --- |
+| `MessageHistory()` | A copy of all messages so far |
+| `Messages(ctx)` | Past messages, then new ones until `ctx` is done |
+| `LiveMessages(ctx)` | New messages until `ctx` is done |
+| `FilterMessagesType[T]()` | History messages of type `T` |
+| `FilterMessagesFunc(fn)` | History messages of type `T` that `fn` accepts |
+
+```go
+for key := range h.FilterMessagesType[tea.KeyPressMsg]() {
+	t.Log(key.String())
+}
+```
+
+The iterators buffer 32 new messages. A loop that falls further behind misses the newer ones, which `MessageHistory` still has.
+
+### Recording them
+
+To put messages in a recording, so the [inspector](/steep/debugging#step-through-a-failure-in-the-inspector) can show them, see [`WithRecordMessages`](/steep/debugging#messages-and-source-lines).

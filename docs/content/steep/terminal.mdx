@@ -1,0 +1,149 @@
+---
+title: Terminal
+description: Resize the terminal, set its colors and clipboard, and read what your program told it.
+---
+
+## Changing the terminal
+
+These act on the terminal around your program, rather than typing into it.
+
+### Resize
+
+`Resize` resizes the terminal, and your program gets a `tea.WindowSizeMsg`. Wait for the redraw, then check the result:
+
+```go
+h.Wait("Sencha").
+	Resize(48, 16).
+	WaitSettle().
+	Assert("q quit")
+```
+
+<Demo src="resize.webp" alt="The tea shop redrawing narrower and then wider as the terminal resizes" />
+
+For a command on an exec harness, its pseudo-terminal is resized too, so it gets a real `SIGWINCH`.
+
+`Dimensions`, `Width`, `Height`, and `Bounds` return the terminal's size in cells.
+
+### Focus
+
+`Focus` and `Blur` send a focus event, if your program enabled focus reporting. `IsFocused` returns the last known state. Terminals start focused.
+
+```go
+h.Blur().Wait("paused").Focus().WaitNot("paused")
+```
+
+### Scrolling
+
+`ScrollUp` moves the viewport toward older scrollback, without telling the program, so `View`, snapshots, and recordings show the older rows. The viewport stays put as the program writes more, until `ScrollDown`, `ScrollToBottom`, or input.
+
+```go
+h.ScrollUp(10)
+h.ScrollToTop()
+h.ScrollToBottom()
+h.SetScrollbackSize(5000)
+h.ClearScrollback()
+```
+
+The alternate screen has no scrollback, so these are for programs that print to the normal screen.
+
+### Colors
+
+These set what your program finds when it asks the terminal about colors, so you can test a program that adapts to light and dark terminals:
+
+```go
+h := steep.NewHarness(t, newModel())
+h.SetBgColor(lipgloss.Color("#ffffff"))
+```
+
+| Method | Sets |
+| --- | --- |
+| `SetFgColor`, `SetBgColor`, `SetCursorColor` | The current color |
+| `SetDefaultFgColor`, `SetDefaultBgColor`, `SetDefaultCursorColor` | The color used once the current one is cleared |
+
+A color your program sets itself, with OSC 10, 11, or 12, comes first, until it resets it.
+
+### Clipboard
+
+`SetClipboard` sets what the program reads with OSC 52. `Clipboard` returns what it last wrote, as [below](#reading-what-the-program-told-it).
+
+```go
+h.SetClipboard("copied text")
+```
+
+### Color support
+
+`WithColor` sets what the terminal advertises when the program starts:
+
+| Value | Advertises |
+| --- | --- |
+| `ColorASCII` | No color (`NO_COLOR=1`) |
+| `ColorANSI` | 16 colors (`TERM=xterm`) |
+| `ColorANSI256` | 256 colors, the default (`TERM=xterm-256color`) |
+| `ColorTrueColor` | 24-bit color (`COLORTERM=truecolor`) |
+
+## Reading what the program told it
+
+A terminal holds more than a screen. Your program can set a title, move and hide the cursor, write to the clipboard, and report progress. The harness reads all of that from the emulator.
+
+```go
+h.Wait("Sencha").Key("enter").Wait("█")
+
+if p := h.Progress(); p.Percent == 0 {
+	t.Errorf("progress = %+v", p)
+}
+
+h.Wait("Sencha is ready")
+
+if got := h.Title(); got != "tea shop" {
+	t.Errorf("title = %q", got)
+}
+if !h.IsAltScreen() {
+	t.Error("should be on the alternate screen")
+}
+if n := h.Notifications(); len(n) != 1 || n[0].Body != "Sencha is ready" {
+	t.Errorf("notifications = %+v", n)
+}
+```
+
+<Demo src="brew.webp" alt="A brew reporting progress as a bar in the title bar, then a toast saying it is ready" cast="brew.cast" caption="This test: the progress bar and the toast are drawn from that same terminal state." />
+
+### Screen
+
+| Method | Returns |
+| --- | --- |
+| `View()` | The screen's text. Every line is `Width` wide, and there are `Height` lines. |
+| `Width()`, `Height()`, `Dimensions()`, `Bounds()` | The terminal's size in cells |
+| `IsAltScreen()` | Whether it's on the alternate screen |
+| `Scrollback()`, `ScrollbackCount()`, `ScrollbackOffset()` | The scrollback rows, how many there are, and how far the viewport is scrolled |
+| `Image()`, `ImageInto(dst)` | The screen drawn as an image |
+| `ModeSetting(mode)` | Whether a terminal mode is set |
+
+### Cursor
+
+| Method | Returns |
+| --- | --- |
+| `CursorPosition()` | The cell, or `(-1, -1)` while the viewport is scrolled off it |
+| `CursorVisible()` | Whether it's shown |
+| `CursorStyle()`, `CursorBlink()` | Its shape, and whether it blinks |
+
+### What the program reported
+
+| Method | Returns | Sequence |
+| --- | --- | --- |
+| `Title()` | The window title | OSC 0, 2 |
+| `WorkingDirectory()` | The last working directory | OSC 7 |
+| `Clipboard()` | The latest clipboard write | OSC 52 |
+| `Notifications()` | Desktop notifications | OSC 9, 777 |
+| `Progress()` | The latest progress report | OSC 9;4 |
+| `ProgramStatuses()` | Current status records, at most 256 | OSC 7501 |
+| `Prompt()` | The latest semantic prompt step | OSC 133 |
+| `Bell()` | The latest bell. Its `Count` is zero before the first. | BEL |
+| `ResizeRequest()` | The last window-resize request, with `ok` false until one comes. The terminal isn't resized. | CSI 8 t |
+
+### Colors and focus
+
+`FgColor`, `BgColor`, and `CursorColor` return the emulator's current colors, and `IsFocused` its focus. See [Colors](#colors) to set them.
+
+### Images
+
+`Image` draws the screen with the Render options of the [recording profile](/steep/recording#the-recording-profile). It reuses the image on the next call, so copy it if you need to keep it, or use `ImageInto`, which draws into an image you own. Comparing images with a golden file works, though [JSON snapshots](/steep/snapshots#json-snapshots) are usually a better way to check styling, since they don't change when a font does.

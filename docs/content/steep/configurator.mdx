@@ -1,0 +1,22 @@
+---
+title: Export configurator
+description: Choose your formats and options, and get the command, CI step, or Go code to match.
+---
+
+Pick what you want to export, and copy the result. It writes the variables for any test, without changing it, a step for a GitHub Actions job, the Go options to keep in your code, or a `reel` CLI command for a recording you already have.
+
+<Configurator />
+
+## How to read the output
+
+The **Shell** and **GitHub Actions** tabs only set variables, so they work on any test as it is. Variables [override code](/steep/environment), so they replace the formats your test sets, and they can't add effects.
+
+The **Go** tab is what to put in the test if you want this all the time, and it's the only one of the three that sets effects.
+
+The **reel CLI** command works without Go and on any asciicast file, including what a test wrote. It's the same pipeline, so you can record in CI and render later on your own machine. Its export command passes `--no-cast-effects`, so only the effects you chose here apply, not those the file recorded. See [Edit existing recordings](/cli/edit-recordings).
+
+## Related
+
+- [Output formats](/reel/formats) describes every format and option.
+- [Environment variables](/steep/environment) lists the rest of the variables.
+- The [export cookbook](/reel/cookbook) has real examples.

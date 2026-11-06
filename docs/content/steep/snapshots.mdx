@@ -1,0 +1,212 @@
+---
+title: Snapshots
+description: "Golden files of the screen: which kind to use, what they hold, and how to manage them."
+---
+
+import TestJSONSnapshot from "../../fixtures/TestJSONSnapshot.json";
+
+A snapshot saves the screen to a file the first time, and compares it from then on. It catches changes you weren't testing for: a border that moved, a column that disappeared, a color that changed.
+
+```go
+h.Wait("Sencha").AssertSnapshot()
+```
+
+## Which kind
+
+| | Text (`.snap`) | JSON (`.json`) | Image |
+| --- | --- | --- | --- |
+| Method | `AssertSnapshot`, `RequireSnapshot` | `AssertJSON`, `RequireJSON` | `Image`, `ImageInto`, or an export |
+| Holds | The screen's text | Each cell, its style, and the terminal's state | Pixels |
+| Sees color | No | Yes | Yes |
+| Sees cursor, title | No | Yes | Cursor only |
+| Diff is readable | Yes | Hard | No |
+| Changes when | The text or layout changes | Anything on the screen changes | The font, too |
+| Use it for | Layout. This is the default choice. | Exact styling | Visual review, not comparisons |
+
+Start with text snapshots. Add a JSON snapshot only if a style is what you're testing.
+
+## Without a harness
+
+The `snapshot` package works on any string, so you can use it without running a program:
+
+```go
+snapshot.AssertEqual(t, renderMenu(menu))
+snapshot.RequireEqual(t, renderMenu(menu), snapshot.WithSuffix("empty"))
+```
+
+It also has `AssertJSONEqual` for a JSON string, and `AssertScreenEqual` for a `reel.Screen`.
+
+## Text snapshots
+
+`AssertSnapshot` compares the screen's text with a `.snap` file. `RequireSnapshot` does the same, and stops the test if they differ. They're plain text, so they're easy to read and review:
+
+```go
+h.Wait("Sencha").
+	KeyDown().
+	Key("enter").
+	Wait("Matcha is ready").
+	AssertSnapshot()
+```
+
+That test's snapshot file holds this:
+
+<include cwd lang="text">fixtures/TestFirstTest.snap</include>
+
+### Color
+
+A harness compares the screen's text, which has no color. So `AssertSnapshot` fails when the text or layout changes, and not when only a color does. To catch that, use a [JSON snapshot](/steep/snapshots#json-snapshots).
+
+### With ANSI, and without
+
+The `snapshot` package also compares any string you give it, such as what a component's `View` returns. That string can hold ANSI sequences, which are kept by default, so a color change fails the test. Each `ESC` byte is escaped as the text `\x1b`, so the file stays printable:
+
+```go
+view := (&counter{n: 2}).View()
+
+snapshot.AssertEqual(t, view)
+snapshot.AssertEqual(t, view, snapshot.WithANSI(false), snapshot.WithSuffix("plain"))
+```
+
+<Tabs items={["Default", "WithANSI(false)"]}>
+<Tab value="Default">
+<include cwd lang="text">fixtures/TestStringSnapshot.snap</include>
+</Tab>
+<Tab value="WithANSI(false)">
+<include cwd lang="text">fixtures/TestStringSnapshot.02-plain.snap</include>
+</Tab>
+</Tabs>
+
+Keeping ANSI catches more and is harder to review. Strip it when the test is about layout.
+
+### What gets normalized
+
+So that a snapshot is stable, these are applied before comparing:
+
+| Normalization | Default | Option |
+| --- | --- | --- |
+| CRLF line endings become LF | Always | |
+| ANSI sequences | Kept | `snapshot.WithANSI(false)` strips them |
+| `ESC` bytes | Escaped as `\x1b` | `snapshot.WithEscapeESC(false)` keeps the raw byte |
+| Spinner glyphs | Replaced with `?` | `snapshot.WithSpinners(true)` keeps them |
+| Private-use glyphs, such as Nerd Font icons | Kept | `snapshot.WithPrivate(false)` replaces them with `?` |
+
+### Your own normalization
+
+To hide what changes between runs, like a time, add a transform. It runs on the bytes before comparing:
+
+```go
+stamp := regexp.MustCompile(`\d{2}:\d{2}:\d{2}`)
+
+h.AssertSnapshot(snapshot.WithTransform(func(b []byte) []byte {
+	return stamp.ReplaceAll(b, []byte("00:00:00"))
+}))
+```
+
+Better still, give the program a fixed clock in the test.
+
+### When it fails
+
+A mismatch prints [a unified diff](/steep/failures#a-snapshot-that-differs) from the file to the screen. An `AssertSnapshot` that fails lets the test carry on, and a `RequireSnapshot` doesn't, as with [other checks](/steep/checks).
+
+## JSON snapshots
+
+`AssertJSON` and `RequireJSON` save the screen as JSON: each cell with its content, colors, and attributes, plus the cursor, title, and colors of the terminal.
+
+```go
+steep.NewComponentHarness(t, &counter{n: 2}, steep.WithWindowSize(24, 4)).
+	Wait("++").
+	AssertJSON(snapshot.WithIndent(true))
+```
+
+Move over the cells to see what the snapshot holds for each. This is that test's real file:
+
+<Cells screen={TestJSONSnapshot} />
+
+### What it holds
+
+| Field | Holds |
+| --- | --- |
+| `rows`, `cols` | The size |
+| `title` | The window title, if set |
+| `alt_screen`, `focused` | The terminal's modes |
+| `cursor` | `position`, `visible`, `style`, and `blink` |
+| `fg_color`, `bg_color` | The terminal's default colors |
+| `cells` | A row of cells per screen row |
+
+Each cell has its `content` and `width`, and a `style` of `fg`, `bg`, `underline`, and `attrs`. A wide character's second column is an empty cell.
+
+It's the JSON of a [`reel.Screen`](https://pkg.go.dev/github.com/lrstanley/steep/reel#Screen), the same as the `.json` output of an export and of `reel still` and `reel session screen -f json`.
+
+### Format
+
+`AssertJSON` writes compact JSON, one long line. `snapshot.WithIndent(true)` indents it with tabs, which makes a much larger file, but with diffs that show the cell that changed. Use that if people will read the diffs.
+
+### When to use it
+
+JSON snapshots are large, and they change whenever anything on the screen does. They're worth it when you need to check something a text snapshot can't see, such as that an error is red or a selected row is reversed. For a small region, a [component harness](/steep/harnesses#component-harness) with a small terminal keeps the file manageable.
+
+Failures don't print a readable diff, since the output is too large. To see what changed, update the snapshot and use `git diff`, preferably with `WithIndent(true)`, or open a recording in the [inspector](/steep/debugging#step-through-a-failure-in-the-inspector) to look at the cells.
+
+## Managing snapshots
+
+### Creating and updating
+
+A snapshot that doesn't exist [fails the test](/steep/failures#a-missing-snapshot), so a forgotten file can't pass in CI.
+
+Set `UPDATE_SNAPSHOTS=true` to write the files rather than compare them. Run the tests normally afterward, and read the diff before you commit:
+
+```console
+UPDATE_SNAPSHOTS=true go test ./...
+git diff testdata/
+```
+
+`UPDATE_SNAPS` works the same way, for those coming from [go-snaps](https://github.com/gkampitakis/go-snaps). In code, `snapshot.WithUpdate(true)` does the same, though it's easy to commit by accident.
+
+### Where files go
+
+Snapshots go under `testdata`, relative to the test's package directory, named after the test:
+
+| Test | File |
+| --- | --- |
+| `TestMenu` | `testdata/TestMenu.snap` |
+| `TestMenu/narrow` | `testdata/TestMenu/narrow.snap` |
+| `TestMenu`, with `WithSuffix("empty")` | `testdata/TestMenu-empty.snap` |
+| `TestMenu`, the second snapshot | `testdata/TestMenu.02.snap` |
+| `TestMenu`, the second, with `WithSuffix("empty")` | `testdata/TestMenu.02-empty.snap` |
+
+A `.json` snapshot follows the same rules with its own count, so a test's first text snapshot and first JSON snapshot don't affect each other.
+
+To use another directory:
+
+| Way | Applies to |
+| --- | --- |
+| `snapshot.WithDir("golden")` | One call. It wins over the rest. |
+| `STEEP_SNAPSHOT_DIR=golden` | Every harness snapshot, unless the harness has `WithIgnoreEnv(true)` |
+
+### Several in one test
+
+Each snapshot in a test takes the next number, so adding one in the middle renumbers the rest. Name them with a suffix to avoid that:
+
+```go
+h.Wait("Sencha").AssertSnapshot(snapshot.WithSuffix("menu"))
+h.Key("/").Wait("Filter").AssertSnapshot(snapshot.WithSuffix("filter"))
+```
+
+Subtests get a directory of their own, which is a good fit for testing several sizes:
+
+```go
+for _, size := range [][2]int{{80, 24}, {40, 12}} {
+	t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+		steep.NewHarness(t, newModel(), steep.WithWindowSize(size[0], size[1])).
+			Wait("Sencha").
+			AssertSnapshot()
+	})
+}
+```
+
+### Keeping them useful
+
+- **Commit them**, and review their diffs as you would code. An update that nobody reads tests nothing.
+- **Snapshot fewer screens at smaller sizes.** A small snapshot is one someone will read.
+- **Fix the program's inputs.** Fixed times, names, and sizes mean there's nothing to normalize.
+- **Mark them as generated** if the diffs are noisy on GitHub: `**/testdata linguist-generated=true` in `.gitattributes` collapses them by default.

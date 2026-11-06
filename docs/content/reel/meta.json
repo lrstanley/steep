@@ -1,0 +1,27 @@
+{
+  "title": "Reel",
+  "description": "Record and render terminals in Go",
+  "root": true,
+  "pages": [
+    "---Start here---",
+    "index",
+    "first-recording",
+    "---Recording---",
+    "sessions",
+    "inspecting",
+    "---Exporting---",
+    "exporting",
+    "formats",
+    "cookbook",
+    "rendering",
+    "---Effects---",
+    "effects",
+    "redact",
+    "custom-effects",
+    "---Help---",
+    "troubleshooting",
+    "---Reference---",
+    "how-it-works",
+    "terminal-features"
+  ]
+}

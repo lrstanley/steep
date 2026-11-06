@@ -1,0 +1,200 @@
+---
+title: Your first test
+description: Write a test of a small Bubble Tea program from an empty file, break it on purpose, and read what steep tells you.
+---
+
+In this tutorial you'll write a test of a small program, run it, make it fail, and fix it. It takes about ten minutes. You need Go and a directory to work in.
+
+<Steps>
+<Step>
+### Create the module
+
+```console
+mkdir brew && cd brew
+go mod init example.com/brew
+go get charm.land/bubbletea/v2 github.com/lrstanley/steep@latest
+```
+</Step>
+
+<Step>
+### Write a program to test
+
+Put this in `main.go`. It's a list of teas: the arrow keys move a cursor, and enter orders the selected one.
+
+```go title="main.go"
+package main
+
+import (
+	"fmt"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+)
+
+type model struct {
+	teas    []string
+	cursor  int
+	ordered string
+}
+
+func newModel() model {
+	return model{teas: []string{"Sencha", "Matcha", "Oolong"}}
+}
+
+func (m model) Init() tea.Cmd { return nil }
+
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
+		switch key.String() {
+		case "down":
+			m.cursor = min(m.cursor+1, len(m.teas)-1)
+		case "up":
+			m.cursor = max(m.cursor-1, 0)
+		case "enter":
+			m.ordered = m.teas[m.cursor]
+		case "q":
+			return m, tea.Quit
+		}
+	}
+	return m, nil
+}
+
+func (m model) View() tea.View {
+	var b strings.Builder
+	for i, name := range m.teas {
+		cursor := "  "
+		if i == m.cursor {
+			cursor = "> "
+		}
+		b.WriteString(cursor + name + "\n")
+	}
+	if m.ordered != "" {
+		fmt.Fprintf(&b, "\nOrdered %s\n", m.ordered)
+	}
+	return tea.NewView(b.String())
+}
+
+func main() {
+	if _, err := tea.NewProgram(newModel()).Run(); err != nil {
+		panic(err)
+	}
+}
+```
+</Step>
+
+<Step>
+### Write the test
+
+Put this in `main_test.go`:
+
+```go title="main_test.go"
+package main
+
+import (
+	"testing"
+
+	"github.com/lrstanley/steep"
+)
+
+func TestOrder(t *testing.T) {
+	steep.NewHarness(t, newModel()).
+		Wait("Sencha").
+		KeyDown().
+		Key("enter").
+		Wait("Ordered Matcha")
+}
+```
+
+Each line does what a person would. `NewHarness` starts the program in an emulated terminal. `Wait` blocks until text is on the screen, because the program draws at its own pace. `KeyDown` and `Key` press keys.
+
+You don't have to quit the program. The harness registers a test cleanup that does it.
+</Step>
+
+<Step>
+### Run it
+
+```console
+$ go test ./...
+ok  	example.com/brew	0.052s
+```
+</Step>
+
+<Step>
+### Make it fail
+
+Change `Wait("Ordered Matcha")` to `Wait("Ordered Oolong")`, then run the test again. After two seconds, the default timeout, steep gives up and prints what was on the screen:
+
+```console
+--- FAIL: TestOrder (2.01s)
+    main_test.go:14: Wait("Ordered Oolong"): reel: wait for contains ["Ordered Oolong"]: steep: timeout
+        last output:
+          Sencha
+        > Matcha
+          Oolong
+
+        Ordered Matcha
+```
+
+You can read that like a bug report: the test wanted `Ordered Oolong`, the screen said `Ordered Matcha`, and the cursor was on the wrong row.
+</Step>
+
+<Step>
+### Watch the failure
+
+Run it again, recording failures as a GIF and keeping the files:
+
+```console
+STEEP_EXPORT_MODE=failure go test -artifacts ./...
+```
+
+steep prints the path of each file it wrote, under `_artifacts`. You didn't change the test to get this, and a passing test writes nothing. Open the `.gif` to watch the run, or drop the `.cast` onto the [inspector](https://inspector.getsteep.dev/) to step through it.
+
+This is what a failure looks like in a recording. It's the same kind of failure, from the larger program these docs use:
+
+<Demo src="fail-wait.webp" alt="A recording of a failing wait: the menu moves down one row, then a card reads FAIL with the wait's message" cast="fail-wait.cast" />
+</Step>
+
+<Step>
+### Fix it, and keep the screen
+
+Change the test back, and add a snapshot of the final screen:
+
+```go title="main_test.go" {5}
+	steep.NewHarness(t, newModel()).
+		Wait("Sencha").
+		KeyDown().
+		Key("enter").
+		Wait("Ordered Matcha").
+		AssertSnapshot()
+```
+
+There's no snapshot to compare with yet, so the first run fails and tells you how to make one:
+
+```console
+$ go test ./...
+--- FAIL: TestOrder (0.05s)
+    main_test.go:15: snapshot "testdata/TestOrder.snap" does not exist; set UPDATE_SNAPSHOTS=true to create it
+
+$ UPDATE_SNAPSHOTS=true go test ./...
+ok  	example.com/brew	0.051s
+
+$ go test ./...
+ok  	example.com/brew	0.049s
+```
+
+Commit `testdata/TestOrder.snap` with your code. From now on, the test fails if that screen changes, and the failure shows a diff.
+</Step>
+</Steps>
+
+## What you've learned
+
+- A harness runs your program, and its methods are the things a person would do.
+- `Wait` blocks until the screen shows something, and fails with what was there instead.
+- Any test can be recorded from the environment, without changing it.
+- Snapshots catch changes you weren't testing for.
+
+## Next
+
+- [Add steep to a project you already have](/steep/existing-project).
+- [Learn the difference between `Assert`, `Require`, and `Wait`](/steep/checks).
+- [Read how waiting and settling work](/steep/checks#waiting-and-settling), which is where most flaky tests come from.

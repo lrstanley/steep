@@ -1,0 +1,45 @@
+---
+title: Introduction
+description: Install the reel command, and record terminals and render recordings without writing Go.
+---
+
+`reel` is a command for making terminal recordings. It runs [VHS](https://github.com/charmbracelet/vhs) tapes, records commands, drives programs for scripts and agents, and turns asciicast files into GIFs, videos, and stills. It doesn't need Go to use, a browser, or anything else to run, apart from ffmpeg for some formats.
+
+```console
+$ reel run demo.tape
+demo.tape: wrote demo.gif
+demo.tape: wrote demo.cast
+```
+
+<Demo src="cli-tape.webp" alt="The tea shop recorded from a tape: a program started in a shell, moved through, filtered, and brewed" cast="cli-tour.cast" caption="This site's tour, recorded from a tape." />
+
+## What it does
+
+| You want to | Use | Guide |
+| --- | --- | --- |
+| Script a demo, and regenerate it when your program changes | `reel run` | [Make demos from tapes](/cli/tapes) |
+| Test a program without writing code | `reel test` | [Test with tapes](/cli/test) |
+| Record yourself using a program | `reel rec` | [Record your terminal](/cli/record) |
+| Drive a program from a script, or let an agent use one | `reel session` | [Drive programs](/cli/sessions) |
+| Change how a recording looks, or cut it | `reel export`, `still`, `cut` | [Edit existing recordings](/cli/edit-recordings) |
+| Render a `script(1)` recording | `reel attach` | [Render script(1) recordings](/cli/record#render-script1-recordings) |
+
+## All the commands
+
+<include cwd lang="console">fixtures/cli-help.output</include>
+
+Run `reel <command> --help` for every flag. Commands that list things print a table on a terminal, and tab-separated rows without headers when piped. `--json` prints JSON.
+
+## Installation
+
+```console
+go install github.com/lrstanley/steep/cmd/reel@latest
+```
+
+That's the only time you need Go. Video and WebP formats need [ffmpeg](https://ffmpeg.org) on your `PATH`, and [the rest need nothing](/reel/formats). `reel run` and `reel test` need a shell, and tapes run in `bash` unless they say otherwise. Fonts are built in, so recordings look the same on any machine.
+
+## Next
+
+Try the [quickstart](/cli/quickstart).
+
+If you're writing Go tests, you probably want [steep](/steep), and to record from your own Go code, see [reel](/reel). They use the same formats and effects as this command.

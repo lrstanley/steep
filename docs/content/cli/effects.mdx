@@ -1,0 +1,111 @@
+---
+title: Effects
+description: Cards, pauses, cuts, highlights, zooms, and redaction, from flags.
+---
+
+These flags add effects to `run`, `export`, `attach`, `rec`, and session exports.
+
+## Cards
+
+```console
+reel export in.cast -o out.webp --intro 1s --intro-line "The Tea Shop" --outro 1s --outro-line "Thanks"
+```
+
+<Demo src="cli-cards.webp" alt="A recording with a title card at each end" />
+
+Without `--intro-line`, the intro shows the title. An outro needs a line. Both flags repeat, for more lines.
+
+## Pauses
+
+```console
+reel export in.cast -o out.webp --pause --pause-at filter:typed
+reel export in.cast -o out.webp --hold-last 2s
+```
+
+<Demo src="cli-pause.webp" alt="A recording with a pause at a mark and at the end, each showing a badge" />
+
+`--pause` pauses for a second at the end, with a badge. `--pause-at MARK` does the same at a mark, and repeats. `--hold-last` holds the last frame, with no badge.
+
+## The mouse
+
+`--mouse` draws the pointer, clicks, and drags.
+
+```console
+reel export in.cast -o out.webp --mouse
+```
+
+## Cutting
+
+`--hide FROM,TO` cuts the window between two marks. It repeats, and either mark may be empty for the start or end.
+
+```console
+reel export in.cast -o out.webp --hide filter:start,filter:done
+```
+
+<Demo src="cli-hide.webp" alt="A recording with the filtering cut out" />
+
+## Highlight
+
+```console
+reel export in.cast -o out.webp --highlight 're= Matcha.*0m ;dim=0.6;between=brew:start,brew:done'
+```
+
+<Demo src="cli-highlight.webp" alt="The screen dimmed except for one row, during a brew" />
+
+## Zoom
+
+```console
+reel export in.cast -o out.webp --zoom 'cells=1,10,38,14;between=brew:start,brew:done'
+```
+
+<Demo src="cli-zoom.webp" alt="The view easing in on the status area during a brew" />
+
+## Secrets
+
+```console
+reel export in.cast -o out.webp --redact-regexp 'tea-[0-9a-f]+'
+reel export in.cast -o out.webp --redact-env GITHUB_TOKEN
+reel export in.cast -o out.webp --redact 'env=GITHUB_TOKEN;style=blur'
+```
+
+<Demo src="cli-redact.webp" alt="The tea shop with its license key hidden" />
+
+These can't be combined with a `.cast` output, which would keep the secret. And `.snap` and `.json` outputs skip effects. [Redact](/reel/redact#where-it-stops) has what it can't catch, so watch the result before sharing it.
+
+## Spec
+
+`--highlight`, `--zoom`, and `--redact` take a spec: `REGION[;KEY=VALUE]...`, and they repeat.
+
+| Region | Covers |
+| --- | --- |
+| `row=Y` | One row, from 0 |
+| `rows=Y0-Y1` | Rows from `Y0` up to `Y1` |
+| `cells=X0,Y0,X1,Y1` | A rectangle of cells |
+| `text=TEXT` | Each place `TEXT` shows |
+| `re=PATTERN` | Each match of a regular expression |
+| `env=NAME` | Each place the value of a variable shows |
+
+| Key | Effects | Is |
+| --- | --- | --- |
+| `between=FROM,TO` | All | The window between two marks. Either may be empty. |
+| `ease=DUR` | Highlight, zoom | How long to ease in and out |
+| `dim=FACTOR` | Highlight | How much to darken the rest, from 0 to 1 |
+| `outline=#RRGGBB[:PX]` | Highlight | A border |
+| `padding=PX` | Highlight | Undimmed pixels around the region |
+| `scale=FACTOR` | Zoom | How many times larger |
+| `anchor=X,Y` | Zoom | Where it sits, as a fraction of the grid |
+| `style=blur\|block\|replace:C` | Redact | How it hides |
+
+Values can't contain `;`, so neither can a region's text or pattern. Quote specs, since your shell cares about `;`.
+
+## In a tape
+
+Tapes take the same spec, as commands:
+
+```tape
+Highlight "re=ERROR.*;dim=0.5"
+Zoom "cells=0,0,40,10"
+Redact "env=GITHUB_TOKEN"
+```
+
+See [the effects themselves](/reel/effects) for what they do in detail.

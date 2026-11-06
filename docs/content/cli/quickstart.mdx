@@ -1,0 +1,77 @@
+---
+title: Quickstart
+description: Record a command, render it differently, and pull out a screenshot.
+---
+
+In a few minutes, you'll record a program, then render that recording in several ways without running it again.
+
+<Steps>
+<Step>
+### Record something
+
+`reel rec` runs a command in this terminal, and records it. Use any program you like, or leave out the command to record your shell. Drop a mark with `ctrl+]` then `m` at a point you'd like to find later, and quit the program to stop.
+
+```console
+$ reel rec -o demo.cast -- htop
+reel: recording htop (80x24); ctrl+] m drops a mark; exit the program to stop
+```
+
+`demo.cast` is the whole recording, in asciicast format. It's only text, and small.
+</Step>
+
+<Step>
+### Look at it
+
+`reel info` describes a recording. Here's one from this site:
+
+<include cwd lang="console">fixtures/cli-info.output</include>
+
+`reel play demo.cast` replays it in this terminal. Press `q` or `ctrl+c` to stop.
+</Step>
+
+<Step>
+### Render it
+
+`reel export` draws a recording. The extension of each `-o` picks the format:
+
+```console
+reel export demo.cast -o demo.gif
+reel export demo.cast -o demo.webp --chrome --keys --pause
+```
+
+<FlagPreview on="cli-keys-on.webp" off="cli-chrome-on.png" onLabel="--chrome --keys" offLabel="a still" alt="The tea shop in a window with a title bar" />
+
+`--chrome` draws a title bar, `--keys` shows the keys pressed, and `--pause` pauses at the end.
+</Step>
+
+<Step>
+### Cut it
+
+Mark labels name moments you can cut at. To render only what happened after a mark:
+
+```console
+reel export demo.cast --between mark:1, -o end.gif
+```
+
+The comma separates the start from the end, and an empty one means the end of the recording. Check `reel info` for your marks' labels.
+</Step>
+
+<Step>
+### Take a screenshot
+
+`reel still` renders one moment, at a mark or a time:
+
+```console
+reel still demo.cast --at 3.2s -o shot.png
+reel still demo.cast --at 3.2s -o shot.snap
+```
+
+A `.png` is an image, and `.snap` is the screen's text.
+</Step>
+</Steps>
+
+## Next
+
+- [Script the recording with a tape](/cli/tapes), so you can regenerate it.
+- [See what flags can do](/cli/appearance) to how it looks.
+- [Open it in the inspector](https://inspector.getsteep.dev/) to look through it event by event.

@@ -1,0 +1,179 @@
+---
+title: Failures and troubleshooting
+description: Every way a steep test fails, what it prints, and what to do about the usual problems.
+---
+
+The output on this page is real. Each is from a test in [`failures_test.go`](https://github.com/lrstanley/steep/blob/master/_examples/docs-demos/failures_test.go), run with `go test`.
+
+| Failure | Stops the test? | Recorded? |
+| --- | --- | --- |
+| [A failed `Assert`](#a-failed-assert) | No | Yes, as `failure:n` |
+| [A failed `Require`](#a-failed-require) | Yes | Yes |
+| [A wait that times out](#a-wait-that-times-out) | Yes | Yes |
+| [A settle that never settles](#a-settle-that-never-settles) | Yes | Yes |
+| [A snapshot that differs](#a-snapshot-that-differs) | With `Require` | Yes |
+| [A missing snapshot](#a-missing-snapshot) | With `Require` | Yes |
+| [A method the harness can't do](#a-method-the-harness-cant-do) | Yes | Yes |
+| [A condition that locates nothing](#a-condition-that-locates-nothing) | Yes | Yes |
+| [An output that doesn't parse](#an-output-that-doesnt-parse) | Yes, at the start | No |
+| [A hook's error](#a-hooks-error) | Yes | Yes |
+| [A program that fails](#a-program-that-fails) | Yes | Yes |
+| [A test that panics](#a-test-that-panics) | Yes | Yes |
+| [`go test -timeout`](#go-test--timeout) | Kills the process | **No** |
+
+## A failed Assert
+
+`Assert` reports the failure and the test carries on, so you see every problem in a run.
+
+<Demo src="fail-assert.webp" alt="A recording that lists two failures on its FAIL card" cast="fail-assert.cast" />
+
+<include cwd lang="console">fixtures/TestFailAssert.output</include>
+
+## A failed Require
+
+`Require` reports the same failure and stops, so the later steps don't run.
+
+<include cwd lang="console">fixtures/TestFailRequire.output</include>
+
+## A wait that times out
+
+The message says what the wait wanted, and shows the screen as it was. Compare the two. The default timeout is 2s, so a slow program can hit this, and `STEEP_TIMEOUT` raises it.
+
+<Demo src="fail-wait.webp" alt="A recording that moves down a row, then ends on a FAIL card with the wait's message" cast="fail-wait.cast" />
+
+<include cwd lang="console">fixtures/TestFailWait.output</include>
+
+## A settle that never settles
+
+The screen was still changing when the timeout came, usually because of a spinner or a clock. Use `Wait` or [`WaitSettleMessages`](/steep/checks#settling-on-messages). The `(for 100ms)` is the quiet period it was looking for.
+
+<include cwd lang="console">fixtures/TestFailSettle.output</include>
+
+## A snapshot that differs
+
+The diff goes from the file to the screen, so `-` is what was expected and `+` is what the test saw. If the change is right, [update the snapshot](/steep/snapshots#managing-snapshots).
+
+<Demo src="fail-snapshot.webp" alt="A recording of the screen a snapshot was compared with, ending on a FAIL card" cast="fail-snapshot.cast" />
+
+<include cwd lang="console">fixtures/TestFailSnapshot.output</include>
+
+## A missing snapshot
+
+There's no file to compare with, which is a failure so that CI can't quietly pass without one. Create it with `UPDATE_SNAPSHOTS=true`, and commit it.
+
+<include cwd lang="console">fixtures/TestFailSnapshotMissing.output</include>
+
+## A method the harness can't do
+
+An exec harness has no program to quit, so this fails the test and says so. Its failure is `Fatalf`, so the test stops.
+
+<include cwd lang="console">fixtures/TestFailExecProgram.output</include>
+
+## A condition that locates nothing
+
+`Locate` needs a cell. `reel.NotContains` and `reel.ScreenFunc` hold without pointing at one. Clicking off the screen, as with too large an `Offset`, fails in the same way.
+
+<include cwd lang="console">fixtures/TestFailLocate.output</include>
+
+## An output that doesn't parse
+
+An entry in `STEEP_EXPORT` that doesn't parse fails the test when the harness starts, so a typo can't lose you a recording. The rest of the variables are more forgiving: a value that doesn't parse is ignored.
+
+<include cwd lang="console">fixtures/TestFailBadExport.output</include>
+
+## A hook's error
+
+An error from a [hook](/steep/debugging#hooks) fails the test immediately.
+
+## A program that fails
+
+`WaitFinished` and `FinalModel` fail with `the program failed:` if the program returned an error other than `tea.ErrProgramKilled`, or if it panicked. So does `Close`, so a failed program fails the test even if nothing waited for it.
+
+Bubble Tea catches a panic in `Update`, `View`, or a command, and prints `Caught panic:` and a stack to the test's output, so look there for where it happened.
+
+## A test that panics
+
+The cleanup still runs, so the recording is written, and `test panicked` is added to the result. `go test` prints the panic and its stack as usual.
+
+## go test -timeout
+
+`go test` kills the whole process when its timeout passes, before any cleanups run. Nothing is written, and the output shows only the stacks of the running goroutines. Keep [the harness's timeout](/steep/checks#the-timers) well below it.
+
+## Troubleshooting
+
+### A test fails, or is flaky
+
+#### It passes alone and fails in CI
+
+Most flaky tests check something before the program has drawn it.
+
+- **`Assert` right after an input.** The program hasn't redrawn yet. Use `Wait`. See [Assert vs Require vs Wait](/steep/checks#choosing).
+- **The timeout is too short.** The default is 2s, and a loaded CI machine can take longer. Set `STEEP_TIMEOUT=30s` on the job, and see if the failures go away.
+- **`Sleep` instead of a wait.** It only works if the machine is fast enough. [Wait for what you expect](/steep/checks#dont-sleep).
+- **`WaitSettle` returned too early.** If the program does something slow before redrawing, the screen looks settled. Wait for the text.
+
+#### A wait times out, but the text is on the screen
+
+Look at the `last output` in the failure.
+
+- **The text is styled in pieces.** It doesn't matter for `Wait`, which checks the screen's text.
+- **The text is wrapped or cut off.** It has to be on the screen in one piece. Check the terminal's size, or use `WithWindowSize`.
+- **It appeared and went away.** Waits see the current screen. If a message shows briefly, wait for what follows it, or open the [recording](/steep/debugging#step-through-a-failure-in-the-inspector).
+- **A wide character.** Text is compared as the screen has it. Check for a character that looks like the one you typed.
+
+#### A key seems to be ignored
+
+- **The program wasn't ready.** A key sent before the program has set up its screen may go to the wrong place. `Wait` for the screen first.
+- **The name is wrong.** An unknown key name fails the test, but `Type("\n")` and `Key("enter")` aren't always the same to a program. Use `Key`.
+- **A mode can't encode it.** Combinations such as `ctrl+shift+a` need the kitty keyboard protocol, and fail without it.
+
+#### A mouse click does nothing
+
+Your program must ask for the mouse, with `view.MouseMode`, or events are dropped. See [Mouse](/steep/input#your-program-must-ask-for-the-mouse). Also check the coordinates, which start at 0. `Locate` avoids having to know them.
+
+#### Snapshots fail in CI but pass locally
+
+- **Colors.** A JSON snapshot's colors depend on the color profile. Set `WithColor` explicitly.
+- **The environment.** A program under `NewExecHarness` sees the host's environment, including `TERM` and `NO_COLOR`.
+- **Times, paths, and names.** Anything from the machine ends up in the snapshot. Pass in fixed values, or use `snapshot.WithTransform`.
+- **Line endings.** Check `.gitattributes` on Windows runners. Snapshots are compared with LF.
+
+#### The snapshot's numbers changed
+
+Each snapshot in a test takes the next number, so a new one in the middle renumbers the rest. [Name them with a suffix](/steep/snapshots#several-in-one-test).
+
+### Nothing was recorded
+
+Go through these in order:
+
+1. **Is there a policy?** Without `STEEP_EXPORT_MODE` or `WithExport*`, nothing's written.
+2. **Did the test fail?** `failure` mode writes nothing for a passing test.
+3. **Was it removed?** Look for `is removed when the test ends` in the output. Pass `-artifacts`, or set `STEEP_EXPORT_DIR`.
+4. **Are you looking in the right directory?** A relative `STEEP_EXPORT_DIR` is relative to each test's package directory. The test logs each path it wrote, with `-v` or on failure.
+5. **Was it killed?** A `go test -timeout` writes nothing. See [the cases](/steep/recording#the-cases).
+
+### An export failed
+
+#### ffmpeg, `reel.ErrRawOutput`, and exports reel refuses
+
+See [reel's troubleshooting](/reel/troubleshooting), which these come from. A profile with `effects.Redact` can't [also write `.cast`](/steep/recording#redacting-secrets).
+
+#### A mark is missing
+
+A profile looked for a mark the recording doesn't have. See [Missing marks](/steep/debugging#missing-marks).
+
+#### The recording is too fast to follow
+
+Recordings play in real time, and a test takes milliseconds. See [How recording works](/steep/recording#what-this-means-for-your-tests).
+
+#### The colors look wrong
+
+The default is a 256-color terminal, so Bubble Tea downsamples 24-bit colors. Use `steep.WithColor(steep.ColorTrueColor)`.
+
+#### Icons or emoji are boxes
+
+reel embeds a font, but not every glyph. See [Fonts](/reel/rendering#fonts) to add a Nerd Font, or `STEEP_RENDERER_FONT_FAMILY` to change it for one run.
+
+### Getting help
+
+Open [an issue](https://github.com/lrstanley/steep/issues) or ask on [Discord](https://liam.sh/chat). A `.cast` of the failure helps a lot, if there's nothing secret in it.

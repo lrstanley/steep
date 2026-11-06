@@ -1,0 +1,24 @@
+---
+title: reel still
+description: Render one moment of an asciicast file.
+---
+
+```console
+reel still [flags] <cast> -o FILE
+```
+
+| Flag | Is |
+| --- | --- |
+| `--at DUR` | The moment from the start, such as `3.2s`. The default is the end. |
+| `--mark LABEL` | The moment of the first mark labeled `LABEL` |
+| `--output`, `-o` | The file to write: `.png` for an image, `.snap` for the screen's text, or `.json` for the screen with its cells, styles, and cursor |
+
+It takes the [appearance flags](/cli/appearance). Effects aren't drawn.
+
+```console
+$ reel still in.cast --mark brew:done -o shot.snap
+```
+
+That file holds:
+
+<include cwd lang="text">fixtures/cli-still.snap</include>

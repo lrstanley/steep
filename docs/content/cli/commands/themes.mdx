@@ -1,0 +1,23 @@
+---
+title: reel themes
+description: List the named themes.
+---
+
+```console
+reel themes [TEXT] [--dark | --light] [--hue HUE] [--tone TONE] [--preview] [--json]
+```
+
+| Flag | Is |
+| --- | --- |
+| `TEXT` | Only themes whose name holds this text, in any case |
+| `--dark`, `--light` | Only dark or light themes |
+| `--hue HUE` | Only themes of this dominant hue, such as `blue` or `green` |
+| `--tone TONE` | Only themes of this tone, such as `muted` or `retro` |
+| `--preview`, `-p` | Shows each theme's colors, in true color |
+| `--json` | Prints JSON |
+
+Rows have the name, the id, the tone of dark or light, the hue, and the tone:
+
+<include cwd lang="console">fixtures/cli-themes.output</include>
+
+Use either name with `--theme`, in any case. See [Themes](/cli/appearance#themes).

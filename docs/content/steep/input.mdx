@@ -1,0 +1,142 @@
+---
+title: Keyboard and mouse
+description: Press keys, type, paste, click what is on the screen, and drag.
+---
+
+## Keyboard and text
+
+Input goes through the terminal as real input would, encoded for whatever keyboard mode your program asked for.
+
+<Demo src="keyboard.webp" alt="The tea shop being driven by keys: the cursor moves down and up, then the filter opens and green is typed" caption="Keys, repeats, and typed text, with the key overlay effect on." />
+
+```go
+steep.NewHarness(t, newModel()).
+	Wait("Sencha").
+	KeyDown(reel.Repeat(2)).
+	KeyUp().
+	Key("/").
+	Type("green", reel.Delay(80*time.Millisecond)).
+	Wait("Filter: green").
+	KeyEsc()
+```
+
+### Keys
+
+`Key` presses one key, by name:
+
+```go
+h.Key("enter")
+h.Key("ctrl+a")
+h.Key("shift+tab")
+h.Key("f5")
+h.Key("space")
+```
+
+An unknown name fails the test, and so does a combination the program's keyboard mode can't encode, such as `ctrl+shift+a` without the kitty keyboard protocol. To see every name, see [`vt.ParseKey`](https://pkg.go.dev/github.com/lrstanley/steep/reel/vt#ParseKey).
+
+The common keys have their own methods:
+
+| Method | Key |
+| --- | --- |
+| `KeyUp`, `KeyDown`, `KeyLeft`, `KeyRight` | The arrows |
+| `KeyEsc` | Escape |
+| `KeyBackspace`, `KeyDelete` | Backspace and forward delete |
+| `KeyCtrlC`, `KeyCtrlD` | `ctrl+c` and `ctrl+d` |
+
+### Text
+
+`Type` sends each character as a key press, as on a US layout, with shift for capitals and shifted symbols. Use `Key` for keys with modifiers.
+
+```go
+h.Type("hello").Key("enter")
+```
+
+Without a delay, the text is sent at once, as one input event. Your program still handles it key by key, so you'll usually want to `Wait` for the result.
+
+### Paste
+
+`Paste` sends text as a paste, bracketed if your program enabled bracketed paste. That's different from `Type`: a program with bracketed paste receives one `tea.PasteMsg`, not a key per character.
+
+```go
+h.Paste("line one\nline two")
+```
+
+### Input options
+
+`Key`, `Type`, and the mouse helpers take options from reel:
+
+| Option | Does |
+| --- | --- |
+| `reel.Repeat(n)` | Presses the key, or types the text, `n` times |
+| `reel.Delay(d)` | Pauses for `d` after each key press |
+
+A delay only matters for recordings that should show text being typed, and for programs that need real time between keys. To set one for a whole test without editing it, use `STEEP_TYPING_DELAY`. A call's own `reel.Delay` wins.
+
+### Ordering
+
+Input reaches your program through the terminal, while `SendProgram` goes straight to the program. So mixing them can deliver events in a different order than you called them. To send a key after a message has taken effect, `Wait` for its result first.
+
+Typing also scrolls a scrolled-up viewport back to the bottom first, as a real terminal does. Turn that off with `WithScrollOnInput(false)`.
+
+## Mouse
+
+<Demo src="mouse.webp" alt="A pointer drawn over the tea shop gliding to a row and clicking it, then brewing" caption="Clicks on what's drawn, with the mouse effect showing them." />
+
+### Click what's on the screen
+
+Coordinates break when a layout changes. `Locate` waits for something to be on the screen and returns where it is:
+
+```go
+h.Locate(reel.Contains("[ Save ]")).LeftClick()
+
+// A field's value, six columns right of its label.
+h.Locate(reel.Contains("Name:")).Offset(6, 0).LeftClick()
+```
+
+`Locate` waits the same way `WaitFor` does, so a test doesn't have to wait first. It finds the first match, and the location doesn't update if the program redraws afterward.
+
+A condition has to locate something. `reel.NotContains` and `reel.ScreenFunc` hold without pointing at any cell, so they [fail the test](/steep/failures#a-condition-that-locates-nothing). Clicking a location off the screen fails too.
+
+### Click a cell
+
+Cells are numbered from 0, with `(0, 0)` at the top left.
+
+```go
+h.LeftClick(10, 4)
+h.RightClick(10, 4)
+h.MiddleClick(10, 4)
+h.LeftClick(10, 4, reel.Repeat(2)) // a double click
+h.MouseClick(vt.MouseLeft, 10, 4)  // any button
+```
+
+### Drag
+
+`LeftDrag` presses at the first cell, moves through each cell of the straight line to the second, and releases there. Each step is its own event, so pass `reel.Delay` to slow a drag down for a recording.
+
+```go
+h.LeftDrag(5, 2, 40, 2)
+h.MouseDrag(vt.MouseRight, 5, 2, 40, 2)
+```
+
+### One event
+
+`Mouse` sends a single press, release, or motion, for what the other helpers don't cover:
+
+```go
+h.Mouse(vt.MousePress, vt.MouseLeft, 5, 2)
+h.Mouse(vt.MouseRelease, vt.MouseLeft, 5, 2)
+```
+
+### Your program must ask for the mouse
+
+As with a real terminal, mouse events are dropped unless your program enabled mouse tracking. In Bubble Tea, that's `view.MouseMode`:
+
+```go
+v.MouseMode = tea.MouseModeCellMotion
+```
+
+A click without tracking does nothing and isn't an error, so if a click seems to be ignored, that's the first thing to check.
+
+### Recording the mouse
+
+Mouse events aren't visible in a recording unless you add [`effects.Mouse`](/reel/effects#mouse), which draws the pointer, clicks, and drags. It's how the recording above was made.

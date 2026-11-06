@@ -1,0 +1,215 @@
+---
+title: Harnesses
+description: Which harness fits what you are testing, what each can do, and how to set one up.
+---
+
+<Mermaid chart={`flowchart TD
+  A{Does the program use Bubble Tea?} -->|No| E[NewExecHarness]
+  A -->|Yes| B{Do you need flags, main, or the exit status?}
+  B -->|Yes| E
+  B -->|No| C{Is it a whole program?}
+  C -->|Yes| M[NewHarness]
+  C -->|No, one component| D[NewComponentHarness]
+`} />
+
+If you're not sure, start with `NewHarness`. It's the fastest way to test a Bubble Tea program and it gets you every feature. Reach for `NewExecHarness` when you want to test the program as a user runs it.
+
+## What each can do
+
+| | `NewHarness` | `NewComponentHarness` | `NewExecHarness` |
+| --- | --- | --- | --- |
+| Keys, text, paste, mouse, resize | ✓ | ✓ | ✓ |
+| `Wait`, `Assert`, `Require`, `Locate` | ✓ | ✓ | ✓ |
+| Text and JSON snapshots | ✓ | ✓ | ✓ |
+| Recordings and stills | ✓ | ✓ | ✓ |
+| Terminal state: title, cursor, clipboard | ✓ | ✓ | ✓ |
+| `WaitFinished` | ✓ | ✓ | ✓ |
+| `Mutate`, `SendProgram`, `QuitProgram` | ✓ | ✓ | |
+| `FinalModel`, `FinalModelAs` | ✓ | ✓ | |
+| Messages: `WaitMessage`, `AssertHasMessage` | ✓ | ✓ | |
+| `WaitSettleMessages` | ✓ | ✓ | |
+| `ExitStatus` | | | ✓ |
+| Runs in your test's process | ✓ | ✓ | |
+| Waits for the program at the start | ✓ | ✓ | |
+
+Calling a method a harness doesn't support [fails the test](/steep/failures#a-method-the-harness-cant-do) and says why.
+
+## How they differ in practice
+
+**Speed.** `NewHarness` and `NewComponentHarness` run in your test's process. An exec test also has to build and start a program.
+
+**Coverage.** An exec test covers everything, including `main`, flag parsing, and configuration. A model test starts after all of that.
+
+**The environment.** A model's program sees only `TTY_FORCE=1` and `TERM=xterm-256color` by default, unless you use [`WithEnvVars`](/steep/harnesses#the-environment). A command gets `cmd.Env`, or the host's environment if that's nil.
+
+**Coverage reports.** A model runs in your test's process, so `go test -cover` counts it. A separate binary needs `go build -cover` and `GOCOVERDIR` to be counted.
+
+## Model harness
+
+`NewHarness` runs a root `tea.Model` in a real `tea.Program`, in your test's process.
+
+```go
+func TestMenu(t *testing.T) {
+	h := steep.NewHarness(t, newModel(), steep.WithWindowSize(100, 30))
+	h.Wait("Sencha")
+}
+```
+
+It returns once the model has received its first message, or fails the test after the [timeout](/steep/checks#waiting-and-settling). Your program sees a terminal of the size you asked for, and receives a `tea.WindowSizeMsg` like any other program.
+
+### Options
+
+Options given to `NewHarness` are the defaults for every method that takes options. A call's own options override them:
+
+```go
+h := steep.NewHarness(t, newModel(), steep.WithTimeout(5*time.Second))
+h.Wait("Loaded")                                  // up to 5s
+h.Wait("Report ready", steep.WithTimeout(time.Minute)) // up to a minute
+```
+
+The ones you'll use most:
+
+| Option | Sets |
+| --- | --- |
+| `WithWindowSize(w, h)` | The terminal's size. The default is 80 by 24. |
+| `WithTimeout(d)` | How long a wait may take. The default is 2s. |
+| `WithColor(p)` | The color support the terminal advertises. The default is `ColorANSI256`. |
+| `WithEnvVars("K=V")` | The environment the program sees. |
+| `WithContext(ctx)` | The parent context of waits and the program. The default is the test's. |
+| `WithProgramOptions(...)` | Extra `tea.ProgramOption` values. |
+
+All of them are on [pkg.go.dev](https://pkg.go.dev/github.com/lrstanley/steep#Option).
+
+### The environment
+
+Without `WithEnvVars`, a model's program sees only `TTY_FORCE=1` and `TERM=xterm-256color`. Using it replaces those with the test process's environment plus your variables, so pass `TTY_FORCE` and `TERM` again if your program needs them. It panics on an entry that isn't `key=value`.
+
+The test process's environment can hold tokens in CI, which your program could then read and draw.
+
+### Color
+
+Without `WithColor`, your program runs on a 256-color terminal, and Bubble Tea downsamples 24-bit colors to fit. Pass `steep.WithColor(steep.ColorTrueColor)` to test gradients and blends, or to see true colors in a recording. `ColorASCII` and `ColorANSI` test how the program degrades.
+
+### Getting the model back
+
+Use `FinalModelAs` to check what the model ended up as, once the program has finished:
+
+```go
+m := steep.NewHarness(t, newModel()).
+	Wait("Sencha").
+	KeyDown().
+	Key("enter").
+	Wait("Matcha is ready").
+	QuitProgram().
+	FinalModelAs[*Model]()
+
+if len(m.Served) != 1 {
+	t.Errorf("served = %v", m.Served)
+}
+```
+
+### Reaching into the model
+
+`Mutate` applies a function to the model on the program's goroutine. It's for states that would take too long to reach through the UI, and [Program and model](/steep/program) covers it.
+
+## Component harness
+
+Components don't usually implement `tea.Model`: they often return a plain string from `View`, and their `Update` might return only a command. `NewComponentHarness` wraps one so it runs in a real `tea.Program` anyway.
+
+```go
+type counter struct{ n int }
+
+func (c *counter) Update(msg tea.Msg) tea.Cmd {
+	if key, ok := msg.(tea.KeyPressMsg); ok && key.String() == "+" {
+		c.n++
+	}
+	return nil
+}
+
+func (c *counter) View() string {
+	return "Cups " + strings.Repeat("+", c.n)
+}
+
+func TestCounter(t *testing.T) {
+	steep.NewComponentHarness(t, &counter{}, steep.WithWindowSize(24, 4)).
+		Wait("Cups").
+		Key("+", reel.Repeat(3)).
+		Wait("+++")
+}
+```
+
+<Demo src="component.webp" alt="A small component in a 24 by 4 terminal: pressing plus three times draws three dots" caption="A component running in a terminal of its own." />
+
+### What a component needs
+
+It's checked when the test runs, not at compile time, because a generic constraint can't describe all the shapes components come in:
+
+- A `View() string` method.
+- An `Update` method that returns either a `tea.Cmd`, or the updated model and a `tea.Cmd`.
+- `Init` is optional.
+
+So all of these work, including most components from [Bubbles](https://github.com/charmbracelet/bubbles), which return themselves:
+
+```go
+func (c *counter) Update(msg tea.Msg) tea.Cmd
+func (l List) Update(msg tea.Msg) (List, tea.Cmd)
+func (f *Form) Update(msg tea.Msg) (*Form, tea.Cmd)
+```
+
+### Keep the terminal small
+
+The terminal only needs to be as large as the component. A small `WithWindowSize` makes snapshots shorter, easier to review, and less sensitive to changes elsewhere.
+
+Everything else works the same as [`NewHarness`](/steep/harnesses#model-harness), including `Mutate` and `FinalModelAs`, which use the type you passed in.
+
+## Exec harness
+
+`NewExecHarness` starts a command on a pseudo-terminal, and drives it with the same methods as the others. The program doesn't have to be written in Go, or use Bubble Tea.
+
+```go
+func TestBinary(t *testing.T) {
+	h := steep.NewExecHarness(t, exec.Command("./myapp", "--flag"))
+	h.Wait("ready").Key("q")
+	if status := h.ExitStatus(); status != 0 {
+		t.Errorf("exit status = %d", status)
+	}
+}
+```
+
+<Demo src="exec.webp" alt="A compiled program under the exec harness" />
+
+### Differences from the model harness
+
+**It doesn't wait at the start.** A command has no first message to wait for, so `NewExecHarness` returns as soon as the command has started. `Wait` for what it draws.
+
+**It has an exit status.** `ExitStatus` waits for the command to finish and returns its status. On Unix, a command killed by a signal has status 128 plus the signal, as shells report it. A nonzero status isn't a failure by itself, so check it yourself. `WaitFinished` won't fail the test for it.
+
+**There's no program to reach into.** These fail the test, since they need a `tea.Program` or its model:
+
+- `SendProgram`, `QuitProgram`, `Mutate`, `FinalModel`, and `FinalModelAs`
+- Anything that reads messages, such as `WaitMessage`, `AssertHasMessage`, and `WaitSettleMessages`
+
+These options have no effect: `WithProgramOptions`, `WithRecordMessages`, and `WithSettleIgnoreMsgs`.
+
+**It's killed at the end.** The cleanup kills the command if it's still running, so a test doesn't have to quit it.
+
+### A command's environment
+
+The command's environment is `cmd.Env`, or the host's when that's nil. Then:
+
+- [`WithEnvVars`](/steep/harnesses#the-environment) replaces variables of the same name.
+- [`WithColor`](/steep/harnesses#color) overrides the color variables. Without it, the command's color support is what `reel.Exec` sets.
+
+### Building the binary
+
+Build it in the test so it can't be stale. `t.TempDir()` cleans it up:
+
+```go
+bin := filepath.Join(t.TempDir(), "myapp")
+if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
+	t.Fatalf("go build: %v\n%s", err, out)
+}
+h := steep.NewExecHarness(t, exec.Command(bin))
+```
+
+If several tests use it, build it once in `TestMain`.

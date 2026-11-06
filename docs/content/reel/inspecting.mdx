@@ -1,0 +1,140 @@
+---
+title: Inspecting recordings
+description: The inspector, the annotations in a recording, and stepping through one in Go.
+---
+
+## The inspector
+
+The [inspector](https://inspector.getsteep.dev/) opens `.cast` files from reel, steep, or anything else that writes asciicast. You can scrub through the events on a timeline, and see the screen, terminal state, colors, escape sequences, and annotations after any of them.
+
+[Open a sample of a failing test](https://inspector.getsteep.dev/?url=https%3A%2F%2Fgetsteep.dev%2Fcasts%2Ffail-wait.cast), or [the tour](https://inspector.getsteep.dev/?url=https%3A%2F%2Fgetsteep.dev%2Fcasts%2Ftour.cast), which has sources and messages recorded.
+
+### What it shows
+
+- **A timeline** with a lane for each kind of event, including marks and failures.
+- **The frame** after any event. It's drawn by reel's own renderer, compiled to WebAssembly, so it matches what an export writes. Mouse input is drawn over it.
+- **The terminal's state**: modes, cursor, colors, title, and what the program reported.
+- **Each event's detail**, including the raw escape sequences.
+- **Annotations** from steep: inputs, waits, assertions, and failures.
+- **The test's line**, with [sources recorded](/steep/debugging#messages-and-source-lines), for marks and annotations, and in the Recording tab, where each failure was reported.
+
+### Privacy
+
+Casts never leave your browser. The last 20 opened are kept in IndexedDB, and the address only names them, so those addresses only work in the browser that stored the cast.
+
+### Linking to a recording
+
+`?url=` opens a cast another host serves, if that host allows cross-origin requests:
+
+```text
+https://inspector.getsteep.dev/?url=https://example.com/test.cast
+```
+
+That's how every "Open in the inspector" link on this site works. For a host of your own, the file needs a header such as:
+
+```text
+Access-Control-Allow-Origin: https://inspector.getsteep.dev
+```
+
+The address also keeps how it's being viewed: the event (`#e=123`), the list's filters, the timeline's hidden lanes and axis, the playback speed, and the tab. So you can link to a specific moment.
+
+## Annotations
+
+An annotation is a structured note in a timeline. Players ignore it. It's what lets a `.cast` file record what a test did, and what effects it had.
+
+In a `.cast` file, each is an event with a code of reel's own, which other players skip. [`annotation.schema.json`](https://github.com/lrstanley/steep/blob/master/reel/annotation.schema.json) describes every kind, and it's available in Go as `reel.AnnotationSchema`.
+
+### The kinds
+
+| Kind | Written by | Holds |
+| --- | --- | --- |
+| `reel.effect` | An export to `.cast` | An effect's description, so an export of the file can apply it |
+| `reel.query` | A session | A query the program sent, and the terminal's reply |
+| `reel.mark` | A session with `WithSource` | Where in source a mark was placed |
+| `steep.*` | A [harness](/steep/how-it-works#annotations) | What the test did and found |
+
+### Reading them
+
+```go
+for a := range tl.Annotations() {
+	if a.Kind != "steep.failure" {
+		continue
+	}
+	var failure struct {
+		Message string `json:"message"`
+	}
+	if err := a.Decode(&failure); err != nil {
+		return err
+	}
+	fmt.Println(a.At(), failure.Message)
+}
+```
+
+### Writing your own
+
+```go
+a, err := reel.NewAnnotation("myapp.checkpoint", map[string]any{"step": 3})
+if err != nil {
+	return err
+}
+err = s.Annotate(a)
+```
+
+`Annotate` returns an error wrapping `ErrInvalidAnnotation` if the schema doesn't allow it. Marks are their own event, so use `Mark` for those.
+
+### Source
+
+A session opened `WithSource` records where in Go source each mark and annotation came from: the line of the test that led to it. `WithSourceSkip` adds packages to skip, for a harness built on reel, as steep is.
+
+## Player and Imager
+
+### Player
+
+`reel.Player` steps through a timeline's events, replaying them as `Export` does, so you can look at the terminal after any event. It's what the [inspector](/reel/inspecting#the-inspector) is built on.
+
+```go
+p, err := reel.NewPlayer(ctx, tl, render.WithWindowChrome(true))
+if err != nil {
+	return err
+}
+defer p.Close()
+
+for i := range p.Len() {
+	if err := p.Seek(i + 1); err != nil {
+		return err
+	}
+	screen := p.Screen()
+	frame := p.Frame()
+	_, _ = screen, frame
+}
+
+img, err := p.Image()
+```
+
+| Method | Does |
+| --- | --- |
+| `Seek(n)` | Applies the first `n` events. Seeking back replays from the start, or from a checkpoint. |
+| `Pos()`, `Len()` | Reports the events applied, and the total |
+| `Screen()`, `Frame()` | Returns the screen and state after the applied events |
+| `Image()`, `Layout()` | Draws it, and says where the screen sits in the image |
+| `SetOptions(opts...)` | Replaces the render options, from the next `Image` |
+| `Prepare(limit, budget)` | Works toward keeping `limit` checkpoints, for fast seeks back |
+| `Rasterizer()` | Returns what `Image` draws with, such as for an effect's `Context` |
+
+`Image` reuses its image on the next call, so copy it if you keep it. A player isn't safe for concurrent use.
+
+### Imager
+
+`reel.Imager` draws a session's screen as it is now, such as for a test to look at, or a tool to show a live preview:
+
+```go
+im, err := reel.NewImager(s, render.WithScale(2))
+if err != nil {
+	return err
+}
+defer im.Close()
+
+img, err := im.Image()
+```
+
+`Image` reuses its result, so copy it, or use `ImageInto` with an `*image.NRGBA` of your own. It's what [`Harness.Image`](/steep/terminal#images) uses, and it's safe for concurrent use.

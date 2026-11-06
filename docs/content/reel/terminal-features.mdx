@@ -1,0 +1,362 @@
+---
+title: Terminal features
+description: Every OSC, CSI, DEC, DCS, and APC sequence reel tracks, what it does with each one, and the exact Go name that exposes it.
+---
+
+This page lists the escape sequences reel tracks, what it does with each one, and the exact name it goes by in Go. reel's terminal emulator, `reel/vt`, is a checked-in build of libghostty-vt.
+
+## Tracked or executed
+
+reel treats a sequence in one of two ways:
+
+- **Tracked and exposed.** reel reads the result and gives it a Go name, so you can test it, draw it, or export it. The tables below are these sequences.
+- **Executed.** libghostty-vt acts on the sequence, and you only see what it did to the screen. Ordinary cursor movement is the usual example. See [Executed by libghostty-vt](#executed-by-libghostty-vt).
+
+On the wire, `CSI` is `ESC [`, `OSC` is `ESC ]`, `DCS` is `ESC P`, `APC` is `ESC _`, and `ST` is `ESC \`. An OSC can also end in `BEL`.
+
+Names are in package `vt` unless they say otherwise, so `State.Title` is `vt.State.Title`. `Session.State` returns the same `vt.State`, with `Focused` filled in. `Terminal` has a method of the same name for most `State` fields, but not for `Palette`, `Glyphs`, or `PromptMarks`.
+
+## Control characters and ESC
+
+| Sequence | Name | What reel does | Exposed by |
+| --- | --- | --- | --- |
+| `BEL` (0x07) | Bell | Counts it and stamps the time | `State.Bell`, `Bell.Count`, `Bell.At`, `render.WithBell`, `render.WithBellDuration` |
+| `ESC c` | RIS, full reset | Clears everything in the list below | `Terminal.Reset` does the same from the host |
+
+A full reset clears `Title`, `WorkingDirectory`, `Bell`, `Progress`, `Notifications`, `Clipboard`, `Prompt`, `PromptMarks`, `ProgramStatuses`, `Palette`, `Glyphs`, and Kitty images. It keeps the colors a program set with OSC 10, 11, and 12, and it turns LNM back on (see [ANSI modes](#ansi-modes)).
+
+## OSC
+
+| Sequence | Name | What reel does | Exposed by |
+| --- | --- | --- | --- |
+| `OSC 0 ; text`, `OSC 2 ; text` | Window title | Keeps the latest title. `OSC 1` doesn't set it. | `State.Title`, `render.WithWindowChrome` |
+| `OSC 4 ; index ; color` | Palette color | Keeps colors that differ from the default. The renderer draws them over its own. | `State.Palette`, `Palette.Color` |
+| `OSC 104 ; index`, `OSC 104` | Reset palette color | Resets one color, or all of them | `State.Palette` |
+| `OSC 7 ; url` | Working directory | Keeps the value as sent, such as `file:///tmp` | `State.WorkingDirectory`, `render.WithWindowChrome` |
+| `OSC 8 ; params ; url` | Hyperlink | Stores the URL on each cell, and an `id` as `id=value`. libghostty-vt drops other parameters. | `Cell.Link`, `Link.URL`, `Link.Params`, `render.WithLinkUnderline` |
+| `OSC 9 ; text` | Desktop notification | Appends a notification with a body | `State.Notifications`, `Notification.Body`, `Notification.At`, `effects.Toasts` |
+| `OSC 777 ; notify ; title ; body` | Desktop notification | Appends a notification with a title and body | `State.Notifications`, `Notification.Title`, `effects.Toasts` |
+| `OSC 9 ; 4 ; state ; percent` | Progress report | See [OSC 9;4](#osc-94-progress) | `State.Progress`, `State.ShownProgress`, `render.WithProgressBar` |
+| `OSC 10 ; color` | Foreground color | Sets the default foreground | `State.Foreground` |
+| `OSC 11 ; color` | Background color | Sets the default background | `State.Background` |
+| `OSC 12 ; color` | Cursor color | Sets the cursor color | `State.CursorColor`, `State.CursorColorSet` |
+| `OSC 110`, `OSC 111`, `OSC 112` | Reset color | Undoes OSC 10, 11, and 12 | Same as above |
+| `OSC 21 ; foreground=color`, `OSC 21 ; index=color` | Kitty color control | Sets the same colors as OSC 10 and OSC 4 | `State.Foreground`, `State.Palette` |
+| `OSC 52 ; c ; base64` | Clipboard write | Keeps the latest text and counts writes. The text may be a secret. The `p` and `s` selections count too. | `State.Clipboard`, `ClipboardWrite.Text`, `ClipboardWrite.Count`, `effects.WithClipboardToasts` |
+| `OSC 1337 ; Copy=:base64` | iTerm2 copy | Same as OSC 52 | `State.Clipboard` |
+| `OSC 5522 ; type=write`, `OSC 5522 ; type=wdata:mime=... ; base64` | Kitty clipboard | Same as OSC 52. A `type=read` is answered from `Terminal.SetClipboard`. | `State.Clipboard` |
+| `OSC 133 ; ...` | Semantic prompt | See [OSC 133](#osc-133-semantic-prompts) | `State.Prompt`, `State.PromptMarks`, `render.WithPromptMarks` |
+| `OSC 7501 ; ...` | Program status | See [OSC 7501](#osc-7501-program-status) | `State.ProgramStatuses`, `render.WithProgramStatus` |
+
+A color the program set with OSC 10, 11, or 12 comes first in `State` and in `OSC 10 ; ?`, ahead of one the host set with `Terminal.SetForeground`, `Terminal.SetDefaultForeground`, or the matching background and cursor methods. The host's applies again after OSC 110, 111, or 112.
+
+### OSC 9;4 progress
+
+`Progress` holds `Reported`, `State`, and `Percent`. `Percent` is -1 when the report left it out, except for state 1, which reads 0. `State.ShownProgress` returns nothing for `ProgressRemove`, and nothing once any OSC 7501 report has arrived, until the next full reset.
+
+| State on the wire | Constant | `String()` |
+| --- | --- | --- |
+| `0` | `ProgressRemove` | `remove` |
+| `1` | `ProgressSet` | `set` |
+| `2` | `ProgressError` | `error` |
+| `3` | `ProgressIndeterminate` | `indeterminate` |
+| `4` | `ProgressPause` | `pause` |
+
+### OSC 133 semantic prompts
+
+`State.Prompt` is the latest step, as a `Prompt` with `Kind`, `HasExitCode`, `ExitCode`, `Command`, and `At`.
+
+| Sequence | Constant | Value | What reel does |
+| --- | --- | --- | --- |
+| `OSC 133 ; A`, `OSC 133 ; P`, `OSC 133 ; N` | `PromptStart` | `start` | Ends working and blocked OSC 7501 records. A primary prompt also adds a `PromptMark`. `k=s`, `k=c`, and `k=r` prompts don't. |
+| `OSC 133 ; B`, `OSC 133 ; I` | `PromptInput` | `input` | Records the step |
+| `OSC 133 ; C`, `OSC 133 ; C ; cmdline_url=echo%20a` | `PromptOutput` | `output` | Sets `Prompt.Command` when the shell sends `cmdline_url` or `cmdline` |
+| `OSC 133 ; D`, `OSC 133 ; D ; 3` | `PromptCommand` | `end` | Sets `Prompt.ExitCode`, and ends the latest mark |
+
+`State.PromptMarks` lists the primary prompts on the screen and in the scrollback, oldest first, up to 1024. Each `PromptMark` has `Row`, `Ended`, `HasExitCode`, and `ExitCode`, and `PromptMark.Failed` reports a non-zero exit. It's nil on the alternate screen, and a prompt written there gets no mark.
+
+### OSC 7501 program status
+
+A report is `OSC 7501 ; key=value:key=value`. reel keeps up to 256 records, one per `id`, and drops the least recently updated. A report with an invalid part is ignored as a whole.
+
+| Key | Field of `ProgramStatus` | Notes |
+| --- | --- | --- |
+| `state` | `State` | Required. See the next table. |
+| `id` | `ID` | Slash-separated, such as `build/test`. Empty is the root record. |
+| `app` | `App` | Inherited from the nearest ancestor that set one |
+| `kind` | `Kind` | Only kept when `state=blocked` |
+| `progress` | `Progress` | 0 to 100, and only kept for working and blocked. -1 when absent. |
+| `title` | `Title` | Base64 |
+| `msg` | `Message` | Base64 |
+
+| `state=` | Constant | What it means |
+| --- | --- | --- |
+| `idle` | `ProgramIdle` | At rest, waiting for the next instruction |
+| `done` | `ProgramDone` | A piece of work finished |
+| `working` | `ProgramWorking` | Running on its own |
+| `blocked` | `ProgramBlocked` | Can't continue until the user does something |
+| `error` | `ProgramError` | Failed and stopped |
+| `clear` | None | Removes the record and those beneath it, or all of them with no `id` |
+
+| `kind=` | Constant |
+| --- | --- |
+| Left out | `ProgramKindNone` |
+| `permission` | `ProgramKindPermission` |
+| `question` | `ProgramKindQuestion` |
+| `auth` | `ProgramKindAuth` |
+
+`State.ProgramStatuses` is sorted by id, and `OSC 7501 ; ?` asks whether the terminal supports the protocol. `State.ProgramStatusGeneration` changes when the records do, and `State.ProgramStatusReported` is true once any report has arrived since the last full reset, including a clear. `reel.ProgramStatus` is the same record in a `.json` output.
+
+## CSI
+
+| Sequence | Name | What reel does | Exposed by |
+| --- | --- | --- | --- |
+| `CSI style SP q` | DECSCUSR | Sets the shape and blink: `1` and `2` block, `3` and `4` underline, `5` and `6` bar. Odd styles blink. `0` is a steady block. | `Cursor.Shape`, `Cursor.Blink`, `CursorBlock`, `CursorUnderline`, `CursorBar` |
+| `CSI 3 J` | ED 3, erase scrollback | Empties the scrollback and its prompt marks | `State.ScrollbackLen`, `Terminal.ClearScrollback` sends it from the host |
+| `CSI 8 ; rows ; cols t` | XTWINOPS resize | Records the request and doesn't apply it | `Terminal.ResizeRequest` |
+| `CSI > flags u`, `CSI < u`, `CSI = flags ; mode u` | Kitty keyboard flags | Push, pop, and set the flags that decide how keys encode | `Terminal.EncodeKey`, `Session.Key` |
+| `CSI > 4 ; 2 m` | modifyOtherKeys | Changes how keys encode, such as `CSI 27 ; 2 ; 65 ~` | `Terminal.EncodeKey`, `Session.Key` |
+| `CSI flags # y` | XTCHECKSUM | Picks the DECRQCRA variant until the next reset | `ChecksumFlags`, `ChecksumPositive`, `ChecksumNoAttributes`, `ChecksumNoTrim`, `ChecksumUndrawn`, `ChecksumFull`, `Terminal.SetChecksumFlags` |
+
+Queries such as DA1 are CSI too. They're listed under [Replies](#replies-to-queries).
+
+### SGR
+
+libghostty-vt applies SGR, and reel copies the result onto each cell as `Cell.Style`, a `Style`.
+
+| Sequence | Exposed by |
+| --- | --- |
+| `CSI 1 m` | `AttrBold` |
+| `CSI 2 m` | `AttrFaint` |
+| `CSI 3 m` | `AttrItalic` |
+| `CSI 5 m` | `AttrBlink` |
+| `CSI 6 m` | `AttrRapidBlink` |
+| `CSI 7 m` | `AttrReverse` |
+| `CSI 8 m` | `AttrConceal` |
+| `CSI 9 m` | `AttrStrikethrough` |
+| `CSI 4 m`, `CSI 4:1 m` | `UnderlineSingle` |
+| `CSI 21 m`, `CSI 4:2 m` | `UnderlineDouble` |
+| `CSI 4:3 m` | `UnderlineCurly` |
+| `CSI 4:4 m` | `UnderlineDotted` |
+| `CSI 4:5 m` | `UnderlineDashed` |
+| `CSI 31 m`, `CSI 91 m`, `CSI 38 ; 5 ; 33 m`, `CSI 38 ; 2 ; r ; g ; b m` | `Style.Fg`, an `Indexed` or a `color.NRGBA` |
+| `CSI 41 m`, `CSI 48 ; 5 ; 33 m`, `CSI 48 ; 2 ; r ; g ; b m` | `Style.Bg`, the same types |
+| `CSI 58 ; 5 ; 33 m`, `CSI 58 ; 2 ; r ; g ; b m` | `Style.UnderlineColor`, the same types |
+
+`CSI 53 m` (overline) has no field in `Style`, so reel doesn't report it.
+
+## DEC private modes
+
+`CSI ? n h` sets a mode and `CSI ? n l` resets it. `Terminal.Mode` reads any of them, with `Mode{Number: n}`, and reports `ok` as false for a number it doesn't recognize.
+
+| Sequence | Name | What reel does | Exposed by |
+| --- | --- | --- | --- |
+| `CSI ? 1 h` | DECCKM, cursor keys | Arrow keys encode as `ESC O A` rather than `CSI A` | `Terminal.EncodeKey` |
+| `CSI ? 5 h` | DECSCNM, reverse video | The renderer swaps the default foreground and background. Cells don't change. | `State.ReverseColors` |
+| `CSI ? 12 h` | Cursor blink | Sets the blink. The host draws the frames. | `Cursor.Blink`, `render.WithCursorBlinkSpeed` |
+| `CSI ? 25 h` | DECTCEM, cursor visible | Shows or hides the cursor | `Cursor.Visible` |
+| `CSI ? 47 h`, `CSI ? 1047 h`, `CSI ? 1049 h` | Alternate screen | Switches screens. `ScrollbackLen` and `ScrollbackOffset` are zero there, and `PromptMarks` is nil. | `State.AltScreen` |
+| `CSI ? 9 h` | X10 mouse | Selects mouse tracking | `Terminal.EncodeMouse`, `Session.Mouse` |
+| `CSI ? 1000 h` | Normal mouse tracking | Selects mouse tracking | `Terminal.EncodeMouse`, `Session.Mouse` |
+| `CSI ? 1002 h` | Button-event mouse tracking | Selects mouse tracking | `Terminal.EncodeMouse`, `Session.Mouse` |
+| `CSI ? 1003 h` | Any-event mouse tracking | Selects mouse tracking | `Terminal.EncodeMouse`, `Session.Mouse` |
+| `CSI ? 1005 h` | UTF-8 mouse | Selects the report format | `Terminal.EncodeMouse` |
+| `CSI ? 1006 h` | SGR mouse | Selects the report format | `Terminal.EncodeMouse` |
+| `CSI ? 1015 h` | urxvt mouse | Selects the report format | `Terminal.EncodeMouse` |
+| `CSI ? 1016 h` | SGR pixel mouse | Selects the report format | `Terminal.EncodeMouse` |
+| `CSI ? 1004 h` | Focus events | Focus changes send a report | `Terminal.EncodeFocus`, `Session.Focus` |
+| `CSI ? 2004 h` | Bracketed paste | Pastes are wrapped | `Terminal.EncodePaste`, `Session.Paste` |
+| `CSI ? 2026 h` | Synchronized output | Reads return the frame from when the hold began, and exports make no frames during it. Waits count the output once it ends. | `Terminal.Held`, `Session.WaitIdle` |
+| `CSI ? 2048 h` | In-band size reports | Sends `CSI 48 ; rows ; cols ; height ; width t` when set and on each resize | `WithCellSize` sets the cell pixels |
+
+When several tracking modes are set, the highest number wins. For formats the order is 1016, 1006, 1015, then 1005.
+
+`Terminal.Mode` also recognizes these, and reel doesn't act on them itself:
+
+- By name: 6 (DECOM), 7 (DECAWM), 66 (DECNKM), 67 (DECBKM), 69 (DECLRMM), 1048 (save cursor), 2027 (grapheme clusters), and 2031 (color scheme reports).
+- By number only: 3, 4, 8, 40, 45, 1007, 1035, 1036, 1039, 1045, 2033, and 5522.
+
+Modes 1001 and 9001 aren't recognized. The [inspector](/reel/inspecting#the-inspector) still labels 9001 as `win32 input`, since it names what a program sent, not what the terminal did.
+
+## ANSI modes
+
+These use `CSI n h` and `CSI n l`, with no `?`. Read them with `Terminal.Mode` and `Mode{Number: n, ANSI: true}`.
+
+| Sequence | Name | What reel does |
+| --- | --- | --- |
+| `CSI 20 h` | LNM, line feed new line | Forced on at open and after every full reset, so `LF` also returns the carriage. A program can turn it off with `CSI 20 l` until the next reset. |
+| `CSI 4 h` | IRM, insert | Executed by libghostty-vt |
+| `CSI 2 h` | KAM | Recognized by `Terminal.Mode` |
+| `CSI 12 h` | SRM | Recognized by `Terminal.Mode`. On by default. |
+
+## DCS
+
+reel keeps no state from DCS sequences. It only sees them as queries and replies:
+
+| Sequence | Name | Where |
+| --- | --- | --- |
+| `DCS $ q setting ST` | DECRQSS | A query, see [Replies](#replies-to-queries) |
+| `DCS + q names ST` | XTGETTCAP | A query, see [Replies](#replies-to-queries) |
+| `DCS > \| reel ST` | XTVERSION reply | Sent by the terminal |
+| `DCS ! \| 00000000 ST` | DA3 reply | Sent by the terminal |
+| `DCS 1 ! ~ FF3D ST` | DECRQCRA reply | Sent by the terminal |
+
+Any other DCS is dropped, and it doesn't reach `WithUnknownSequence`.
+
+## APC: Kitty graphics
+
+Commands are `APC G key=value,key=value ; base64 ST`. The module is built with Kitty graphics on, by `reel/vt/build/kitty-freestanding.patch`. The renderer draws placements in their layers, and there's no option to turn that off.
+
+| Sequence | Name | What reel does | Exposed by |
+| --- | --- | --- | --- |
+| `APC G a=t ...` | Transmit | Stores an image | `Image` once it's placed |
+| `APC G a=T ...` | Transmit and display | Stores and places an image at the cursor | `Terminal.Images`, `Buffer.Images`, `Placement`, `Placement.Rect`, `Placement.Source` |
+| `APC G a=p ...` | Put | Places a stored image | `Placement.PlacementID` |
+| `APC G a=d ...` | Delete | Removes placements | `Terminal.Images` |
+| `APC G a=f ...`, `APC G a=a ...` | Animation frame and control | Runs on the terminal's clock | `Image.Generation`, `Terminal.AnimationDue`, `Terminal.Animate` |
+| `APC G a=q ...` | Query | Replies `APC G i=1 ; OK ST` | `Terminal.Read` |
+| `z=` | Layer | Orders placements | `Placement.Z`, `Placement.BelowBackground`, `Placement.BelowText` |
+| `U=1`, with U+10EEEE cells | Unicode placeholder | Draws the image in those cells | `Placement.Clip`, `Cell.KittyPlaceholder` |
+| `f=24`, `f=32`, `f=100`, `o=z` | RGB, RGBA, PNG, zlib | Decodes the payload | `Image.Pixels` |
+| `t=f`, `t=t`, `t=s` | File, temporary file, shared memory | Replies `EINVAL: unsupported medium`, unless the session reads them | `reel.WithKittyFiles` |
+
+Storage is capped at `DefaultKittyStorage`, 32 MiB. Set it with `vt.WithKittyStorage`, `reel.WithKittyStorage`, or `Terminal.SetKittyImageStorageLimit`. A `.cast` keeps a custom limit in its `kitty_storage` header field. `WithCellSize` sets the pixels per cell that placements are measured in.
+
+## APC: Glyph Protocol
+
+Commands are `APC 25a1 ; verb ; ... ST`. Each register command is decoded into a `Glyph`, and `State.Glyphs` holds them all. The renderer draws a registered glyph in place of the font's, and there's no option to turn that off. It places a glyph with `Glyph.UnitsPerEm`, `Glyph.Cells`, and the outline's bounds.
+
+| Sequence | Name | What reel does | Exposed by |
+| --- | --- | --- | --- |
+| `APC 25a1 ; s ST` | Support | Replies `APC 25a1 ; s ; fmt=glyf ST` | `Terminal.Read` |
+| `APC 25a1 ; q ; cp=e000 ST` | Query | Replies with `status=glossary` for a registered glyph, or an empty `status=` | `Terminal.Read` |
+| `APC 25a1 ; r ; cp=e000 ; ... ; base64 ST` | Register | Adds the glyph. Replies `status=0`, or `status=1` and a `reason` such as `out_of_namespace`. `reply=0` asks for no reply. | `State.Glyphs`, `Glyphs.Lookup`, `Glyph` |
+| `APC 25a1 ; c ; cp=e000 ST`, `APC 25a1 ; c ST` | Clear | Removes one glyph, or all of them | `State.Glyphs` |
+
+Only Private Use Area codepoints and the `glyf` format are accepted.
+
+| Register option | Field of `Glyph` | Values |
+| --- | --- | --- |
+| `cp` | `Rune` | Hex codepoint |
+| `upm` | `UnitsPerEm` | Default 1000 |
+| `aw` | `Advance` | Defaults to `upm` |
+| `lh` | `LineHeight` | Defaults to `upm` |
+| `width` | `Cells` | 1 or 2 |
+| `size` | `Size` | `height` is `GlyphSizeHeight`, `advance` is `GlyphSizeAdvance`, `contain` is `GlyphSizeContain`, `cover` is `GlyphSizeCover`, `stretch` is `GlyphSizeStretch` |
+| `align` | `AlignX`, `AlignY` | `center` is `GlyphAlignCenter`, `start` is `GlyphAlignStart`, `end` is `GlyphAlignEnd`, `baseline` is `GlyphAlignBaseline` |
+| `pad` | `Pad` | Four comma-separated fractions |
+| Payload | `Contours`, of `GlyphPoint` | Base64 of a `glyf` simple-glyph record |
+
+## Replies to queries
+
+The terminal answers a program's queries by itself, so a program doesn't stall. A program reads the reply with `Session.Read` or `Terminal.Read`. `Terminal.WriteReplies` also returns them to the caller.
+
+A session records each query as an annotation of kind `reel.query` (`reel.QueryKind`), with the fields of `reel.Query`: `Query`, `Param`, `Request`, `Reply`, and `Truncated`. Replies aren't recorded as input, since replaying the output makes the terminal reply again. `reel.WithoutQueries` turns the annotations off, which keeps a clipboard read out of the recording. See [Annotations](/reel/inspecting#annotations).
+
+| Query | Name | Reply | `query` | `param` |
+| --- | --- | --- | --- | --- |
+| `ENQ` (0x05) | Enquiry | `ACK` (0x06) | `enq` | |
+| `CSI c`, `CSI 0 c` | DA1 | `CSI ? 64 c` | `da1` | |
+| `CSI > c` | DA2 | `CSI > 0 ; 0 ; 0 c` | `da2` | |
+| `CSI = c` | DA3 | `DCS ! \| 00000000 ST` | `da3` | |
+| `CSI > q` | XTVERSION | `DCS > \| reel ST` | `xtversion` | |
+| `CSI 5 n` | DSR | `CSI 0 n` | `dsr` | `5` |
+| `CSI 6 n` | CPR | `CSI row ; col R` | `cpr` | `6` |
+| `CSI ? 6 n` | DECXCPR | `CSI ? row ; col ; 1 R` | `cpr` | `?6` |
+| `CSI ? 996 n` | Color scheme | `CSI ? 997 ; 1 n`, always dark | `color_scheme` | |
+| `CSI ? 2026 $ p`, `CSI 4 $ p` | DECRQM | `CSI ? 2026 ; 2 $ y`: 1 set, 2 reset, 0 not recognized | `decrqm` | `?2026`, `4` |
+| `CSI ? u` | Kitty keyboard flags | `CSI ? 0 u` | `kitty_keyboard` | |
+| `OSC 10 ; ?`, `OSC 11 ; ?`, `OSC 12 ; ?` | Dynamic colors | `OSC 11 ; rgb:1111/1111/1111`, once the host or program has set that color | `osc_color` | `10`, `11`, `12` |
+| `OSC 13 ; ?` to `OSC 19 ; ?` | Dynamic colors | None | `osc_color` | `13` to `19` |
+| `OSC 4 ; 1 ; ?` | Palette color | `OSC 4 ; 1 ; rgb:cccc/6666/6666` | `osc_color` | `4` |
+| `OSC 52 ; c ; ?` | Clipboard read | `OSC 52 ; c ; base64`, from `Terminal.SetClipboard` | `osc52` | `c` |
+| `OSC 5522 ; type=read` | Kitty clipboard read | `OSC 5522 ; type=read:status=OK`, then the data and `status=DONE` | `kitty_clipboard` | |
+| `OSC 7501 ; ?` | Program status support | `OSC 7501 ; ?:states=...:kinds=...` | `program_status` | |
+| `APC G a=q ... ST` | Kitty graphics | `APC G i=7 ; OK ST` | `kitty_graphics` | The `i`, such as `7` |
+| `APC 25a1 ; s ST`, `APC 25a1 ; q ; cp=e000 ST` | Glyph Protocol | `APC 25a1 ; s ; fmt=glyf ST` | `glyph` | `s`, `q` |
+| `ESC Z` | DECID | `CSI ? 64 c` | `da1` | |
+| `DCS $ q m ST` | DECRQSS | `DCS 1 $ r 0 m ST` | `decrqss` | `m` |
+| `DCS + q 636f6c73 ST` | XTGETTCAP | `DCS 1 + r 636F6C73=3830 ST` | `xtgettcap` | `cols` |
+| `CSI 14 t` | XTWINOPS, window pixels | `CSI 4 ; height ; width t` | `xtwinops` | `14` |
+| `CSI 16 t` | XTWINOPS, cell pixels | `CSI 6 ; height ; width t` | `xtwinops` | `16` |
+| `CSI 18 t` | XTWINOPS, grid size | `CSI 8 ; rows ; cols t` | `xtwinops` | `18` |
+| `CSI 19 t` | XTWINOPS, screen size | `CSI 9 ; rows ; cols t` | `xtwinops` | `19` |
+| `CSI 11 t`, `13`, `15`, `20`, `21` | XTWINOPS, others | None | `xtwinops` | `11`, and so on |
+| `CSI 1 ; 1 ; 1 ; 1 ; 2 ; 2 * y` | DECRQCRA | `DCS 1 ! ~ FF3D ST`, only after `Terminal.SetChecksumReport(true)` | `decrqcra` | |
+
+`CSI ? 15 n` and other status numbers are recorded as `dsr`, with no reply.
+
+Some replies are recorded with no `Request`:
+
+- A reply whose query was split across two writes.
+- A reply to a command that isn't a query: a Kitty graphics command other than `a=q`, a Glyph Protocol register (`glyph`, with `param` set to `r`), or an OSC 5522 write.
+- The size report after `CSI ? 2048 h`, as `in_band_resize`.
+
+Programs run with `reel.Exec` get `TERM=xterm-ghostty` when that terminfo entry is installed, and `xterm-256color` otherwise, with `COLORTERM=truecolor`.
+
+## Input sent to the program
+
+These go the other way. reel encodes them for the modes the program set. Keys, pastes, and mouse reports are recorded as `i` events (`reel.Input`), and `DecodeInput` reads those bytes back as `Stroke` values.
+
+| Sequence | Name | Sent by | Decoded as |
+| --- | --- | --- | --- |
+| `CSI A`, `CSI 99 ; 5 u`, `CSI 27 ; 2 ; 65 ~` | Keys, in legacy, Kitty, and modifyOtherKeys forms | `Terminal.EncodeKey`, `Session.Key`, `Session.Type` | `StrokeKey`, `StrokeText` |
+| `CSI 200 ~ text CSI 201 ~` | Bracketed paste | `Terminal.EncodePaste`, `Session.Paste` | `StrokePaste` |
+| `CSI M ...`, `CSI < 0 ; 4 ; 2 M`, `CSI 32 ; 4 ; 2 M` | Mouse reports, in X10, SGR, and urxvt forms. `MouseMotion` with `MouseUnknown` is hover, which only `CSI ? 1003 h` reports. | `Terminal.EncodeMouse`, `Session.Mouse` | `StrokeMouse` |
+| `CSI I`, `CSI O` | Focus in and out | `Terminal.EncodeFocus`, `Session.Focus` | Skipped |
+
+A focus change is recorded as a `reel.Focus` event, code `f` in a `.cast`, whether or not the program asked for focus reports.
+
+## How it's recorded
+
+A `.cast` keeps program output as raw bytes in `o` events, so sequences don't get events or names of their own. The only exception is queries, as `reel.query` annotations under code `R`. An export replays those bytes to get every value on this page.
+
+A `.json` output (`reel.Screen`) holds some of the tracked state, under these names:
+
+| Field | From |
+| --- | --- |
+| `title` | `State.Title` |
+| `alt_screen` | `State.AltScreen` |
+| `focused` | `State.Focused` |
+| `cursor` | `Cursor`, as `position`, `visible`, `style`, and `blink`, with the cursor color as `color` |
+| `fg_color`, `bg_color` | `State.Foreground`, `State.Background` |
+| `reverse_colors` | `State.ReverseColors` |
+| `program_status` | `State.ProgramStatuses` |
+| `cells`, each with `style` and `link` | `Cell.Style`, `Cell.Link` |
+
+Progress, the bell, notifications, the clipboard, prompts, the palette, glyphs, and images aren't in it.
+
+## Unknown sequences
+
+A sequence the terminal doesn't implement does nothing on screen, but its bytes stay in the recording. To see them, pass a callback to `vt.WithUnknownSequence` or `reel.WithUnknownSequence`. Each one arrives as an `UnknownSequence`.
+
+| Field | Holds |
+| --- | --- |
+| `UnknownSequence.Kind` | `SequenceOSC` (`osc`) or `SequenceAPC` (`apc`) |
+| `UnknownSequence.Data` | Everything between the introducer and the terminator, such as `7400;status=busy` |
+| `UnknownSequence.Truncated` | True when `Data` holds only the first `UnknownSequenceMaxBytes` (4096) |
+| `UnknownSequence.At` | When it arrived, on the terminal's clock |
+
+What is and isn't reported:
+
+- An OSC with a number the terminal doesn't implement is reported, such as `OSC 7400 ; status=busy`.
+- An APC other than `G` and `25a1` is reported. PM (`ESC ^`) and SOS (`ESC X`) strings are too, with `Kind` set to `SequenceAPC`.
+- An OSC with a number it does implement is never reported, even when malformed.
+- CSI and DCS sequences are never reported.
+
+The implemented OSC numbers are 0, 1, 2, 4, 5, 7, 8, 9, 10 to 19, 21, 22, 52, 66, 72, 99, 104, 105, 110 to 119, 133, 777, 1337, 3008, 5522, and 7501. Of those, 1, 5, 13 to 19, 22, 66, 72, 99, 105, 113 to 119, and 3008 have no Go name, so you can't read what they did. The same goes for OSC 1337 commands other than `Copy`.
+
+## Executed by libghostty-vt
+
+Most of what a program writes is carried out by libghostty-vt, and reel doesn't track it by name. You see the result in `Terminal.Screen`, `Terminal.Text`, and `Cursor`. The commit is pinned by `GHOSTTY_REV` in `reel/vt/build/Dockerfile`, and its own documentation covers what it implements.
+
+These groups are confirmed to work:
+
+- **Cursor movement:** CUU, CUD, CUF, CUB, CUP, HVP, CHA, and VPA.
+- **Saving the cursor:** DECSC and DECRC (`ESC 7`, `ESC 8`), SCOSC and SCORC (`CSI s`, `CSI u`).
+- **Erasing and editing:** ED, EL, ECH, ICH, DCH, and REP.
+- **Scrolling:** DECSTBM.
+- **Character sets:** `ESC ( 0` and `ESC ( B`.
+- **Soft reset:** DECSTR (`CSI ! p`).
+
+`Terminal.Redraw` restores the screen, modes, scrolling region, tab stops, and keyboard state for a [cut](/reel/exporting#stills-and-cuts), without reel tracking them itself. In the [inspector](/reel/inspecting#the-inspector), the timeline shows these sequences in lanes by group.

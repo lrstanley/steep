@@ -1,3 +1,11 @@
 node_modules
 dist
 .source
+
+# written by "task docs:demos". the other fixtures are golden files that tests compare against.
+public/demos
+public/casts
+fixtures/*.output
+fixtures/cli-still.snap
+fixtures/demo-sizes.json
+fixtures/format-sizes.json

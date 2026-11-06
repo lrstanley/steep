@@ -1,0 +1,59 @@
+---
+title: Introduction
+description: What reel does, how to install it, and when to use it rather than steep or the CLI.
+---
+
+reel emulates terminal programs and turns what they draw into images and video. It's a Go library with three parts that also work on their own: a terminal emulator, a recording of everything that happens to it, and an export that turns the recording into files.
+
+```go
+s, _ := reel.Open(ctx, 72, 16, reel.WithTitle("hello"))
+defer s.Close()
+
+s.Write([]byte("Hello, \x1b[32mworld\x1b[0m!\r\n"))
+s.Mark("hello:done")
+
+err := reel.Export(ctx, s.Timeline(), reel.Profile{
+	Outputs: reel.MustFiles("hello.gif", "hello.cast"),
+})
+```
+
+<Demo src="tour.webp" alt="The tea shop recorded by reel: moving through a menu, filtering it, and brewing a tea" cast="tour.cast" caption="The recording most of this section's pages show, exported with one change at a time." />
+
+## Which should I use?
+
+| Use | When | Gets you |
+| --- | --- | --- |
+| [steep](/steep) | You're writing Go tests of a terminal program | Waits, assertions, snapshots, and recordings of failures |
+| reel (this section) | You want recordings from Go, without a test: generating demos, or building a tool | The session, the timeline, and the export pipeline |
+| [The `reel` CLI](/cli) | You don't want to write Go | Tapes, recording your own terminal, and rendering `.cast` files |
+
+steep is built on reel, and so is the CLI. So the formats, effects, and look here work the same in all three.
+
+## What's in the module
+
+| Package | What it does |
+| --- | --- |
+| [`reel`](https://pkg.go.dev/github.com/lrstanley/steep/reel) | Sessions, timelines, and exports |
+| [`reel/effects`](https://pkg.go.dev/github.com/lrstanley/steep/reel/effects) | Key overlays, cards, pauses, highlights, zooms, and redaction |
+| [`reel/render`](https://pkg.go.dev/github.com/lrstanley/steep/reel/render) | Rasterizes a screen into an image, with fonts, colors, and window chrome |
+| [`reel/sink`](https://pkg.go.dev/github.com/lrstanley/steep/reel/sink) | Encodes frames to PNG and GIF, and through ffmpeg to MP4, WebM, and WebP |
+| [`reel/vt`](https://pkg.go.dev/github.com/lrstanley/steep/reel/vt) | The terminal emulator, a checked-in build of libghostty-vt |
+
+## Installation
+
+```console
+go get github.com/lrstanley/steep/reel@latest
+```
+
+The terminal emulator and a default font are compiled in, so nothing else has to be installed for GIF, PNG, asciicast, or text outputs.
+
+MP4, WebM, and animated WebP go through [ffmpeg](https://ffmpeg.org), which has to be on your `PATH`. `reel.Export` checks every output before it draws anything, so a missing ffmpeg fails at once. To use a specific binary, pass [`sink.WithFFmpeg`](https://pkg.go.dev/github.com/lrstanley/steep/reel/sink#WithFFmpeg) in `Profile.Encode`.
+
+## Where to go next
+
+<Cards>
+  <Card title="Your first recording" href="/reel/first-recording" description="Record a command and export it, from an empty file." />
+  <Card title="How it works" href="/reel/how-it-works" description="How a session becomes files." />
+  <Card title="Output formats" href="/reel/formats" description="Every format and option, compared." />
+  <Card title="Effects" href="/reel/effects" description="What you can do to a recording." />
+</Cards>

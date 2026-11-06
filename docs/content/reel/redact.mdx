@@ -1,0 +1,74 @@
+---
+title: Redact
+description: Hide secrets from a recording, what that covers, and where it stops.
+---
+
+`effects.Redact` hides the cells of a [region](/reel/effects#regions) from every frame it passes on.
+
+<DemoGrid>
+  <Demo src="effect-redact-block.webp" alt="The shop's license key hidden as blank cells" caption="Block, the default." />
+  <Demo src="effect-redact-blur.webp" alt="The shop's license key shown as blurred text" caption="Blur" />
+  <Demo src="effect-redact-replace.webp" alt="The shop's license key shown as dots" caption="Replace('•')" />
+</DemoGrid>
+
+```go
+Effects: []reel.Effect{
+	effects.Redact(effects.Env("API_TOKEN")),
+	effects.Redact(effects.Regexp(regexp.MustCompile(`sk-[A-Za-z0-9]{20,}`)), effects.Blur()),
+},
+```
+
+| Style | Draws |
+| --- | --- |
+| `Block()` | A blank cell in the cell's background color, so it looks like the blank part of its row. The default. |
+| `Blur()` | Blurred text. The cell is drawn as an `x` and then blurred, so what it held is never drawn, and no amount of sharpening brings it back. |
+| `Replace(c)` | The character `c`, in the cell's own colors |
+
+`Between` limits it to a window, and `MinPartial` is below.
+
+## What it covers
+
+Effects after `Redact` never see what it hid, and it [runs first](/reel/effects#order).
+
+`Text`, `Env`, and `Regexp` regions also hide their text in the terminal's title, the program status, and desktop notifications, as a `•` for each character, and in the recording's title. `Cells`, `Row`, and `Rows` regions hide cells only.
+
+`Text` and `Env` also hide a secret that only partly shows, such as while it's typed. `MinPartial(n)` sets how many characters of its start or end count, 3 by default. A lower number shows less as it's typed, and hides more unrelated text.
+
+## Where it stops
+
+<Callout type="warn" title="Check the result">
+  Redaction only hides what it finds in the text as the program wrote it. Watch the recording before you share it.
+</Callout>
+
+It won't catch:
+
+- Text a program lays out over several rows itself, as full-screen programs do.
+- A middle part of a secret, cut off on both sides.
+- A secret spelled with characters that draw as nothing, such as zero-width spaces.
+- The first characters of a secret being typed, until `MinPartial` of them are typed.
+- What effects after it draw themselves, such as your own card.
+
+Use `Cells` or `Row` to hide a place on the screen where any of that matters.
+
+These outputs skip effects, so they aren't redacted, and they hold the secret:
+
+- **`.snap` and `.json`** are written from the replay. A `.snap` output in a profile with a redaction shows the secret.
+- **`.cast`** can't be written with a concealer. An export returns an error wrapping `reel.ErrRawOutput` before anything's written, so write it in a separate run, and keep that file private.
+
+## Typed secrets
+
+`effects.RedactInputs` hides typed text from what [`Keys`](/reel/effects#keys) shows, as a `•` for each character. It changes no frames, so use it with `Redact`:
+
+```go
+Effects: []reel.Effect{
+	effects.Redact(effects.Env("PASSWORD")),
+	effects.RedactInputs(effects.Env("PASSWORD")),
+	effects.Keys(time.Second),
+},
+```
+
+Its region has to find text: a `Text`, `Regexp`, or `Env`, or `Any` of them. It's matched against the text typed since the last key that isn't text, across input events, and backspace takes back a character. `Export` reads every input first, so it hides a secret's first characters too. A live `Record` shows them until enough are typed.
+
+Under a keyboard mode that reports keys without their text, such as some kitty keyboard protocol modes, a shifted symbol can decode as its key and no longer match.
+
+See [`_examples/reel-redact`](https://github.com/lrstanley/steep/blob/master/_examples/reel-redact/main.go), and the CLI's [`--redact`, `--redact-env`, and `--redact-regexp`](/cli/effects).

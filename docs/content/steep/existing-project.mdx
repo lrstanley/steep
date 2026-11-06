@@ -1,0 +1,94 @@
+---
+title: Add steep to an existing project
+description: Start with a test that needs no refactoring, then add more only where it pays off.
+---
+
+You don't need to restructure your program to test it. Each step below is useful by itself, so stop whenever the tests you have are catching what you care about.
+
+## 1. Test the binary as it is
+
+An [exec harness](/steep/harnesses#exec-harness) runs any command on a pseudo-terminal, so this needs no changes to your program, and it doesn't have to use Bubble Tea. Build your binary, start it, and check that the main screen comes up and that it quits cleanly:
+
+```go title="main_test.go"
+func TestSmoke(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "myapp")
+	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
+		t.Fatalf("go build: %v\n%s", err, out)
+	}
+
+	h := steep.NewExecHarness(t, exec.Command(bin))
+	h.Wait("Main menu").Key("q")
+	if status := h.ExitStatus(); status != 0 {
+		t.Errorf("exit status = %d", status)
+	}
+}
+```
+
+That single test catches a program that panics at startup, a screen that never draws, and a quit key that stopped working. Pick the path you'd click through before a release, and write that next.
+
+<Demo src="exec.webp" alt="A compiled program running under the exec harness: the menu draws, the down key moves it, and q quits" caption="The exec harness driving a compiled binary." />
+
+## 2. Run your model in the test
+
+If you use Bubble Tea, swap to [`NewHarness`](/steep/harnesses#model-harness) once you want to start from a particular state or look at the model. The steps stay the same, and tests get faster because nothing is compiled or started as a separate process.
+
+```go
+func TestSmoke(t *testing.T) {
+	steep.NewHarness(t, newModel()).
+		Wait("Main menu").
+		Key("q")
+}
+```
+
+The only thing this asks of your code is a function that builds the model. If `main` builds it inline next to flag parsing and config loading, pull that part into a function.
+
+Your model may need things a test shouldn't use, such as a real API client or the current time. Pass those in, the same as you would for any other test.
+
+## 3. Test the hard components alone
+
+A form or a table with a lot of states is easier to test alone than through the whole program. A [component harness](/steep/harnesses#component-harness) runs anything with a `View() string` and an `Update` method:
+
+```go
+func TestPicker(t *testing.T) {
+	steep.NewComponentHarness(t, newPicker(items)).
+		Wait("first").
+		KeyDown().
+		Assert("second")
+}
+```
+
+## 4. Add snapshots where layout matters
+
+Assertions check that text is there. They don't notice a border that's gone or a column that shifted. Use a [snapshot](/steep/snapshots) for the few screens whose layout you care about, and test them at the sizes you support:
+
+```go
+for _, size := range [][2]int{{80, 24}, {120, 40}, {40, 12}} {
+	t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+		steep.NewHarness(t, newModel(), steep.WithWindowSize(size[0], size[1])).
+			Wait("Main menu").
+			AssertSnapshot()
+	})
+}
+```
+
+## 5. Run them in CI, and keep the evidence
+
+A test that fails on someone else's machine is much easier to fix with a recording. Set two variables in your [CI job](/steep/ci) and upload the directory:
+
+```yaml
+- run: go test ./...
+  env:
+    STEEP_EXPORT_MODE: failure
+    STEEP_EXPORT_DIR: ${{ github.workspace }}/steep-artifacts
+```
+
+## What to test first
+
+Tests are worth the most where a bug would be expensive, or where you'd be unlikely to notice one. Good first choices:
+
+- The path through your program that everybody uses.
+- Anything that depends on the terminal's size, since it's tedious to check by hand.
+- Bugs you've already fixed. Reproduce one in a test, then keep the test.
+- Anything with a timer or background work, where [waits](/steep/checks#waiting-and-settling) let you check the result without guessing at how long it takes.
+
+Don't start by aiming for coverage of every screen. Snapshotting everything gives you a large suite that fails on every design change, and people learn to update it without reading the diff.

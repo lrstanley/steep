@@ -1,0 +1,55 @@
+---
+title: Test with tapes
+description: Run tapes as tests, with waits and golden files, no code needed.
+---
+
+`reel test` runs tapes without writing their outputs. A tape fails at the first command that does: a `Wait` that times out, a `Snapshot` that differs, or any other error.
+
+```tape title="tests/shop.tape"
+Set Columns 72
+Set Rows 16
+Type "teashop" Enter
+Wait+Screen "Sencha"
+Down
+Wait+Screen "Matcha"
+Snapshot menu
+Type "q"
+```
+
+Here it is with one tape that passes, and one that waits for something that never appears:
+
+<include cwd lang="console">fixtures/cli-test.output</include>
+
+The tape's exit code is [3](/cli/configuration#exit-codes) if any tape failed, so it works in CI as is.
+
+## Snapshots
+
+`Snapshot NAME` compares the screen with `testdata/<tape>/NAME.snap`. Create or update those with `--update`:
+
+```console
+reel test tests/ --update
+git diff tests/testdata
+```
+
+## Artifacts
+
+`--artifacts DIR` writes a `.cast` and a `.gif` of each failed tape, for CI to upload:
+
+```console
+reel test tests/ --artifacts out/
+```
+
+Open the `.cast` in the [inspector](https://inspector.getsteep.dev/) to step through what happened.
+
+```yaml title=".github/workflows/test.yml"
+- run: reel test tests/ --artifacts out/
+- uses: actions/upload-artifact@v7
+  if: failure()
+  with:
+    name: reel-tests
+    path: out
+```
+
+## When to use steep instead
+
+`reel test` is good for testing a program as a black box, in any language. [steep](/steep) is for Go programs, when you want to reach the model, wait for messages, or have assertions beyond what a tape can say. A steep exec harness can do what a tape does, with Go's control flow.

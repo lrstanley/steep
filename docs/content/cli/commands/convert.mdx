@@ -1,0 +1,17 @@
+---
+title: reel convert
+description: Convert an asciicast file between versions 2 and 3.
+---
+
+```console
+reel convert [flags] <cast> -o FILE
+```
+
+| Flag | Is |
+| --- | --- |
+| `--output`, `-o` | The asciicast file to write, or `-` for standard output |
+| `--cast-version` | The version to write: `3`, the default, or `2` |
+
+```console
+$ reel convert in.cast -o out.cast --cast-version 3
+```

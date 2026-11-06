@@ -1,0 +1,6 @@
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# the inspector fetches these from another origin, for its ?url= links.
+/casts/*
+  Access-Control-Allow-Origin: https://inspector.getsteep.dev

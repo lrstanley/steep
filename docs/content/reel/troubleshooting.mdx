@@ -1,0 +1,42 @@
+---
+title: Troubleshooting
+description: Problems exporting and recording, and what causes them.
+---
+
+## ffmpeg
+
+MP4, WebM, and WebP need ffmpeg on your `PATH`. `Export` checks first, and fails at once. Builds without `libwebp` are common, so WebP can fail where MP4 works:
+
+```console
+ffmpeg -encoders | grep -E 'libwebp|libx264|libvpx-vp9'
+```
+
+To use a specific binary, pass `sink.WithFFmpeg(path)` in `Profile.Encode`.
+
+## `ErrRawOutput`
+
+A profile with `Redact`, `RedactInputs`, or `Hide` can't also write `.cast`, which would keep what they hide. Write the `.cast` in a separate export, and keep it private.
+
+## A mark isn't found
+
+`Between` returns a `NoMarkError` for a label it can't find, and effects that look for one report it after writing the outputs. `reel.MissingMarks(err)` separates these from other errors, for when a missing mark is fine. Check the label with `reel info`, or the [inspector](/reel/inspecting#the-inspector).
+
+## The export's first frame is blank
+
+A program may write capability queries before its first paint, as Bubble Tea does. Open the session with `reel.WithSkipPristine()`.
+
+## The last frame is blank
+
+A program that clears the screen as it exits leaves a blank end, and a `.png` output draws that. Mark the end before it quits, and cut there with `tl.Between("", "end")`. A steep harness does this for you, at `close:1`.
+
+## Glyphs are boxes
+
+The bundled fonts don't cover every glyph. See [Fonts](/reel/rendering#fonts). `WithFontFamilyName` fails with the directories it searched, if a family can't be found.
+
+## Colors look wrong
+
+A program that checks `TERM` may be choosing fewer colors. `reel.Exec` sets a color environment for the command, so pass `cmd.Env` if you need something else. For themes not applying, see [The recording's colors](/reel/rendering#the-recordings-colors).
+
+## Recording in a test
+
+For tests, use [steep](/steep), which handles the session, the waiting, and the export policy.

@@ -1,0 +1,19 @@
+---
+title: reel cut
+description: Cut an asciicast file down to the window between two marks.
+---
+
+```console
+reel cut [flags] <cast> -o FILE
+```
+
+| Flag | Is |
+| --- | --- |
+| `--from MARK` | Starts at the first mark labeled `MARK`. The default is the start. |
+| `--to MARK` | Ends at the first mark labeled `MARK` after the start. The default is the end. |
+| `--output`, `-o` | The asciicast file to write, or `-` for standard output. It opens on a redraw of the screen at the start, so it plays correctly anywhere. |
+| `--cast-version` | The asciicast version to write: `2`, the default, or `3` |
+
+```console
+$ reel cut in.cast --from a --to b -o out.cast
+```

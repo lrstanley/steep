@@ -1,0 +1,71 @@
+---
+title: Drive programs from scripts and agents
+description: Run a program in a detached terminal, and control it one command at a time.
+---
+
+`reel session`, or `reel s` for short, runs a program in a detached terminal. Each command drives it, so a script or an AI agent can use any TUI without writing code. Everything's recorded, so it can be exported at any point.
+
+<include cwd lang="console">fixtures/cli-session.output</include>
+
+[`reel session`](/cli/commands/session) has each command and its flags.
+
+## Waiting
+
+Don't sleep between commands, since a program takes as long as it takes. `wait` blocks until the screen shows what you expect:
+
+```console
+reel s wait --text "Load average"
+reel s wait --regexp 'CPU +[0-9]+%'
+reel s wait --gone "Loading"
+reel s wait --idle 500ms
+```
+
+| Flag | Waits for |
+| --- | --- |
+| `--text TEXT` | Text to show |
+| `--regexp PATTERN` | A match |
+| `--gone TEXT` | Text to stop showing |
+| `--idle DUR` | The screen not to change for this long |
+| `--cursor-line` | Looks only at the cursor's line |
+| `--timeout DUR` | Gives up after this long, with exit code 3. The default is 15s. |
+| `--print`, `-p` | Prints the screen once the wait ends |
+
+## Which session
+
+With one session running, that's the one driven. Otherwise, name it with `-s NAME` or `REEL_SESSION`:
+
+```console
+reel s start --name shop -- teashop
+reel s -s shop key down
+```
+
+A session stays up for `--linger` after its program exits, 10 minutes by default, so its last screen and recording can still be read.
+
+## For agents
+
+A tape is a compact way to do several things in one call:
+
+```console
+reel s do - <<'EOF'
+Type "q"
+Wait+Screen /\$ $/
+EOF
+```
+
+And `--json` prints each response, and each error, as JSON. Exit codes are [stable](/cli/configuration#exit-codes): 3 for a timed-out wait, and 4 for no such session. An agent can see what it's doing with:
+
+- `reel s screen`, for the text, which is cheap
+- `reel s screen -f json`, to check colors or the cursor
+- `reel s still -o shot.png`, to look at it as an image
+
+## Keep the evidence
+
+Stop with outputs to write the recording. A failed render leaves the session running, so a recording isn't lost:
+
+```console
+reel s stop -o demo.gif -o demo.cast --keys
+```
+
+## Where they live
+
+Each session is a background `reel` process listening on a Unix socket, in a directory only you can open: `REEL_RUNTIME_DIR`, `$XDG_RUNTIME_DIR/reel`, or a directory of yours in the temporary directory.

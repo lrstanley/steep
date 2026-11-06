@@ -1,0 +1,55 @@
+{
+  "formats": [
+    {
+      "ext": "gif",
+      "label": "GIF",
+      "ffmpeg": false,
+      "stills": false,
+      "params": [
+        { "name": "max-bytes", "label": "max size", "options": ["5MB", "10MB", "25MB"] },
+        { "name": "loop", "label": "loop", "options": ["forever", "once"] },
+        { "name": "optimize", "label": "optimize", "options": ["all", "none", "frames", "dirty", "quantize"] }
+      ]
+    },
+    {
+      "ext": "webp",
+      "label": "WebP",
+      "ffmpeg": true,
+      "stills": false,
+      "params": [
+        { "name": "quality", "label": "quality", "options": ["90", "80", "70", "60"] },
+        { "name": "loop", "label": "loop", "options": ["forever", "once"] }
+      ]
+    },
+    {
+      "ext": "mp4",
+      "label": "MP4",
+      "ffmpeg": true,
+      "stills": false,
+      "params": [
+        { "name": "quality", "label": "quality", "options": ["90", "80", "70", "60"] },
+        { "name": "full-chroma", "label": "full chroma", "options": ["true", "false"] }
+      ]
+    },
+    {
+      "ext": "webm",
+      "label": "WebM",
+      "ffmpeg": true,
+      "stills": false,
+      "params": [
+        { "name": "quality", "label": "quality", "options": ["90", "80", "70", "60"] },
+        { "name": "full-chroma", "label": "full chroma", "options": ["true", "false"] }
+      ]
+    },
+    {
+      "ext": "cast",
+      "label": "asciicast",
+      "ffmpeg": false,
+      "stills": false,
+      "params": [{ "name": "version", "label": "version", "options": ["2", "3"] }]
+    },
+    { "ext": "png", "label": "PNG", "ffmpeg": false, "stills": true, "params": [] },
+    { "ext": "snap", "label": "Screen text", "ffmpeg": false, "stills": true, "params": [] },
+    { "ext": "json", "label": "Screen JSON", "ffmpeg": false, "stills": true, "params": [] }
+  ]
+}

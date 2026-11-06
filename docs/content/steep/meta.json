@@ -1,0 +1,28 @@
+{
+  "title": "Steep",
+  "description": "Test terminal programs in Go",
+  "root": true,
+  "pages": [
+    "---Start here---",
+    "index",
+    "first-test",
+    "existing-project",
+    "---Writing tests---",
+    "harnesses",
+    "input",
+    "terminal",
+    "program",
+    "checks",
+    "snapshots",
+    "---Recording---",
+    "recording",
+    "configurator",
+    "---When a test fails---",
+    "failures",
+    "debugging",
+    "ci",
+    "---Reference---",
+    "environment",
+    "how-it-works"
+  ]
+}

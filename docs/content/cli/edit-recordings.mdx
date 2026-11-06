@@ -1,0 +1,76 @@
+---
+title: Edit existing recordings
+description: Render, cut, screenshot, and convert asciicast files, from reel, steep, or asciinema.
+---
+
+A `.cast` file holds a whole recording, so you can render it as many ways as you like. These commands read any asciicast v2 or v3 file, from reel, a [steep test](/steep/recording), or [asciinema](https://asciinema.org).
+
+## Render it
+
+```console
+reel export in.cast -o out.gif
+reel export in.cast -o out.gif -o out.mp4 --chrome --keys --pause
+```
+
+Each `-o` is an [output](/cli/outputs). All the [appearance](/cli/appearance) and [effect](/cli/effects) flags work here.
+
+A recording may have effects stored in it. `reel export` applies those first, and `--no-cast-effects` ignores them.
+
+## Cut it
+
+`--between FROM,TO` renders a window between two marks. Either can be empty for the start or end:
+
+```console
+reel export in.cast -o part.gif --between login,logout
+reel export in.cast -o end.gif --between logout,
+```
+
+`reel cut` writes the window as a new asciicast file. It opens on a redraw of the screen at the start, so it plays correctly anywhere:
+
+```console
+reel cut in.cast --from login --to logout -o part.cast
+```
+
+## Take a screenshot
+
+`reel still` renders one moment. Without `--at` or `--mark`, that's the end:
+
+```console
+reel still in.cast --mark done -o shot.png
+reel still in.cast --at 3.2s -o shot.snap
+reel still in.cast -o screen.json
+```
+
+Or write a still at each mark during an export:
+
+```console
+reel export in.cast -o 'shot-{mark}.png?match=step:*'
+```
+
+<Demo src="mark-brew-mid.png" alt="A still of the tea shop partway through a brew" />
+
+## Look at it
+
+```console
+reel info in.cast
+reel info in.cast --json
+reel play in.cast --speed 2 --idle-limit 1s
+```
+
+`reel play` replays it in this terminal, in reel's emulator, drawn on the alternate screen, so the recording can't change your terminal. `q` or `ctrl+c` stops it.
+
+<include cwd lang="console">fixtures/cli-info.output</include>
+
+## Convert it
+
+```console
+reel convert in.cast -o out.cast --cast-version 3
+```
+
+## Pipes
+
+All of these read standard input with `-`, and `cut` and `convert` can write to standard output:
+
+```console
+reel cut in.cast --from a -o - | reel export - -o out.gif
+```

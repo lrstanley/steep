@@ -1,0 +1,42 @@
+---
+title: Outputs
+description: Choosing formats with -o, their options, and path variables.
+---
+
+`-o` is repeatable, and the extension picks the format:
+
+```console
+reel export in.cast -o out.gif -o out.mp4 -o out.cast
+```
+
+Choose from `.gif`, `.webp`, `.mp4`, `.webm`, `.png`, `.cast`, `.snap`, and `.json`. [Output formats](/reel/formats) compares what these look like, how large they are, and which need ffmpeg.
+
+## Options
+
+Options go in the query. Quote the argument, since `?` and `&` mean something to your shell:
+
+```console
+reel export in.cast -o 'out.gif?max-bytes=5MB&loop=once'
+reel export in.cast -o 'shot-{mark}.png?match=step:*'
+reel export in.cast -o 'out.webm?quality=80&full-chroma=true'
+```
+
+[Every parameter](/reel/formats#parameters) is listed there, and the [configurator](/steep/configurator) can build these for you.
+
+## Path variables
+
+| Variable | Is | Commands |
+| --- | --- | --- |
+| `{duration}` | The recording's length, such as `4.2s` | Exports |
+| `{timestamp}` | When it started, as `20060102T150405` | All |
+| `{mark}` | The mark's label, for one still per mark | All |
+| `{tape}` | The tape's name | `run` |
+| `{NAME}` | The value of `--var NAME=VALUE` | All |
+
+## With tapes
+
+For `reel run`, `-o` replaces the tape's `Output` commands, and its `Screenshot`s are kept.
+
+## `.cast` and hiding things
+
+A `.cast` holds the raw recording, so it can't be written with effects that hide or cut what it shows: `--redact*`, `--hide`, or a tape's `Hide` or `Redact`. Write it in a separate run.

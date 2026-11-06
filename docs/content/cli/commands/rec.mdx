@@ -1,0 +1,23 @@
+---
+title: reel rec
+description: Record a command, or your shell, in this terminal.
+---
+
+```console
+reel rec [flags] [-- <command> ...]
+```
+
+Runs a program in this terminal and records it until it exits. Without a command, it records `$SHELL`.
+
+| Flag | Is |
+| --- | --- |
+| `--prefix KEY` | The key that starts a hotkey, `ctrl+]` by default. Then `m` drops a mark, and the prefix again sends it to the program. |
+
+It also takes all of the [outputs](/cli/outputs), [appearance flags](/cli/appearance), and [effects](/cli/effects).
+
+```console
+$ reel rec -o demo.cast -o demo.gif --keys
+$ reel rec -o htop.cast -- htop
+```
+
+See [Record your terminal](/cli/record).

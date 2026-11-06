@@ -1,0 +1,139 @@
+---
+title: How it works
+description: How a session becomes files, the event log behind every recording, and exporting compared with recording live.
+---
+
+reel splits recording from rendering. A session only logs events, and an export turns the log into files later.
+
+<Mermaid chart={`flowchart LR
+  P[Program] <--> S[Session]
+  H[Host: keys, resizes, marks] --> S
+  S --> T[Timeline]
+  T --> R[Replay in a fresh terminal]
+  R --> A[Rasterizer]
+  A --> F[Effects, by priority]
+  F --> K[Sinks: GIF, MP4, WebM, WebP, PNG]
+  T --> C[.cast]
+  R --> X[.snap, .json]
+`} />
+
+## Recording
+
+A driver connects a program to a [session](/reel/sessions). The program writes to the session and reads from it, and the host types, clicks, resizes, and adds marks. Each of these is appended to a [timeline](/reel/how-it-works#timelines-and-asciicast), so recording costs one copy of the bytes.
+
+## Replaying
+
+`reel.Export` replays the timeline into a new terminal, and each visible change becomes a frame: program output, or a change of focus or colors. Nothing is drawn at a fixed rate. Frames stay on screen for as long as they did when recorded, on a grid of delays set by `Profile.FPS`.
+
+Since this works from the log alone, the output is deterministic. A timeline and its saved `.cast` export to the same files, apart from invalid UTF-8 output (saved as U+FFFD) and cuts.
+
+## Drawing and effects
+
+A `Rasterizer` draws each frame, by default a renderer built from `Profile.Render`. Then each frame runs through the [effects](/reel/effects), [lowest priority first](/reel/effects#order). An effect can change a frame, drop it, or add more.
+
+## Writing
+
+Frames go to every output's sink. Not every output takes this whole path:
+
+| Output | Comes from | Effects? |
+| --- | --- | --- |
+| `.gif`, `.mp4`, `.webm`, `.webp`, `.png` | The end of the pipeline | Yes |
+| `.png?marks=...` | A frame at each mark | Only concealers and still effects |
+| `.snap`, `.json` | The replay's screen | No, so they show what a redaction hides |
+| `.cast` | The timeline itself | No, they're recorded as annotations instead |
+
+All outputs are checked and created before any frame is drawn, and each is written to a temporary file and moved into place when complete. So a missing ffmpeg fails at once, and a failure leaves an existing file as it was.
+
+## Timelines and asciicast
+
+A `reel.Timeline` is an append-only log of what the program wrote, what it was sent, and what the host did to its terminal. Each event has an offset in whole milliseconds. It holds no frames, since those are derived by replaying it.
+
+### Events
+
+| Event | What it is |
+| --- | --- |
+| `Output` | Bytes the program wrote |
+| `Input` | Bytes the terminal sent the program |
+| `Resize`, `Focus`, `Scroll`, `ScrollbackSize` | What the host did to the terminal |
+| `Theme` | A color change |
+| `Mark` | A named point |
+| `Annotation` | A structured note, which players ignore |
+| `Exit` | The end of a command run with `Exec` |
+
+Read them with iterators:
+
+```go
+for ev := range tl.Events() { /* every event */ }
+for m := range tl.Marks() { fmt.Println(m.At(), m.Label) }
+for in := range tl.Inputs() { /* what was typed */ }
+for a := range tl.Annotations() { /* notes */ }
+```
+
+A session's timeline grows as it runs, and iterators see events as of the call. `tl.Updated()` returns a channel that closes when the next event arrives, to follow one live.
+
+### Marks
+
+A mark names a moment. Use the form `category:value`, so tools can group them, with `reel.SplitLabel`:
+
+```go
+s.Mark("login:done")
+```
+
+Effects and stills address a recording by its marks, and a label doesn't have to be unique.
+
+### Cutting
+
+`Between` returns the part of a timeline between two marks. See [Cuts](/reel/exporting#cuts).
+
+### Saving and reading
+
+A timeline saves as an [asciicast](https://docs.asciinema.org/manual/asciicast/v2/) file, which any asciicast player reads:
+
+```go
+f, err := os.Create("demo.cast")
+// ...
+_, err = tl.WriteCast(f, reel.CastV2)
+```
+
+`reel.ReadTimeline` reads a v2 or v3 file back, whether reel wrote it or asciinema recorded it. Comment and blank lines, unknown header fields, and unknown event codes are skipped.
+
+A cut timeline is saved as just its window, opening on a redraw of the screen at its start. Only the visible screen is redrawn, so a cut that starts on the alternate screen and later leaves it shows a blank primary screen. An export of the cut doesn't have that problem.
+
+## Export vs live Record
+
+`reel.Export` works from a finished timeline. `reel.Record` writes the same outputs while the session runs, replaying each event as it's appended, so frames are drawn and encoded live.
+
+```go
+rec, err := reel.Record(ctx, s, reel.Profile{
+	Outputs: reel.MustFiles("demo.gif"),
+	Effects: []reel.Effect{effects.Keys(time.Second)},
+})
+if err != nil {
+	return err
+}
+
+// ... drive the program ...
+
+if err := rec.Stop(); err != nil {
+	return err
+}
+```
+
+`Stop` ends the recording on the events so far and writes its outputs. It's safe to call more than once. Canceling `ctx` abandons the recording and discards its outputs.
+
+### Which to use
+
+Almost always `Export`. It's simpler, a recording doesn't cost anything while the program runs, and you can export a timeline as many times as you want. `Record` is for long sessions, where you'd rather encode as you go than hold everything until the end.
+
+### How they differ
+
+| | `Export` | `Record` |
+| --- | --- | --- |
+| Draws frames | After the fact | While the program runs |
+| `{duration}` in a path | Available | An error, since it isn't known |
+| `{timestamp}` | The timeline's start | When the timeline started, or now if it's empty |
+| Outputs with `match=` | Yes | No, since it starts before the marks exist |
+| A mark that never comes | Writes the rest, returns a `NoMarkError` | The same, from `Stop` |
+| Effects see | A complete timeline | A growing one, with `Context.Live` set |
+| `RedactInputs` | Hides secrets from the first character | Shows the first characters, until enough are typed |
+| `EaseIn` | Eases in before a mark | Eases in after it |

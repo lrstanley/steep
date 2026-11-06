@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# A screen of plain ANSI colors, which is all a theme changes: a shell prompt,
+# a failing test, a diff, and every color in the palette as a swatch.
+d=$'\e[0m'
+printf '\e[?25l'
+printf '\e[1;34m~/tea-shop\e[0m \e[2mon\e[0m \e[1;35mmain\e[0m\n'
+printf '\e[1;32m$\e[0m go test ./...\n'
+printf '\e[32mok\e[0m    shop/menu    \e[2m0.12s\e[0m\n'
+printf '\e[1;31mFAIL\e[0m  shop/brew    \e[2m0.31s\e[0m\n'
+printf '\e[33m---\e[0m \e[36mbrew_test.go:42\e[0m: steep time\n'
+printf '\e[31m- steep for \e[1m3m\e[0m\n'
+printf '\e[32m+ steep for \e[1m4m\e[0m\n'
+printf '\n'
+for c in 40 41 42 43 44 45 46 47; do printf '\e[%dm      %s' "$c" "$d"; done; printf '\n'
+for c in 100 101 102 103 104 105 106 107; do printf '\e[%dm      %s' "$c" "$d"; done

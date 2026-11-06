@@ -1,0 +1,19 @@
+---
+title: reel play
+description: Replay an asciicast file in this terminal.
+---
+
+```console
+reel play [flags] <cast>
+```
+
+It plays in reel's emulator, drawn on the alternate screen, so the recording can't change this terminal. `q` or `ctrl+c` stops it.
+
+| Flag | Is |
+| --- | --- |
+| `--speed X` | Playback speed. 2 plays twice as fast. The default is 1. |
+| `--idle-limit DUR` | Cuts pauses longer than this down to it |
+
+```console
+$ reel play in.cast --speed 2 --idle-limit 1s
+```

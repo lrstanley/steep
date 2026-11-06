@@ -1,0 +1,178 @@
+---
+title: Sessions and commands
+description: Open a terminal, run a command in it, send input, wait for the screen, and replay recordings.
+---
+
+A `reel.Session` owns a terminal emulator, and logs everything done through it.
+
+```go
+s, err := reel.Open(ctx, 80, 24, reel.WithTitle("demo"))
+if err != nil {
+	return err
+}
+defer s.Close()
+```
+
+A program writes output with `s.Write` and reads input with `s.Read`, which makes a session an `io.ReadWriter` you can hand to a program, such as a `tea.Program` with `tea.WithInput` and `tea.WithOutput`. Or use a driver: [`Exec`](/reel/sessions#running-commands) for a command, and [`Attach`](/reel/sessions#replaying-recordings) for a recording.
+
+## Input
+
+| Method | Sends |
+| --- | --- |
+| `Type(text, opts...)` | Text, as a key press per character on a US layout |
+| `Key(name, opts...)` | One key, such as `enter`, `ctrl+c`, `shift+tab`, or `f5` |
+| `Paste(text)` | A paste, bracketed if the program enabled it |
+| `Click(button, x, y, opts...)` | A press and release at a cell |
+| `Drag(button, from, to, opts...)` | A press, motion through each cell, and a release |
+| `Mouse(action, button, x, y)` | A single mouse event, if the program asked for them |
+
+Keys are encoded for the keyboard mode the program set. `reel.Delay` pauses after each key press, and `reel.Repeat` repeats it.
+
+## The terminal
+
+| Method | Does |
+| --- | --- |
+| `Resize(cols, rows)` | Resizes the terminal, and an `Exec` process's pseudo-terminal |
+| `Focus(on)` | Sets focus, and tells a program that asked |
+| `ScrollUp`, `ScrollDown`, `ScrollToTop`, `ScrollToBottom` | Moves the viewport, without telling the program |
+| `SetScrollbackSize(lines)`, `ClearScrollback()` | Manages history |
+| `SetForeground`, `SetBackground`, `SetCursorColor` | Sets colors, and their `SetDefault*` forms set the fallbacks |
+| `Mark(label)`, `Annotate(a)` | Adds to the timeline |
+
+## Waiting
+
+`Wait` blocks until a condition holds, checking whenever the screen changes. Pass a context with a deadline to time out:
+
+```go
+ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+defer cancel()
+
+res, err := s.Wait(ctx, reel.Contains("ready"))
+```
+
+The [conditions](/steep/checks#conditions) are `Contains`, `NotContains`, `Matches`, `NotMatches`, `ScreenFunc`, and `OnCursorLine`. A failed wait returns a `*WaitError`, which has the screen it last saw.
+
+| Method | Waits until |
+| --- | --- |
+| `Wait(ctx, cond)` | A condition holds |
+| `WaitSettle(ctx, quiet)` | The screen's text hasn't changed for `quiet` |
+| `WaitIdle(ctx, since, quiet, limit)` | The program has responded to something and gone quiet |
+
+## Reading
+
+| Method | Returns |
+| --- | --- |
+| `Screen()` | The screen, as a `*reel.Screen`, which marshals to the JSON snapshots use |
+| `ScreenText()` | The text as `Wait` checks it |
+| `State()` | The terminal's state: title, cursor, progress, and more |
+| `Terminal()` | The `vt.Terminal`, for reading. Changes made through it aren't recorded. |
+| `Timeline()` | The timeline |
+
+## Options
+
+| Option | Does |
+| --- | --- |
+| `WithTitle(title)` | Names the recording |
+| `WithTypingDelay(d)` | Pauses after each key press, so a recording shows typing |
+| `WithSkipPristine()` | Skips the bare terminal before a first paint, for programs that write queries first, as Bubble Tea does |
+| `WithScrollback(lines)` | Sets how much history is kept |
+| `WithScrollOnInput(enabled)` | Sets whether input scrolls a scrolled viewport back down |
+| `WithSource(enabled)`, `WithSourceSkip(pkgs...)` | Records where in Go source each mark and annotation came from |
+| `WithoutQueries()` | Leaves out query annotations |
+| `WithCellSize(w, h)` | Sets the pixel size of a cell that programs read |
+| `WithKittyFiles()`, `WithKittyStorage(n)` | Controls Kitty graphics |
+| `WithRuntime(rt)` | Opens the terminal from your own pool |
+| `WithUnknownSequence(fn)` | Calls `fn` with sequences the terminal drops |
+
+Sessions are safe for concurrent use. `Close` returns the terminal to its pool, and the timeline stays readable afterward.
+
+## Writing without a program
+
+A session doesn't need a program. You can write to it directly, which suits generating a demo or reproducing a bug from escape sequences:
+
+```go
+s.Write([]byte("\x1b[1mBold\x1b[0m, and a \x1b]8;;https://getsteep.dev\x07link\x1b]8;;\x07\r\n"))
+```
+
+See [`_examples/reel-export`](https://github.com/lrstanley/steep/blob/master/_examples/reel-export/main.go).
+
+## Running commands
+
+`reel.Exec` runs a command in a session, on a pseudo-terminal, and records when it exits. The command can be anything that runs in a terminal.
+
+```go
+cmd := exec.CommandContext(ctx, "bash", "--norc")
+proc, err := reel.Exec(ctx, s, cmd)
+if err != nil {
+	return err
+}
+
+s.Wait(ctx, reel.OnCursorLine(reel.Contains("$ ")))
+s.Type("ls\n")
+s.Wait(ctx, reel.OnCursorLine(reel.Contains("$ ")))
+s.Type("exit\n")
+
+status, err := proc.Wait()
+```
+
+`Process.Wait` returns the exit status. On Unix, a command killed by a signal has status 128 plus the signal, as shells report it.
+
+Resizing the session resizes the pseudo-terminal, and the command gets a `SIGWINCH`.
+
+### What a recording can expose
+
+A command gets `cmd.Env`, or your whole environment if that's nil, and in CI or your shell that can include tokens. reel doesn't write the environment into a recording, but it records everything the command prints and every key typed. A `.cast` file keeps all of it as plain text. So a shell running `env`, a program printing its config, or a debug log can put a secret in the file.
+
+Give the command only what it needs:
+
+```go
+cmd := exec.CommandContext(ctx, "bash", "--norc")
+cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + os.Getenv("HOME")}
+```
+
+[`Redact`](/reel/redact) hides a value from images and videos. It can't help a `.cast` file, so a profile with `Redact` can't write one. If a recording might hold a secret, don't share its `.cast`.
+
+### Bubble Tea, in your process
+
+To record a `tea.Program` without building a binary, connect it to the session directly:
+
+```go
+s, err := reel.Open(ctx, 80, 24, reel.WithSkipPristine())
+// ...
+p := tea.NewProgram(model, tea.WithInput(s), tea.WithOutput(s), tea.WithWindowSize(80, 24))
+```
+
+`WithSkipPristine` leaves out the blank terminal before the first paint, since Bubble Tea writes capability queries first.
+
+To do this in a test, [steep](/steep/harnesses#model-harness) is built for it.
+
+## Replaying recordings
+
+reel can export what was recorded elsewhere.
+
+### asciicast
+
+`reel.ReadTimeline` reads a v2 or v3 file, such as one from [asciinema](https://asciinema.org), which [exports the same way](/reel/exporting#re-exporting-from-cast) as reel's own.
+
+### script(1)
+
+`reel.Attach` replays output recorded elsewhere into a session. Pass the timing file with `WithTiming`, for the output's times. Without one, the output plays at once.
+
+```console
+script --log-out typescript --log-timing timing --command htop
+```
+
+```go
+s, err := reel.Open(ctx, 80, 24)
+// ...
+typescript, err := os.Open("typescript")
+// ...
+timing, err := os.Open("timing")
+// ...
+if err := reel.Attach(ctx, s, typescript, reel.WithTiming(timing)); err != nil {
+	return err
+}
+err = reel.Export(ctx, s.Timeline(), reel.Profile{Outputs: reel.MustFiles("htop.gif")})
+```
+
+The session's size has to match the terminal the recording was made in, since the typescript doesn't say. See [`_examples/reel-attach`](https://github.com/lrstanley/steep/blob/master/_examples/reel-attach/main.go), and [`reel attach`](/cli/commands/attach) for the same from the CLI.

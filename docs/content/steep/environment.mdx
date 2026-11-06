@@ -1,0 +1,64 @@
+---
+title: Environment variables
+description: Every variable steep reads, what it overrides, and how values are parsed.
+---
+
+These let you record, tune, or debug any test without changing it:
+
+```console
+STEEP_EXPORT_MODE=on STEEP_EXPORT='{name}.mp4,{name}_{mark}.png?match=wait:*' go test -artifacts ./...
+```
+
+The `STEEP_*` variables override options set in code, unless the harness has `WithIgnoreEnv(true)`. The [configurator](/steep/configurator) writes them for you.
+
+## Timing
+
+| Variable | Value | Replaces |
+| --- | --- | --- |
+| `STEEP_TIMEOUT` | A duration, default `2s` | [`WithTimeout`](/steep/checks#the-timers) |
+| `STEEP_SETTLE` | A duration, default `100ms` | [`WithSettle`](/steep/checks#the-timers) |
+| `STEEP_CHECK` | A duration, default `10ms` | [`WithCheck`](/steep/checks#the-timers) |
+| `STEEP_SLOW` | A duration | [`WithSlow`](/steep/checks#the-timers) |
+| `STEEP_TYPING_DELAY` | A duration to pause after each key press of `Type` and `Key`, unless a call passes `reel.Delay` | `reel.WithTypingDelay` |
+
+## Debugging
+
+| Variable | Value | Replaces |
+| --- | --- | --- |
+| `STEEP_LOG` | `on`, `true`, or `1` adds the logging hook | [`WithLog`](/steep/debugging#logging) |
+| `STEEP_RECORD_MESSAGES` | `on` or `off` (or `true`, `1`, `false`, `0`) | [`WithRecordMessages`](/steep/debugging#messages-and-source-lines) |
+| `STEEP_SOURCE` | `on` or `off` (or `true`, `1`, `false`, `0`) | [`WithSource`](/steep/debugging#messages-and-source-lines) |
+
+## Exports
+
+| Variable | Value | Replaces |
+| --- | --- | --- |
+| `STEEP_EXPORT_MODE` | `on` (or `always`, `true`, `1`), `failure` (or `on-failure`), or `off` (or `false`, `0`) | [`WithExportAlways`](/steep/recording#when-artifacts-are-written), [`WithExportOnFailure`](/steep/recording#when-artifacts-are-written) |
+| `STEEP_EXPORT` | A comma-separated list of [outputs](/reel/formats) | The profile's `Outputs`, and `WithStills` |
+| `STEEP_EXPORT_DIR` | A directory. A relative one is relative to the test's package. | [`WithArtifacts`](/steep/recording#when-artifacts-are-written) |
+| `STEEP_EXPORT_FPS` | A number | `Profile.FPS` |
+| `STEEP_EXPORT_SPEED` | A number | `Profile.Speed` |
+| `STEEP_RENDERER_SCALE` | A number | Added to `Profile.Render`, as `render.WithScale` |
+| `STEEP_RENDERER_FONT_FAMILY` | A font family | Added to `Profile.Render`, as `render.WithFontFamilyName` |
+
+Each entry in `STEEP_EXPORT` is a path with optional query parameters, such as `{name}_{status}.gif?max-bytes=5MB`. A path that holds `{mark}` with no `marks=` or `match=` is a still at each mark of the events `WithStills` uses by default.
+
+## Snapshots
+
+| Variable | Value | Replaces |
+| --- | --- | --- |
+| `STEEP_SNAPSHOT_DIR` | The default directory. A directory passed to a snapshot call still wins. | [`snapshot.WithDir`](/steep/snapshots#where-files-go) |
+| `UPDATE_SNAPSHOTS` | A boolean. Writes snapshots rather than comparing them. | `snapshot.WithUpdate` |
+| `UPDATE_SNAPS` | The same, for those coming from go-snaps | `snapshot.WithUpdate` |
+
+The two `UPDATE_*` variables aren't `STEEP_*`, so `WithIgnoreEnv` doesn't affect them. A `snapshot.WithUpdate` in code wins over them.
+
+## How values are parsed
+
+A value that doesn't parse is ignored, so the option in code still applies. The exception is `STEEP_EXPORT`: an entry that doesn't parse [fails the test](/steep/failures#an-output-that-doesnt-parse), so a typo can't cost you a recording.
+
+## Your program's environment
+
+These are read by the test, and they don't reach your program. By default a model's program sees only `TTY_FORCE=1` and `TERM=xterm-256color`. See [`WithEnvVars`](/steep/harnesses#the-environment).
+
+The [`reel` CLI](/cli/configuration) has its own `REEL_*` variables.

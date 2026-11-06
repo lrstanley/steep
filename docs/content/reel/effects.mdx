@@ -1,0 +1,320 @@
+---
+title: Effects
+description: What effects are, the order they run in, how to aim one, and each one built in.
+---
+
+An effect changes a recording's frames between the renderer and the file. You list them on the profile:
+
+```go
+reel.Profile{
+	Outputs: reel.MustFiles("demo.webp"),
+	Effects: []reel.Effect{
+		effects.Redact(effects.Env("API_TOKEN")),
+		effects.Highlight(effects.Text("Error")),
+		effects.Pause(),
+		effects.Keys(time.Second),
+	},
+}
+```
+
+Each section below shows the same recording with one effect on. [Redact](/reel/redact) and [your own effects](/reel/custom-effects) have pages of their own.
+
+## Order
+
+Effects sort themselves by priority, so you can list them in any order. Each sees the frames of the one before, lowest priority first. Effects with the same priority run in the order you list them.
+
+| Priority | Constant | Effects | Why here |
+| --- | --- | --- | --- |
+| 100 | `reel.PriorityConceal` | `Redact`, `RedactInputs` | Nothing after them sees what they hide. |
+| 200 | `reel.PriorityCut` | `Hide` | The pauses at marks and the keys pressed in what it cuts are left out too. |
+| 300 | `reel.PriorityZoom` | `Zoom` | It draws its zoomed cells over what ran before it, and `Mouse` draws the pointer through it. |
+| 400 | `reel.PriorityHighlight` | `Highlight` | The overlays after it aren't dimmed. |
+| 500 | `reel.PriorityPause` | `Pause`, `HoldLast` | Its badge is drawn over what ran before it. |
+| 600 | `reel.PriorityOverlay` | `Keys`, `Mouse`, `Toasts` | They show what they showed when a pause started. |
+| 700 | `reel.PriorityDefault` | An effect with no priority of its own | |
+| 800 | `reel.PriorityCard` | `Intro`, `Outro`, `steep.Logo`, `steep.Outro` | No other effect has to draw on a card. |
+
+The gaps are there for [your own effects](/reel/custom-effects#priority).
+
+## Regions
+
+`Highlight`, `Zoom`, and `Redact` work on a region of the terminal's cells:
+
+| Region | Covers |
+| --- | --- |
+| `effects.Row(y)` | One row, from 0 |
+| `effects.Rows(y0, y1)` | Rows from `y0` up to but not including `y1` |
+| `effects.Cells(image.Rect(x0, y0, x1, y1))` | A rectangle of cells |
+| `effects.Text(s)` | Each cell that shows `s`, wherever it moves |
+| `effects.Regexp(re)` | Each match, on each line |
+| `effects.Env(names...)` | Each cell that shows the value of a variable |
+| `effects.Any(regions...)` | Any of them |
+
+`Text`, `Regexp`, and `Env` are matched on each frame, so they follow what they find. A `Zoom` holds what it matched when it started. Text is searched line by line, where a line is a row and the rows it soft-wrapped over, so it never matches across a line break a program made itself.
+
+## Timing
+
+Those three also take timing options, except that `Redact` only takes `Between`:
+
+| Option | Does |
+| --- | --- |
+| `effects.Between(from, to)` | Limits it to the window between two marks. An empty label is the start or end. |
+| `effects.Ease(d)` | Eases it in over `d` before the window, and out over `d` after |
+| `effects.EaseIn(d)`, `effects.EaseOut(d)` | Eases only one end |
+
+Without its `from` mark, an effect never comes on, and without its `to` mark, it stays on to the end. The exception is an effect that hides what it covers: `Redact` without its `from` mark covers the whole export, since where the secret starts isn't known. A missing mark is reported as a `NoMarkError`, and the outputs are still written.
+
+## Effects and `.cast`
+
+A `.cast` output skips the effects, since it's the raw recording. Most effects are recorded in it as annotations, so [an export of the file](/reel/exporting#re-exporting-from-cast) applies them again. `Hide`, `Redact`, and `RedactInputs` can't be combined with a `.cast` output at all, so write that in a separate run.
+
+## Keys
+
+`effects.Keys` draws the keys pressed in the bottom right corner, so that someone watching can follow along.
+
+<Demo src="effect-keys.webp" alt="The shop with chips in the corner showing the keys as they are pressed" cast="tour.cast" />
+
+```go
+Effects: []reel.Effect{effects.Keys(time.Second)},
+```
+
+The argument is how long keys stay. Keys pressed within that time of each other show together, with repeats as one key and a count. They stay for that long after the last of them, fading out over the final third. Zero or less is no overlay.
+
+The text typed by one input event, with enter and tab, is one chip, so typing `hi\n` shows `hi⏎`. Paste and mouse input aren't shown. [`Mouse`](/reel/effects#mouse) draws the mouse.
+
+### Secrets
+
+Keys shows what was typed, so add [`RedactInputs`](/reel/redact#typed-secrets) if a recording includes a password:
+
+```go
+Effects: []reel.Effect{
+	effects.RedactInputs(effects.Env("PASSWORD")),
+	effects.Keys(time.Second),
+},
+```
+
+### With other effects
+
+A [`Pause`](/reel/effects#pause-and-holdlast) shows the keys as they were when it started, and the keys pressed in what a [`Hide`](/reel/effects#hide) cuts are left out. The overlay shares the bottom right corner, so don't move a `Pause` badge there.
+
+The CLI's flag is [`--keys`](/cli/appearance#keys).
+
+## Toasts
+
+A terminal program can send a desktop notification, with OSC 9 or OSC 777. A recording has nowhere to show one, unless you use `effects.Toasts`.
+
+<Demo src="effect-toasts.webp" alt="The shop with a toast sliding in at the corner saying the tea is ready" cast="tour.cast" />
+
+```go
+Effects: []reel.Effect{effects.Toasts()},
+```
+
+A toast is a rounded panel with the title in bold over the body, each cut to 40 columns. It slides and fades in, stays, and fades out. Up to three show at once, stacked in a corner.
+
+| Option | Does |
+| --- | --- |
+| `WithToastCorner(c)` | Puts them in `TopLeft`, `TopRight` (the default), `BottomLeft`, or `BottomRight` |
+| `WithToastDuration(d)` | Sets how long each stays, fades included. The default is 2s. |
+| `WithClipboardToasts()` | Also shows "Copied to clipboard" when the program writes to the clipboard, without the text written |
+
+Only the notifications in the timeline's window are shown, and a [`Hide`](/reel/effects#hide) leaves out those that arrive in what it cuts.
+
+The CLI's flag is [`--toasts`](/cli/appearance#toasts).
+
+## Mouse
+
+Mouse input doesn't show in a terminal, so a recording of it looks like the program changing by itself. `effects.Mouse` draws it, from the mouse events in the timeline.
+
+<Demo src="effect-mouse.webp" alt="A pointer gliding across the shop to a row, with a ripple where it clicks" cast="tour.cast" />
+
+```go
+Effects: []reel.Effect{effects.Mouse()},
+```
+
+It draws a pointer that glides to each event's cell, a ripple where a button is pressed, a disc under the pointer while it's held, and a trail along a drag, which fades once the button is released. The pointer hides once the mouse is idle.
+
+| Option | Sets | Default |
+| --- | --- | --- |
+| `WithPointerStyle(s)` | `PointerArrow` or `PointerDot` | Arrow |
+| `WithPointerSize(px)` | The pointer's height, or a dot's diameter | A cell's height, or half that for a dot |
+| `WithPointerColor(c)` | Its fill | White |
+| `WithPointerGlide(d)` | How long it takes to reach a cell | 150ms |
+| `WithPointerHide(d)` | How long it stays after the last event | 1s |
+| `WithButtonColor(button, c)` | The ripples, disc, and trail of a button | Blue, green, and orange for left, middle, and right |
+| `WithMouseParts(p)` | Which of `MousePointer`, `MouseClicks`, and `MouseDrags` to draw | All |
+
+A session only sends a mouse event if the program asked for it, so events the program never saw aren't drawn either. If the pointer doesn't show, check that your program [enabled the mouse](/steep/input#your-program-must-ask-for-the-mouse).
+
+The CLI's flag is `--mouse`, and [`_examples/reel-mouse`](https://github.com/lrstanley/steep/blob/master/_examples/reel-mouse/main.go) has more.
+
+## Intro and Outro
+
+<Demo src="effect-cards.webp" alt="A card reading The Tea Shop, the recording, then a card reading Thanks for watching" />
+
+```go
+Effects: []reel.Effect{
+	effects.Intro(1200*time.Millisecond,
+		effects.Line{Text: "The Tea Shop"},
+		effects.Line{Text: "a reel recording"},
+	),
+	effects.Outro(1200*time.Millisecond, effects.Line{Text: "Thanks for watching"}),
+},
+```
+
+`Intro` shows a card before the first frame. Without lines, the card is the recording's title in bold, and a recording without a title gets no card.
+
+`Outro` shows a card after the last. Without lines, it shows nothing. `OutroFunc` takes a function that's given the grid the card is laid out on, to show only as much as fits.
+
+A duration of zero or less is no card, and `Profile.Speed` doesn't scale either.
+
+### Lines
+
+A `Line` is text and a [`vt.Style`](https://pkg.go.dev/github.com/lrstanley/steep/reel/vt#Style). Text is drawn as is, so escape sequences aren't interpreted, and text that doesn't fit is cut off. Cards use the renderer's default colors, not ones the program set, so every card in a recording looks the same. On terminals larger than 80 by 24, the text is larger than the terminal's, so it stays readable when the recording is scaled down.
+
+### Drawing your own cards
+
+`effects.NewCardRenderer` draws cards for [your own effects](/reel/custom-effects).
+
+### In steep
+
+[`steep.Logo` and `steep.Outro`](/steep/recording#logo-and-outro) are built on these. `steep.Outro` shows the test's result.
+
+The CLI's flags are `--intro DUR`, `--intro-line TEXT`, `--outro DUR`, and `--outro-line TEXT`.
+
+## Pause and HoldLast
+
+<Demo src="effect-pause.webp" alt="The shop pausing on the filtered list with a pause badge, then again at the end" />
+
+```go
+Effects: []reel.Effect{
+	effects.Pause(
+		effects.PauseAtMarks(900*time.Millisecond, "filter:typed"),
+		effects.PauseAtEnd(time.Second),
+	),
+},
+```
+
+`Pause` freezes the frame at each of the points you give it, and the recording grows by that long. Without any, it pauses for a second at the end.
+
+| Option | Pauses |
+| --- | --- |
+| `PauseAtEnd(d)` | After the last terminal frame |
+| `PauseAtMarks(d, labels...)` | At each mark with one of those labels, or every mark without any |
+| `PauseAtMatch(d, re)` | At each mark whose label matches |
+
+Pauses aren't scaled by `Profile.Speed`. A label that names no mark in the window is reported as a `NoMarkError` after the outputs are written. In steep, `failure:n` marks are an exception, so a profile can pause on `failure:1` whatever the result.
+
+### The badge
+
+Each pause shows a badge: two bars on a translucent disc, so it reads as paused rather than frozen, and a looping recording's end reads as finished.
+
+| Option | Sets |
+| --- | --- |
+| `WithBadgeCorner(c)` | The corner. The default is `TopRight`. `BottomRight` overlaps [`Keys`](/reel/effects#keys). |
+| `WithBadgeColor(c)` | The bars' color |
+| `WithBadgeSize(px)` | Its diameter |
+| `WithoutBadge()` | No badge |
+
+A recording that plays once stays on its last frame, badge and all, so a profile with `loop=once` may want `WithoutBadge`.
+
+### HoldLast
+
+`effects.HoldLast(d)` plays the last terminal frame for at least `d`, with no badge. A last frame that isn't the terminal's, such as a card, is left alone, so it holds the screen before an `Outro`'s card. The speed doesn't scale it.
+
+The CLI's flags are `--pause`, `--pause-at MARK`, and `--hold-last DUR`.
+
+## Highlight
+
+<Demo src="effect-highlight.webp" alt="The shop dimmed except for the row being brewed, during the brew" />
+
+```go
+Effects: []reel.Effect{
+	effects.Highlight(
+		effects.Regexp(regexp.MustCompile(` Oolong.*3m `)),
+		effects.Between("brew:start", "brew:done"),
+		effects.DimOthers(0.6),
+		effects.Ease(200*time.Millisecond),
+	),
+},
+```
+
+`Highlight` darkens everything outside a [region](/reel/effects#regions), and can outline it. The region is matched on each frame, so a `Text` region follows its text.
+
+| Option | Sets | Default |
+| --- | --- | --- |
+| `DimOthers(factor)` | How much to darken, from 0, unchanged, to 1, black. Window chrome and margins are included. | 0.5 |
+| `Outline(c, px)` | A border around each rectangle of cells. A nil `c` is a warm yellow, and a `px` of zero is an eighth of a cell's height. | None |
+| `Padding(px)` | How many pixels around the cells stay undimmed | A third of a cell's width |
+| [`Between`, `Ease`, `EaseIn`, `EaseOut`](/reel/effects#timing) | When it's on | The whole recording |
+
+The CLI's flag is [`--highlight`](/cli/effects), and [`_examples/reel-highlight`](https://github.com/lrstanley/steep/blob/master/_examples/reel-highlight/main.go) has a larger example.
+
+## Zoom
+
+<Demo src="effect-zoom.webp" alt="The view easing in on the status area while a tea brews, then easing back out" />
+
+```go
+Effects: []reel.Effect{
+	effects.Zoom(
+		effects.Cells(image.Rect(1, 10, 38, 14)),
+		effects.Between("brew:start", "brew:done"),
+		effects.Ease(250*time.Millisecond),
+	),
+},
+```
+
+`Zoom` shows a [region](/reel/effects#regions) larger, inside the same grid. Everything around the grid, such as window chrome, is kept, so the image keeps its size. Easing moves smoothly between the whole grid and the zoom.
+
+| Option | Sets | Default |
+| --- | --- | --- |
+| `Scale(factor)` | How many times larger | As large as fits, with a cell of margin on every side |
+| `Anchor(x, y)` | Where the region sits, as a fraction of the grid. `(0, 0)` is the top left. | Centered: `(0.5, 0.5)` |
+| [`Between`, `Ease`, `EaseIn`, `EaseOut`](/reel/effects#timing) | When it's on | The whole recording |
+
+The zoomed cells are drawn again at the larger scale, so text stays sharp. That needs the recording's rasterizer to be a `render.Renderer`, which it is by default. With one of your own, the frame's image is scaled up instead.
+
+A zoom holds the part of the screen its region matched when it started, wherever the text moves after. It never shows past the edges of the terminal, so a region near one is drawn nearer it than its anchor asks.
+
+Since zooms draw from the cells, they cover what effects before them drew.
+
+The CLI's flag is [`--zoom`](/cli/effects), and [`_examples/reel-zoom`](https://github.com/lrstanley/steep/blob/master/_examples/reel-zoom/main.go) has a larger example.
+
+## Hide
+
+<Demo src="effect-hide.webp" alt="The shop's tour with the filtering cut out, jumping from the menu to the next step" />
+
+```go
+Effects: []reel.Effect{
+	effects.Hide(effects.HideBetween("filter:start", "filter:done")),
+},
+```
+
+`Hide` cuts parts of the recording out of playback, so it's shorter by them. A frame is hidden while any rule hides it.
+
+| Rule | Hides |
+| --- | --- |
+| `HideBetween(hideLabel, showLabel)` | Each span from a mark to the next `showLabel` after it. An empty `hideLabel` starts hidden, and an empty `showLabel` hides the rest. |
+| `HideWhile(region)` | Each frame on which a [region](/reel/effects#regions) covers a cell, such as a password prompt |
+| `HideUnless(region)` | Each frame on which it doesn't, such as until the first prompt shows |
+
+Hiding from the start is how to skip setup. Nothing shows of it, not even a first frame:
+
+```go
+s.Mark("setup:done")
+
+effects.Hide(effects.HideBetween("", "setup:done"))
+```
+
+This is what `Hide` and `Show` do in a VHS tape.
+
+### Rules
+
+- Without a show mark after a span starts, the span runs to the end. A missing mark is a `NoMarkError`, and the outputs are still written.
+- A recording it cuts entirely is an error from the export.
+- Stills of marks show their marks whether `Hide` cuts them or not.
+
+`Hide` is a cutter, so it can't be combined with a `.cast` output, which would still hold what's cut. That's an error wrapping `reel.ErrRawOutput`.
+
+To cut a window out rather than the parts around it, use [`Timeline.Between`](/reel/exporting#cuts).
+
+The CLI's flag is [`--hide FROM,TO`](/cli/effects).

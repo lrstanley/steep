@@ -1,0 +1,58 @@
+---
+title: Configuration and exit codes
+description: Flags, environment variables, and tape settings, which one wins, and what the exit codes mean.
+---
+
+There's no configuration file. A tape configures a demo, and flags and environment variables configure a run. For `reel run`, a setting is taken from the first of:
+
+1. A flag, such as `--theme`
+2. Its environment variable, such as `REEL_THEME`
+3. The tape's `Set`, such as `Set Theme`
+4. The default, which is VHS's for tapes, and reel's otherwise
+
+| Flag | Environment | Tape setting |
+| --- | --- | --- |
+| `--theme NAME\|FILE\|JSON` | `REEL_THEME` | `Theme` |
+| `--font FAMILY[,FAMILY...]` | `REEL_FONT` | `FontFamily` |
+| `--font-size PX` | `REEL_FONT_SIZE` | `FontSize` |
+| `--letter-spacing PX` | | `LetterSpacing` |
+| `--line-height X` | | `LineHeight` |
+| `--padding PX` | `REEL_PADDING` | `Padding` |
+| `--margin PX` | `REEL_MARGIN` | `Margin` |
+| `--margin-fill #RRGGBB` | `REEL_MARGIN_FILL` | `MarginFill` |
+| `--radius PX` | `REEL_RADIUS` | `BorderRadius` |
+| `--[no-]chrome` | `REEL_CHROME` | `WindowBar` |
+| `--fps N` | `REEL_FPS` | `Framerate` |
+| `--speed X` | `REEL_SPEED` | `PlaybackSpeed` |
+| `--title TEXT` | | `Title` |
+| `--[no-]keys` | `REEL_KEYS` | `KeyOverlay` |
+| `--[no-]toasts` | `REEL_TOASTS` | `Toasts` |
+| `--[no-]scrollbar` | | `Scrollbar` |
+| `--[no-]prompt-marks` | | `PromptMarks` |
+| `--[no-]link-underline` | | `LinkUnderline` |
+| `--[no-]bell` | | `Bell` |
+
+## Other environment variables
+
+| Variable | Is |
+| --- | --- |
+| `REEL_SESSION` | The session to drive |
+| `REEL_RUNTIME_DIR` | Where session sockets live. The default is `$XDG_RUNTIME_DIR/reel`. |
+
+## Flags for each command
+
+| Group | Flags | Commands |
+| --- | --- | --- |
+| [Outputs](/cli/outputs) | `-o`, `--var` | `run`, `rec`, `export`, `attach`, `session export`, `session stop` |
+| [Appearance](/cli/appearance) | The table above | The same, plus `still` and `session still` |
+| [Effects](/cli/effects) | `--intro`, `--intro-line`, `--outro`, `--outro-line`, `--pause`, `--pause-at`, `--hold-last`, `--mouse`, `--hide`, `--highlight`, `--zoom`, `--redact`, `--redact-env`, `--redact-regexp` | The same as outputs |
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| 0 | Success |
+| 1 | An error |
+| 3 | A `session wait` timed out, or a `reel test` tape failed |
+| 4 | No such session |
+| 80 | Invalid command-line usage |

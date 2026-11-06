@@ -1,0 +1,191 @@
+---
+title: Tapes
+description: Script a recording with a VHS tape, every command and setting a tape can use, and coming from VHS.
+---
+
+A demo recorded by hand goes out of date, and you have to do it again. A tape is a script for one, so it can be regenerated.
+
+```tape title="demo.tape"
+Set Shell "bash"
+Set Columns 72
+Set Rows 16
+Set TypingSpeed 60ms
+Set Theme "Catppuccin Mocha"
+
+Output demo.gif
+Output demo.cast
+
+Type "teashop" Enter
+Wait+Screen "Sencha"
+Sleep 400ms
+
+Down Sleep 250ms
+Down Sleep 250ms
+Type "/green" Sleep 400ms
+Escape Sleep 250ms
+
+Down Sleep 250ms
+Mark "brew:start"
+Enter
+Wait+Screen "Matcha is ready"
+Mark "brew:done"
+Sleep 1s
+Type "q"
+```
+
+```console
+$ reel run demo.tape
+demo.tape: wrote demo.gif
+demo.tape: wrote demo.cast
+```
+
+<Demo src="cli-tape.webp" alt="A recording made from the tape" cast="cli-tour.cast" />
+
+## Waiting
+
+`Wait` is what makes a tape reliable, since it doesn't depend on how fast the program is:
+
+| Command | Waits for |
+| --- | --- |
+| `Wait` | The prompt, by default `/>$/`, on the cursor's line |
+| `Wait /pattern/` | A regular expression on the cursor's line |
+| `Wait "text"` | Text on the cursor's line. This one is reel's own. |
+| `Wait+Screen "text"` | Text anywhere on the screen |
+| `Wait+Line /pattern/` | On the cursor's line, explicitly |
+| `Wait@10s "text"` | With a timeout for this command |
+
+A full-screen program doesn't keep its text on the cursor's line, so `Wait+Screen` is usually what you want for one.
+
+`Set WaitTimeout 30s` sets the timeout for a whole tape, and `Set WaitPattern` sets the default pattern.
+
+## Marks
+
+`Mark` names a moment, for [effects](/cli/effects) and for cutting later. Quote a label that has a `:` in it:
+
+```tape
+Mark "brew:start"
+```
+
+## Setup
+
+`Hide` stops the recording, and `Show` starts it again, for building or setting up what the viewer doesn't need to see:
+
+```tape
+Hide
+Type "cd demo && make build" Enter
+Wait
+Show
+```
+
+## Outputs
+
+`Output` in a tape sets where it writes. `-o` replaces those, and it's the way to render one tape many ways:
+
+```console
+reel run demos/*.tape -o 'out/{tape}.gif' --theme "Catppuccin Mocha" --keys
+```
+
+`{tape}` is the tape's name. A `Screenshot` in the tape is kept regardless. See [Outputs](/cli/outputs).
+
+## Tapes you didn't write
+
+A tape can run anything your shell can. For one you don't trust, deny the commands that reach outside it:
+
+```console
+reel run untrusted.tape --deny Env,Source,Require --skip Screenshot
+```
+
+`--deny` makes tapes that use those commands fail, and `--skip` ignores them.
+
+## Tape language
+
+Tapes use the syntax of [VHS](https://github.com/charmbracelet/vhs). Commands and their arguments are separated by whitespace, newlines included, and `#` starts a comment. A token is a word, a string quoted with `"`, `'`, or `` ` ``, a number with an optional unit such as `500ms`, a regular expression between slashes, or JSON between braces.
+
+### Commands
+
+| Command | Does |
+| --- | --- |
+| `Output PATH` | Sets where to write. `-o` replaces these. |
+| `Require PROGRAM` | Fails unless a program is installed |
+| `Source TAPE` | Runs another tape's commands |
+| `Set NAME VALUE` | Changes a setting |
+| `Env NAME VALUE` | Sets an environment variable |
+| `Type[@SPEED] "TEXT"` | Types text |
+| `Sleep DUR` | Waits for a while |
+| `Enter`, `Space`, `Backspace`, `Delete`, `Insert`, `Tab`, `Escape` | Presses a key. Each takes a count. |
+| `Up`, `Down`, `Left`, `Right`, `PageUp`, `PageDown`, `Home`, `End` | Presses a key. Each takes a count. |
+| `Ctrl+KEY`, `Alt+KEY`, `Shift+KEY` | Presses a combination |
+| `ScrollUp`, `ScrollDown` | Scrolls |
+| `Hide`, `Show` | Stops and resumes the recording |
+| `Wait[+Screen\|+Line][@TIMEOUT] [PATTERN]` | Waits for the screen. See [Waiting](/cli/tapes#waiting). |
+| `Screenshot PATH` | Writes a PNG of this moment |
+| `Copy "TEXT"`, `Paste` | Uses the clipboard |
+
+reel adds these:
+
+| Command | Does |
+| --- | --- |
+| `Mark LABEL` | Places a mark. Quote a label that holds a `:`. |
+| `Highlight "SPEC"`, `Zoom "SPEC"`, `Redact "SPEC"` | Applies an [effect](/cli/effects#spec) |
+| `Snapshot NAME` | Compares the screen with `testdata/<tape>/NAME.snap`, in `reel test` only |
+
+### Settings
+
+The ones in the [configuration table](/cli/configuration) can also be set from a flag, and these only in a tape:
+
+| Setting | Is |
+| --- | --- |
+| `Shell` | The shell to run. `bash`, `zsh`, `fish`, and more. |
+| `Width`, `Height` | The image's size in pixels, which the screen is fitted to |
+| `Columns`, `Rows` | The screen's size in cells, instead |
+| `TypingSpeed` | The default pause after each key typed |
+| `WaitTimeout` | How long a `Wait` may take. The default is 15s. |
+| `WaitPattern` | What a plain `Wait` looks for |
+
+`--deny` and `--skip` fail or ignore any command, including reel's.
+
+## Coming from VHS
+
+`reel run` reads [VHS](https://github.com/charmbracelet/vhs) tapes, so yours should run as they are. It doesn't need a browser or `ttyd`, since it draws with its own renderer.
+
+```console
+reel run demo.tape
+```
+
+### What's not supported
+
+It runs every VHS command and setting, except:
+
+- `LoopOffset`
+- Frame-directory outputs, and `.txt` or `.ascii` outputs
+- The `ksh` shell
+
+And some are treated differently, each with a warning:
+
+- `WindowBar` styles are all drawn as `Colorful`.
+- `WindowBarSize` is ignored.
+- `CursorBlink false` is ignored.
+
+### What it adds
+
+| Addition | Means |
+| --- | --- |
+| `Set Columns N`, `Set Rows N` | The screen in cells, instead of fitting `Width` and `Height` |
+| `Set Title` | The recording's title |
+| `Set Scrollbar`, `PromptMarks`, `LinkUnderline`, `Bell` | Terminal [indicators](/reel/rendering#terminal-indicators) |
+| `Set KeyOverlay`, `Toasts` | The [key overlay and toasts](/cli/appearance) |
+| `Mark LABEL` | A mark, for `between=`, `--pause-at`, `--hide`, or `?marks=` |
+| `Home` | The Home key |
+| `Wait "text"` | `Wait` for a string as is, as well as a `/regexp/` |
+| `Highlight "SPEC"`, `Zoom "SPEC"`, `Redact "SPEC"` | [Effects](/cli/effects), as their flags take them |
+| `Snapshot NAME` | Compares the screen, in [`reel test`](/cli/test) only |
+
+### Configuration
+
+There's no configuration file. A tape configures a demo, and flags and environment variables configure a run. See [Configuration](/cli/configuration).
+
+### Good things to try
+
+- `-o` renders a tape many ways, without editing it.
+- Exports are replays, so writing a `.cast` means you can [change the look later](/cli/edit-recordings) without running the tape again.
+- `reel test` turns a tape into a test.

@@ -1,0 +1,56 @@
+---
+title: Troubleshooting
+description: Common errors from the reel command, and how to fix them.
+---
+
+## A tape's Wait times out
+
+The message shows what it looked for, and the screen it last saw. Look for `on the cursor line` in it:
+
+```text
+tape: demo.tape:11:1: wait for /Sencha/ on the cursor line timed out after 15s; the screen was:
+```
+
+A plain `Wait` looks at the cursor's line. A full-screen program leaves its cursor somewhere else, so use `Wait+Screen`:
+
+```tape
+Wait+Screen "Sencha"
+```
+
+If it's only slow, `Set WaitTimeout 60s`, or `Wait@60s` for one command.
+
+## `unexpected character ':'`
+
+A label with a `:` has to be quoted, as in `Mark "brew:start"`.
+
+## `no outputs; add one with -o`
+
+`reel export`, and other commands that render, need to be told what to write. Add `-o demo.gif`.
+
+## A theme doesn't change anything
+
+Themes set ANSI colors and defaults. Colors a program sets in 24-bit stay as they are. A recording can also have stored colors, which a later `--theme` doesn't override. Pass `--theme` when you record. See [The recording's colors](/reel/rendering#the-recordings-colors).
+
+## A `.cast` can't be written with these effects
+
+A `.cast` holds the raw recording, so `--redact*`, `--hide`, or a tape's `Hide` or `Redact` can't apply to it. Write it in a separate run, without them. A tape that uses `Hide` can't write a `.cast` at all, so take the `Hide` out if you need one.
+
+## The last frame is just my shell
+
+The recording ran until the program quit. Cut it with `--between ,mark`, using a mark from before it quit:
+
+```console
+reel export in.cast --between ,brew:done -o out.png
+```
+
+## ffmpeg
+
+MP4, WebM, and WebP need ffmpeg on your `PATH`. See [what to check](/reel/troubleshooting#ffmpeg).
+
+## A session isn't found
+
+The exit code is [4](/cli/configuration#exit-codes). `reel s list` shows what's running. A session goes away `--linger` after its program exits, 10 minutes by default. If several are running, name one with `-s` or `REEL_SESSION`.
+
+## Icons are boxes
+
+Use a [Nerd Font](https://www.nerdfonts.com) with `--font`. `reel fonts` lists what's installed.

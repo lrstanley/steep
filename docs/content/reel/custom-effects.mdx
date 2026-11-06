@@ -1,0 +1,89 @@
+---
+title: Custom effects
+description: Write your own effect, and the interfaces that let it work with the rest.
+---
+
+An effect is a value with a `Start` method. `Start` is called once per export, and returns a stage. The stage gets each frame in order, and emits what to keep.
+
+```go
+type Effect interface {
+	Start(ctx *reel.Context) (reel.Stage, error)
+}
+
+type Stage func(f reel.Frame, emit func(reel.Frame))
+```
+
+A stage can emit the frame itself to keep it, nothing to drop it, a changed copy, or several to insert or expand. Here's one that dims every frame during a window:
+
+```go
+type dim struct{ from, to time.Duration }
+
+func (d dim) Start(*reel.Context) (reel.Stage, error) {
+	return func(f reel.Frame, emit func(reel.Frame)) {
+		if f.Cells == nil || f.At < d.from || f.At >= d.to {
+			emit(f)
+			return
+		}
+		out := *f.Image
+		out.Pix = bytes.Clone(f.Image.Pix) // Frames may share an image, so draw on a copy.
+		for i := 0; i < len(out.Pix); i += 4 {
+			out.Pix[i], out.Pix[i+1], out.Pix[i+2] = out.Pix[i]/2, out.Pix[i+1]/2, out.Pix[i+2]/2
+		}
+		f.Image = &out
+		f.Isolated = true // It has its own GIF palette, as a recolored frame should.
+		emit(f)
+	}, nil
+}
+```
+
+## Priority
+
+Effects [run by priority](/reel/effects#order). Without one, yours runs at `reel.PriorityDefault`, after the overlays and before the cards. To run somewhere else, add a `Priority` method:
+
+```go
+func (dim) Priority() int { return reel.PriorityHighlight + 10 } // Dims a highlight too, and no overlay.
+```
+
+## Frames
+
+| Field | Is |
+| --- | --- |
+| `Image` | The pixels. Neighboring frames may share it, so treat it as read-only and draw on a copy. |
+| `Cells` | The terminal it was drawn from, or nil for an inserted frame, such as a card. Leave those alone. |
+| `At` | The timeline offset it shows |
+| `Delay` | How long it plays |
+| `Paused` | It's a pause. Don't split it, and keep the flag when copying. |
+| `First`, `Last` | The first and last frame a stage is given |
+| `Isolated` | Gives the frame its own GIF palette, for cards and recolored frames |
+
+## Context
+
+`Start` gets a `*reel.Context`:
+
+| Field | Is |
+| --- | --- |
+| `Timeline` | The timeline being recorded |
+| `Live` | Whether it's growing, as for `Record` |
+| `Rasterizer`, `Layout`, `Render` | How frames are drawn, so an effect can draw matching images |
+| `Step` | The delay grid. Effects that expand a frame should split it on multiples of this. |
+| `Speed`, `Title`, `Meta` | From the profile |
+| `OnClose(fn)` | Runs after the last frame, such as to report a missing mark |
+| `SetValue`, `Value` | Passes values between effects |
+
+Keep per-recording state in the stage, not the effect. Then one effect value can be shared by parallel recordings.
+
+## Optional interfaces
+
+| Interface | Declares | Means |
+| --- | --- | --- |
+| `reel.Concealer` | `Conceals() bool` | It hides something, so it runs first (a priority that puts it after other effects is an export error), can't be combined with `.cast`, and runs on stills |
+| `reel.Cutter` | `Cuts() bool` | It cuts stretches out, so it runs after the concealers, and can't be combined with `.cast` |
+| `reel.StillEffect` | `Stills() bool` | It also runs on the stills of marks |
+| `reel.Describer` | `Describe() (Annotation, error)` | It's recorded in `.cast` outputs, so an export of the file can apply it again |
+| `reel.MarkChecker` | | It names marks, so a file never names marks it doesn't have |
+
+A wrapping effect should have an `Unwrap() Effect` method, so a wrapped priority, concealer, cutter, or still effect is still found.
+
+## Drawing
+
+`effects.NewCardRenderer(ctx)` draws lines of text on a blank terminal that matches the recording's frames, for [cards](/reel/effects#intro-and-outro) of your own. `steep.Logo` is an effect like this, in [`effects.go`](https://github.com/lrstanley/steep/blob/master/effects.go).

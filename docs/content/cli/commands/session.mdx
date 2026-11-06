@@ -1,0 +1,80 @@
+---
+title: reel session
+description: Drive a program in a detached, recorded terminal, one command at a time.
+---
+
+```console
+reel session [-s NAME] [--json] <command>
+reel s <command>
+```
+
+See [Drive programs from scripts and agents](/cli/sessions) for how they fit together.
+
+| Flag | Is |
+| --- | --- |
+| `--session`, `-s` | The session to drive, which defaults to the only one running. Also `REEL_SESSION`. |
+| `--json` | Prints responses, and errors, as JSON |
+
+## start
+
+```console
+reel s start [--name NAME] [--size COLSxROWS] [--env KEY=VALUE] [--dir DIR] [--linger DUR] -- <command> ...
+```
+
+Starts a program in a new session, and prints its name. The name defaults to the program's, made unique. The size defaults to `80x24`, and `--linger`, how long it stays up after the program exits, to `10m`.
+
+## list
+
+`reel s list` lists the running sessions. Its alias is `ls`.
+
+## type
+
+`reel s type <text> [--enter] [--delay DUR]` types text. `--enter` presses enter after it, and `--delay` pauses after each key, so a recording shows it typed.
+
+## key
+
+`reel s key <keys> ... [--repeat N] [--delay DUR]` presses keys in order, such as `enter`, `ctrl+c`, `shift+tab`, `f5`, or `a`.
+
+## paste
+
+`reel s paste <text>` pastes text.
+
+## click
+
+`reel s click <x> <y> [--button left|middle|right]` clicks a cell, from 0.
+
+## scroll
+
+`reel s scroll <rows> [--down]` scrolls the viewport up into the scrollback, or with `--down`, toward the screen.
+
+## resize
+
+`reel s resize <COLSxROWS>` resizes the terminal.
+
+## mark
+
+`reel s mark <label>` marks this moment in the recording, by convention as `category:value`.
+
+## wait
+
+`reel s wait` waits for the screen to show, or stop showing, something. It needs one of `--text`, `--regexp`, `--gone`, or `--idle`. See [Waiting](/cli/sessions#waiting).
+
+## screen
+
+`reel s screen [--format text|json]` prints the screen. `json` is its cells, styles, and cursor.
+
+## still
+
+`reel s still -o FILE` renders the screen as it is now: `.png`, `.snap`, or `.json`. It takes the [appearance flags](/cli/appearance).
+
+## do
+
+`reel s do <tape>` runs tape commands, such as `Type`, `Enter`, and `Wait`, from a file, or `-` for standard input. The tape's settings and outputs are ignored.
+
+## export
+
+`reel s export -o FILE` renders what the session has recorded so far. It takes the [outputs](/cli/outputs), [appearance flags](/cli/appearance), and [effects](/cli/effects).
+
+## stop
+
+`reel s stop [-o FILE]` ends the program and the session, rendering its recording first if you give outputs. A failed render leaves the session running, so its recording isn't lost.

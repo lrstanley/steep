@@ -1,0 +1,65 @@
+---
+title: Running in CI
+description: Run steep tests in CI, keep recordings of failures, and update snapshots.
+---
+
+steep tests are ordinary Go tests, so `go test ./...` is enough. The rest of this page is about getting a recording when one fails.
+
+## GitHub Actions
+
+Record failures to one directory, and upload it if the job fails:
+
+```yaml title=".github/workflows/test.yml"
+- name: Test
+  run: go test ./...
+  env:
+    STEEP_EXPORT_MODE: failure
+    STEEP_EXPORT: "{name}.gif?max-bytes=5MB,{name}.cast"
+    STEEP_EXPORT_DIR: ${{ github.workspace }}/steep-artifacts
+    STEEP_TIMEOUT: 30s
+
+- name: Upload recordings
+  uses: actions/upload-artifact@v7
+  if: failure()
+  with:
+    name: steep-recordings
+    path: steep-artifacts
+    if-no-files-found: ignore
+```
+
+`STEEP_EXPORT_DIR` is absolute because a relative one is per package. The [configurator](/steep/configurator) writes this for your choices.
+
+## Choosing what to keep
+
+- **`.cast`** is small, needs nothing else, and has everything: use the [inspector](/steep/debugging#step-through-a-failure-in-the-inspector) on it, or render it later with any effects.
+- **`.gif`** can be watched right away, with no tools. `max-bytes` keeps it from growing too large.
+- **`.mp4`, `.webm`, `.webp`** need ffmpeg on the runner.
+
+Add `STEEP_SOURCE: "on"` to link failures in the inspector back to their lines, and `STEEP_RECORD_MESSAGES: "on"` if you're debugging model behavior. Mind that messages can hold secrets, and artifacts are visible to anyone who can see the run.
+
+## Secrets
+
+A recording holds everything your program drew, and a `.cast` holds every key typed. Your program sees the variables you give it, and with [`WithEnvVars`](/steep/harnesses#the-environment) or `NewExecHarness`, it can see the runner's whole environment. If a test handles a secret, either don't upload that test's recordings, or redact it in the [profile](/steep/recording#redacting-secrets).
+
+## Timeouts
+
+CI machines are slower and busier than yours. Raise steep's timeout with `STEEP_TIMEOUT`, and keep `go test -timeout` far above it, so a stuck test fails a wait and leaves a recording rather than being killed.
+
+## Updating snapshots
+
+Make sure CI never sets `UPDATE_SNAPSHOTS`, since a run that writes instead of compares can't fail. Update them locally, or in a job you run on purpose:
+
+```console
+UPDATE_SNAPSHOTS=true go test ./...
+git diff --stat testdata/
+```
+
+## The race detector
+
+Run with `-race` too. A model harness runs your program in the test's process, so races between your commands and your model will show up.
+
+```console
+go test -race -count 3 ./...
+```
+
+`-count` is an easy way to find flaky tests before CI does. Snapshots are fine with it: their numbering restarts for each run.

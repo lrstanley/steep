@@ -1,0 +1,147 @@
+---
+title: How it works
+description: What runs where when a test runs, what happens from start to cleanup, and what a recording holds.
+---
+
+steep does not have a terminal of its own. It's a test API on top of [reel](/reel), and reel owns the terminal, the recording, and the export.
+
+<Mermaid chart={`flowchart LR
+  T[Your test] -->|Key, Wait, Assert| H[steep Harness]
+  H -->|input| S[reel Session]
+  P[Your program] -->|output| S
+  S -->|input| P
+  S --> V[Terminal emulator]
+  S --> L[Timeline]
+  L -->|at Close, if asked| E[reel Export]
+  E --> F[GIF, WebP, MP4, .cast, .snap]
+  H -.->|reads the screen| V
+`} />
+
+## The parts
+
+**Your test** calls methods on a `steep.Harness`.
+
+**The harness** starts your program and connects it to a session. It turns your calls into input, runs waits and assertions against the screen, and adds what the test did to the recording. It knows about Bubble Tea, `testing.TB`, and snapshots. Nothing below it does.
+
+**The session** is `reel.Session`. It owns a terminal emulator, and it's the only path between your program and that terminal: the program writes output to it and reads input from it. It's the `Session` that makes the program think it's on a terminal.
+
+**The terminal emulator** is `reel/vt`, a build of [libghostty-vt](https://github.com/ghostty-org/ghostty) compiled to WebAssembly and translated to Go, so there's no cgo and nothing to install. It parses what your program writes and keeps the screen, which is what steep's waits and assertions read.
+
+**The timeline** is `reel.Timeline`, an append-only log of every byte the program wrote, every input sent, and every mark and annotation, each with a millisecond offset. Recording costs one copy of those bytes, so it doesn't slow your test.
+
+**The export** is `reel.Export`. It replays a timeline into a fresh terminal, draws frames, runs them through effects, and writes files. It runs after your test is done, and only if an [export policy](/steep/recording#when-artifacts-are-written) asks for it.
+
+## What each harness connects
+
+The harnesses differ only in how the program reaches the session:
+
+| Harness | The program runs | Connected through |
+| --- | --- | --- |
+| `NewHarness` | In your test's process, in a `tea.Program` | The session's reader and writer, as the program's input and output |
+| `NewComponentHarness` | The same, with your component wrapped in a model | The same |
+| `NewExecHarness` | In its own process | A pseudo-terminal, through `reel.Exec` |
+
+Everything after the session is the same, which is why the three share their waits, assertions, snapshots, and recordings. It's also why some methods are only on two of them: an exec harness has no model to `Mutate`, and no messages to wait for.
+
+## Why this design
+
+**A real program, not a simulation.** Your program runs in a `tea.Program` and writes real escape sequences. The emulator handles them the way a terminal does, so a test sees wrapped lines, wide characters, and alternate screens as they are.
+
+**The recording is the run.** An export replays the same bytes the test saw, and a `.cast` file holds all of them. Exporting the same `.cast` with the same profile writes the same GIF. So you can decide what a recording should look like after the test, or on another machine.
+
+**Deterministic exports, not deterministic runs.** Exports are reproducible, because they're replays. The run itself isn't: your program runs in real time on real goroutines. That's why a test [waits](/steep/checks#waiting-and-settling) for what it expects to see, instead of assuming the program has got there.
+
+## Harness lifecycle
+
+<Mermaid chart={`sequenceDiagram
+  participant T as Test
+  participant H as Harness
+  participant P as Program
+  T->>H: NewHarness
+  H->>P: Start in a session
+  P-->>H: First message
+  H-->>T: Harness (ready)
+  T->>H: Key, Wait, Assert...
+  H->>P: Input
+  P-->>H: Output
+  T-->>H: Test ends, cleanup runs Close
+  H->>P: Stop
+  H->>H: Export, if the policy says to
+`} />
+
+### Start
+
+`NewHarness` starts your model in a `tea.Program`, connected to a new session of 80 by 24 cells, or the size from `WithWindowSize`. It waits up to the [timeout](/steep/checks#waiting-and-settling) for the model's first message, then returns. If that doesn't come, the test fails there.
+
+`NewExecHarness` starts the command and returns at once, since a command has no first message to wait for. It's up to you to `Wait` for what it draws. If the command can't be started, the test fails.
+
+Both register `Close` as a test cleanup, so you don't have to call it. You can call it yourself to end the program partway through a test, and later calls do nothing.
+
+### Run
+
+Most methods are actions, and return the harness so you can chain them. Each action is marked in the timeline once it's done, as `input:1`, `wait:1`, and so on (see [Timeline and marks](/steep/how-it-works#timeline-and-marks)). [Hooks](/steep/debugging#hooks) run before and after each action.
+
+A failed `Assert` carries on. A failed `Require` or `Wait` stops the test with `FailNow`, which runs the cleanups, including `Close`. See [Assert vs Require vs Wait](/steep/checks).
+
+### End
+
+If your program quits on its own, `Close` has nothing to stop. To check how it ended, use one of these before the test ends:
+
+| Method | Waits for the program to finish, then |
+| --- | --- |
+| `WaitFinished` | Fails the test if it panicked, or returned an error other than `tea.ErrProgramKilled` |
+| `FinalModel` | Returns the root model |
+| `FinalModelAs[M]` | Returns the root model as `M`, failing the test if it isn't one |
+| `ExitStatus` | Returns a command's exit status (`NewExecHarness` only) |
+
+`Close` does this, in order:
+
+1. Places the `close:1` mark, which is where a recording ends. The program's repaint as it exits is left out.
+2. Stops the program. For a command, that kills it if it's still running.
+3. Exports, once, if the [export policy](/steep/recording#when-artifacts-are-written) says to. It knows by then whether the test failed.
+4. Releases the terminal.
+
+Since `Close` runs as a cleanup, a test that fails, calls `FailNow`, or panics still exports. A test killed by `go test -timeout`, or a panic on another goroutine, doesn't get that far and writes nothing.
+
+## Timeline and marks
+
+Everything your program draws and everything your test does goes into a [timeline](/reel/how-it-works#timelines-and-asciicast). You can read it during a test with `h.Timeline()`, and a `.cast` file is the same thing saved to disk.
+
+It holds [what the program wrote, what it was sent, and what happened to the terminal](/reel/how-it-works#events), along with marks, and annotations recording what the test did and found.
+
+### Marks
+
+A mark names a moment. The harness places one when each action is done, labeled with the event and a count: `input:2`, `wait:1`, `assert:3`. Each failure gets one too, as `failure:1`, numbered in the order they're reported.
+
+Marks are what make the rest of a recording addressable:
+
+- A [still](/steep/recording#stills) is one image per mark.
+- An effect can run `Between("input:3", "wait:2")`.
+- `effects.PauseAtMarks(2*time.Second, "failure:1")` pauses a recording on the first failure.
+- The [inspector](/steep/debugging#step-through-a-failure-in-the-inspector) lists them on its timeline.
+
+Place your own with `h.Mark("login:done")`, and see [Your own marks](/steep/debugging#marks) for the rules.
+
+#### When an action's mark lands
+
+While exporting, input, terminal, and program actions aren't marked the moment they're sent. The harness waits for the program to paint its response: until its output has been quiet for the `WithCheck` interval, or, if it writes nothing, for the `WithSettle` period, and at least 50ms. So a still at `input:2` shows the result of that input, not the screen before it.
+
+A response made later, such as by a command, might not be painted by then. If it matters, `Wait` for it and take the still at the wait's mark instead.
+
+### Annotations
+
+Annotations are what let a `.cast` file explain itself. steep records:
+
+| Kind | What it holds |
+| --- | --- |
+| `steep.start` | The harness's configuration |
+| `steep.ready`, `steep.exit` | The program's start and end |
+| `steep.input` | Each input |
+| `steep.terminal`, `steep.program` | Terminal changes and actions on the program |
+| `steep.wait.start`, `steep.wait.end` | Each wait and how it ended |
+| `steep.assert`, `steep.snapshot` | Each assertion and snapshot comparison, and its outcome |
+| `steep.failure` | Each failure |
+| `steep.message` | Each message the model receives, only with [`WithRecordMessages`](/steep/debugging#messages-and-source-lines) |
+| `steep.result` | The result |
+
+Text fields over 4 KiB are cut and marked as truncated. The format is described by [`annotation.schema.json`](https://github.com/lrstanley/steep/blob/master/reel/annotation.schema.json), and [Annotations](/reel/inspecting#annotations) has more on reading them.

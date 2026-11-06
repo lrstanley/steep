@@ -1,0 +1,26 @@
+{
+  "title": "Reel CLI",
+  "description": "Record and render without Go",
+  "root": true,
+  "pages": [
+    "---Start here---",
+    "index",
+    "quickstart",
+    "---Guides---",
+    "tapes",
+    "test",
+    "record",
+    "edit-recordings",
+    "sessions",
+    "---Features---",
+    "appearance",
+    "effects",
+    "outputs",
+    "---Commands---",
+    "...commands",
+    "---Help---",
+    "troubleshooting",
+    "---Reference---",
+    "configuration"
+  ]
+}

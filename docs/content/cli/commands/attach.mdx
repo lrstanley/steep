@@ -1,0 +1,21 @@
+---
+title: reel attach
+description: Render a script(1) typescript.
+---
+
+```console
+reel attach [flags] <typescript>
+```
+
+| Flag | Is |
+| --- | --- |
+| `--timing`, `-t` | The timing file (`script -t` or `-T`), for the output's times. Without it, the output is played at once. |
+| `--size COLSxROWS` | The size the typescript was recorded at. The default is `80x24`. |
+
+It also takes all of the [outputs](/cli/outputs), [appearance flags](/cli/appearance), and [effects](/cli/effects).
+
+```console
+$ reel attach typescript --timing timing -o out.gif
+```
+
+See [Render script(1) recordings](/cli/record#render-script1-recordings).

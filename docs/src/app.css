@@ -1,0 +1,720 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+@import "fumapress/css/preset.css";
+
+/*
+ * steep's brand (lrstanley/remotion, design/steep.md): pixel tea in a dark terminal, matcha on forest black, with
+ * sage for light mode. Tiny5 is for eyebrows and chips, Geist Mono for code and headings, and Geist for prose.
+ *
+ * Box-drawing and block glyphs come from JetBrains Mono, whose cells are as wide as Geist Mono's. Google Fonts leaves
+ * them out of its subsets, and a fallback font's neither line up nor join.
+ */
+@font-face {
+  font-family: "JetBrains Mono Symbols";
+  src: url("./assets/fonts/jetbrains-mono-symbols-400.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+  unicode-range: U+00B7, U+2022, U+2026, U+2190-2193, U+2500-259F, U+25C6;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Symbols";
+  src: url("./assets/fonts/jetbrains-mono-symbols-700.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+  unicode-range: U+00B7, U+2022, U+2026, U+2190-2193, U+2500-259F, U+25C6;
+}
+
+@theme {
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Symbols", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-pixel: "Tiny5", "Geist Mono", ui-monospace, monospace;
+  --default-font-family: var(--font-sans);
+}
+
+:root {
+  --color-fd-background: #eef3e7;
+  --color-fd-foreground: #17301f;
+  --color-fd-muted: #e0e9d7;
+  --color-fd-muted-foreground: #4d6650;
+  --color-fd-popover: #f6f9f1;
+  --color-fd-popover-foreground: #17301f;
+  --color-fd-card: #e8efe0;
+  --color-fd-card-foreground: #17301f;
+  --color-fd-border: #c4d3ba;
+  --color-fd-primary: #265825;
+  --color-fd-primary-foreground: #eef5e4;
+  --color-fd-secondary: #e0e9d7;
+  --color-fd-secondary-foreground: #17301f;
+  --color-fd-accent: #d3dfca;
+  --color-fd-accent-foreground: #17301f;
+  --color-fd-ring: #478235;
+  --fd-layout-width: 90rem;
+
+  --steep-chip: #265825;
+  --steep-chip-bg: #eef5e4;
+  --steep-pass: #1f5a23;
+  --steep-fail: #a3271f;
+  --steep-warn: #9a5d12;
+  --steep-grid: rgb(31 66 40 / 0.09);
+  --steep-glow: rgb(140 200 96 / 0);
+  --steep-panel: linear-gradient(180deg, rgb(246 249 241 / 0.94), rgb(233 240 226 / 0.94));
+  --steep-panel-border: rgb(26 69 30 / 0.16);
+  --steep-active: rgb(71 130 53 / 0.14);
+  --steep-rail: #478235;
+  --steep-hero: radial-gradient(900px 560px at 22% 26%, rgb(211 223 202 / 0.9) 0%, rgb(211 223 202 / 0.35) 50%, transparent 78%);
+}
+
+.dark {
+  --color-fd-background: #070c09;
+  --color-fd-foreground: #d6e6cb;
+  --color-fd-muted: #0f1c14;
+  --color-fd-muted-foreground: #8ba587;
+  --color-fd-popover: #0b150f;
+  --color-fd-popover-foreground: #d6e6cb;
+  --color-fd-card: #0b150f;
+  --color-fd-card-foreground: #d6e6cb;
+  --color-fd-border: #1d3024;
+  --color-fd-primary: #a6d86f;
+  --color-fd-primary-foreground: #0b150f;
+  --color-fd-secondary: #0f1c14;
+  --color-fd-secondary-foreground: #d6e6cb;
+  --color-fd-accent: #13281b;
+  --color-fd-accent-foreground: #d6e6cb;
+  --color-fd-ring: #a6d86f;
+
+  --steep-chip: #a6d86f;
+  --steep-chip-bg: #0b150f;
+  --steep-pass: #c9ec8a;
+  --steep-fail: #ff8f7f;
+  --steep-warn: #e3b86b;
+  --steep-grid: rgb(186 226 160 / 0.07);
+  --steep-glow: rgb(140 200 96 / 0.28);
+  --steep-panel: linear-gradient(180deg, rgb(20 36 27 / 0.92), rgb(11 20 15 / 0.92));
+  --steep-panel-border: rgb(170 214 140 / 0.16);
+  --steep-active: rgb(160 214 110 / 0.12);
+  --steep-rail: #a6d86f;
+  --steep-hero: radial-gradient(900px 560px at 22% 26%, rgb(19 40 27 / 0.9) 0%, rgb(19 40 27 / 0.35) 50%, transparent 78%);
+}
+
+code,
+pre,
+kbd {
+  tab-size: 4;
+}
+
+pre {
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+.prose :where(h1, h2, h3, h4):not(:where(.not-prose *)),
+#nd-page h1 {
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+}
+
+.prose :where(h2):not(:where(.not-prose *)) {
+  font-weight: 600;
+}
+
+/* Tables of flags and variables are wide; they scroll rather than crowd the prose. */
+.prose table code {
+  white-space: nowrap;
+}
+
+/* Mermaid diagrams are rendered to SVG at build time by Pele, themed with the Fumadocs tokens. */
+.pele {
+  --pele-bg: var(--color-fd-background);
+  --pele-fg: var(--color-fd-foreground);
+  --pele-muted: var(--color-fd-muted-foreground);
+  --pele-line: var(--color-fd-muted-foreground);
+  --pele-surface: var(--color-fd-card);
+  --pele-surface-alt: var(--color-fd-accent);
+  --pele-border: var(--color-fd-primary);
+  --pele-accent: var(--color-fd-primary);
+  --pele-font: var(--font-sans);
+  --pele-font-mono: var(--font-mono);
+  --pele-radius: 3px;
+}
+
+.steep-chip {
+  display: inline-block;
+  padding: 0.05rem 0.45rem 0.15rem;
+  border: 1px solid var(--steep-panel-border);
+  background: var(--steep-chip-bg);
+  color: var(--steep-chip);
+  font-family: var(--font-pixel);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.steep-eyebrow {
+  font-family: var(--font-pixel);
+  font-size: 1.05rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-fd-muted-foreground);
+}
+
+.steep-panel {
+  border: 1px solid var(--steep-panel-border);
+  border-radius: 3px;
+  background: var(--steep-panel);
+}
+
+/* Recordings and stills. */
+.demo {
+  margin-block: 1.5rem;
+}
+
+.demo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+  background: #0b150f;
+}
+
+.demo figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--color-fd-muted-foreground);
+}
+
+.demo-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  margin-block: 1.5rem;
+}
+
+.demo-grid .demo {
+  margin-block: 0;
+}
+
+/* The buttons of the flag preview, the cell viewer, and the configurator. */
+.steep-toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-border);
+}
+
+.steep-toggle button {
+  padding: 0.25rem 0.7rem;
+  background: var(--color-fd-card);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-fd-muted-foreground);
+  cursor: pointer;
+}
+
+.steep-toggle button[aria-pressed="true"] {
+  background: var(--color-fd-primary);
+  color: var(--color-fd-primary-foreground);
+}
+
+/* A JSON snapshot's cells. */
+.cells {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1ch);
+  width: max-content;
+  padding: 0.75rem;
+  background: var(--cells-bg, #000);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.35;
+  white-space: pre;
+}
+
+.cells button {
+  all: unset;
+  cursor: crosshair;
+}
+
+.cells button:hover,
+.cells button:focus-visible,
+.cells button[aria-current="true"] {
+  outline: 1px solid #a6d86f;
+  outline-offset: -1px;
+}
+
+/* A settle: the screen's changes along a line of time, and the quiet period that ends it. */
+.settle {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 1.5rem;
+  padding: 1rem;
+}
+
+.settle-row {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-fd-muted-foreground);
+}
+
+.settle-track {
+  position: relative;
+  height: 1.25rem;
+  background: var(--color-fd-muted);
+}
+
+.settle-track i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--steep-rail);
+}
+
+.settle-track b {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--steep-active);
+  border-inline: 1px dashed var(--steep-rail);
+  font-weight: 400;
+  text-align: center;
+  color: var(--color-fd-foreground);
+  white-space: nowrap;
+}
+
+/* Export configurator. */
+.configurator {
+  display: grid;
+  gap: 1.25rem;
+  margin-block: 1.5rem;
+  padding: 1.25rem;
+  font-size: 0.875rem;
+}
+
+.configurator fieldset {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.configurator legend {
+  margin-bottom: 0.4rem;
+  font-family: var(--font-pixel);
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-fd-muted-foreground);
+}
+
+.configurator label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.configurator input[type="text"],
+.configurator select {
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.configurator input[type="checkbox"] {
+  accent-color: var(--color-fd-primary);
+}
+
+.configurator-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+}
+
+.configurator-formats {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.configurator-format {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--color-fd-border);
+}
+
+.configurator-format > label:first-child {
+  width: 7rem;
+  font-family: var(--font-mono);
+}
+
+.configurator pre {
+  overflow-x: auto;
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  white-space: pre;
+}
+
+.configurator-notes {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--color-fd-muted-foreground);
+}
+
+/* The home page. */
+.home {
+  --home-width: 72rem;
+}
+
+/* The home layout insets its page, which would show the hero's glow as a box. */
+main:has(> .home) {
+  max-width: none;
+  padding: 0;
+}
+
+.home-hero {
+  position: relative;
+  overflow: hidden;
+  background: var(--steep-hero);
+}
+
+.home-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--steep-grid) 1px, transparent 1.2px);
+  background-size: 12px 24px;
+  mask-image: radial-gradient(900px 560px at 22% 26%, #000, transparent 78%);
+  pointer-events: none;
+}
+
+.home-hero-inner,
+.home-section {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2.5rem;
+  max-width: var(--home-width);
+  margin-inline: auto;
+  padding: 3.5rem 1rem;
+}
+
+@media (min-width: 60rem) {
+  .home-hero-inner {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    align-items: center;
+    padding-block: 5rem;
+  }
+}
+
+.home-hero h1 {
+  margin: 0.75rem 0 1.25rem;
+}
+
+.home-hero h1 img {
+  height: clamp(4rem, 9vw, 7rem);
+  width: auto;
+  filter: drop-shadow(0 0 28px var(--steep-glow));
+}
+
+.home-tagline {
+  font-family: var(--font-mono);
+  font-size: clamp(1.15rem, 2.2vw, 1.5rem);
+  line-height: 1.45;
+}
+
+.home-lede {
+  margin-top: 1rem;
+  max-width: 34rem;
+  color: var(--color-fd-muted-foreground);
+}
+
+.home-lede strong {
+  font-weight: 600;
+  color: var(--color-fd-foreground);
+}
+
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.75rem;
+}
+
+.home-button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
+.home-button:hover {
+  border-color: var(--color-fd-primary);
+}
+
+.home-button-primary {
+  border-color: var(--color-fd-primary);
+  background: var(--color-fd-primary);
+  color: var(--color-fd-primary-foreground);
+}
+
+.home-install {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 1.25rem;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-fd-muted-foreground);
+  cursor: pointer;
+}
+
+.home-install:hover {
+  color: var(--color-fd-foreground);
+}
+
+.home-install code {
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.home-install svg {
+  flex-shrink: 0;
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.home-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 0.75rem;
+  margin-bottom: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--steep-warn);
+}
+
+.home-notice .steep-chip {
+  border-color: var(--steep-warn);
+  color: var(--steep-warn);
+}
+
+.home-hero-demo img {
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+/* The test that drives the recording, each line lit in turn as the banner does. Eight steps of a 12 second loop. */
+.home-code {
+  margin-top: 0.75rem;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.75;
+}
+
+.home-code-bar {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0.75rem;
+  border-bottom: 1px solid var(--steep-panel-border);
+  font-family: var(--font-pixel);
+  letter-spacing: 0.08em;
+  color: var(--color-fd-muted-foreground);
+}
+
+.home-code-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-inline: 0.75rem;
+  border-left: 2px solid transparent;
+  white-space: pre;
+  animation: home-line 12s linear infinite;
+  animation-delay: calc(var(--step) * 1.3s);
+}
+
+.home-code-line .steep-chip {
+  opacity: 0.25;
+  font-size: 0.8rem;
+  animation: home-chip 12s linear infinite;
+  animation-delay: calc(var(--step) * 1.3s);
+}
+
+.home-pass {
+  color: var(--steep-pass);
+}
+
+@keyframes home-line {
+  0%, 10% { background: var(--steep-active); border-left-color: var(--steep-rail); }
+  11%, 100% { background: transparent; border-left-color: transparent; }
+}
+
+@keyframes home-chip {
+  0%, 80% { opacity: 1; }
+  88%, 100% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-code-line,
+  .home-code-line .steep-chip {
+    animation: none;
+  }
+
+  .home-code-line .steep-chip {
+    opacity: 1;
+  }
+}
+
+.home-section h2 {
+  font-family: var(--font-mono);
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.home-section-lede {
+  margin-top: 0.5rem;
+  max-width: 44rem;
+  color: var(--color-fd-muted-foreground);
+}
+
+.home-versus {
+  display: grid;
+  gap: 1px;
+  background: var(--color-fd-border);
+  border: 1px solid var(--color-fd-border);
+}
+
+.home-versus > div {
+  display: grid;
+  gap: 0.25rem 1.5rem;
+  padding: 0.85rem 1rem;
+  background: var(--color-fd-background);
+}
+
+@media (min-width: 48rem) {
+  .home-versus > div {
+    grid-template-columns: 11rem 1fr 1fr;
+  }
+}
+
+.home-versus dt {
+  font-weight: 600;
+}
+
+.home-versus dd {
+  font-size: 0.875rem;
+  color: var(--color-fd-muted-foreground);
+}
+
+.home-versus dd:last-child {
+  color: var(--color-fd-foreground);
+}
+
+.home-cards {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.home-card h3 {
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.home-card img {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+.home-card ul {
+  display: grid;
+  gap: 0.2rem;
+  margin-top: auto;
+  font-size: 0.875rem;
+}
+
+.home-card li a {
+  color: var(--color-fd-primary);
+  text-underline-offset: 3px;
+}
+
+.home-card li a:hover {
+  text-decoration: underline;
+}
+
+.home-split {
+  align-items: center;
+}
+
+@media (min-width: 60rem) {
+  .home-split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.home-split img {
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+.home-footer {
+  padding: 2rem 1rem 3rem;
+  border-top: 1px solid var(--color-fd-border);
+  font-size: 0.8125rem;
+  color: var(--color-fd-muted-foreground);
+}
+
+.home-footer > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  justify-content: space-between;
+  max-width: var(--home-width);
+  margin-inline: auto;
+}
+
+.home-showcase img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  border: 1px solid var(--steep-panel-border);
+}

@@ -1,0 +1,23 @@
+---
+title: reel export
+description: Render an asciicast file through reel's renderer and effects.
+---
+
+```console
+reel export [flags] <cast>
+```
+
+Reads an asciicast v2 or v3 file, or standard input with `-`, and writes each `-o`.
+
+| Flag | Is |
+| --- | --- |
+| `--between FROM,TO` | Only the window from the first mark `FROM` to the mark `TO` after it. Either may be empty, for the start or end. |
+| `--no-cast-effects` | Ignores the effects the file records |
+
+It also takes all of the [outputs](/cli/outputs), [appearance flags](/cli/appearance), and [effects](/cli/effects).
+
+```console
+$ reel export in.cast -o out.gif -o out.mp4 --between login,logout --intro 1s --pause
+```
+
+See [Edit existing recordings](/cli/edit-recordings).

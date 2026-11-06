@@ -1,0 +1,89 @@
+---
+title: Appearance
+description: Title bars, keys, toasts, themes, and fonts, turned on and off with flags.
+---
+
+These flags change how a recording is drawn, and they work on `run`, `export`, `attach`, `rec`, and session exports. Since an export is a replay, you can try them on a `.cast` as many times as you like. Each of these previews was made by `reel export` on one recording.
+
+## Chrome
+
+```console
+reel export in.cast -o out.png --chrome
+reel export in.cast -o out.png --no-chrome
+```
+
+<FlagPreview on="cli-chrome-on.png" off="cli-chrome-off.png" onLabel="--chrome" offLabel="--no-chrome" alt="The tea shop" />
+
+## Padding, margin, and corners
+
+```console
+reel export in.cast -o out.png --chrome --padding 24 --margin 24 --margin-fill "#0b150f" --radius 12
+```
+
+<Demo src="cli-padding.png" alt="The tea shop in a window with padding, a margin, and rounded corners" />
+
+## Keys
+
+`--keys` overlays the keys pressed.
+
+```console
+reel export in.cast -o out.webp --chrome --keys
+```
+
+<FlagPreview on="cli-keys-on.webp" off="cli-keys-off.webp" onLabel="--keys" offLabel="--no-keys" alt="The tea shop being driven" />
+
+## Toasts
+
+`--toasts` shows the program's notifications and clipboard writes as toasts.
+
+```console
+reel export in.cast -o out.webp --chrome --toasts
+```
+
+<FlagPreview on="cli-toasts-on.webp" off="cli-toasts-off.webp" onLabel="--toasts" offLabel="--no-toasts" alt="The tea shop brewing a tea" />
+
+## Themes
+
+`--theme` takes a name from [`reel themes`](/cli/commands/themes), in any case, a file of xterm.js theme JSON, or that JSON itself. Themes are the [bubbletint](https://github.com/lrstanley/bubbletint) catalog.
+
+```console
+reel run demo.tape --theme "Tokyo Night" -o out.png
+```
+
+<ThemeGrid />
+
+A theme sets a program's ANSI colors and defaults. It doesn't change the 24-bit colors a program chose, or colors a recording already set. A tape's run sets them for you, so use `--theme` on `reel run` rather than on a later `reel export`. See [The recording's colors](/reel/rendering#the-recordings-colors).
+
+## Fonts
+
+| Flag | Sets |
+| --- | --- |
+| `--font FAMILY[,FAMILY...]` | The first installed family in the list |
+| `--font-size PX` | The size, which sizes the image too |
+| `--letter-spacing PX` | Extra space between letters |
+| `--line-height X` | A multiple of the font's line height |
+
+[`reel fonts`](/cli/commands/fonts) lists them.
+
+## Terminal indicators
+
+| Flag | Draws |
+| --- | --- |
+| `--[no-]scrollbar` | A scrollbar, if there's scrollback |
+| `--[no-]prompt-marks` | A badge on a failed command's row, from OSC 133 |
+| `--[no-]link-underline` | An underline on OSC 8 hyperlinks |
+| `--[no-]bell` | A flash for the bell |
+
+[Terminal indicators](/reel/rendering#terminal-indicators) shows them.
+
+## Timing
+
+| Flag | Sets |
+| --- | --- |
+| `--fps N` | The frame rate. The default is 20. |
+| `--speed X` | Playback speed. 2 plays twice as fast. |
+| `--title TEXT` | The recording's title, for the window bar, intro card, and asciicast header |
+
+## All together
+
+Flags have environment variables too, and tapes have settings. See [Configuration](/cli/configuration).

@@ -1,0 +1,28 @@
+---
+title: reel run
+description: Run VHS tapes and write their outputs.
+---
+
+```console
+reel run [flags] <tapes> ...
+```
+
+Runs tapes in order, writing what their `Output` commands or `-o` say.
+
+| Flag | Is |
+| --- | --- |
+| `--deny COMMAND,...` | Makes tapes that use these commands fail, such as `Env,Source,Require` for tapes you don't trust |
+| `--skip COMMAND,...` | Ignores these commands, such as `Screenshot` |
+
+It also takes all of the [outputs](/cli/outputs), [appearance flags](/cli/appearance), and [effects](/cli/effects).
+
+```console
+$ reel run demo.tape
+demo.tape: wrote demo.gif
+demo.tape: wrote demo.cast
+
+$ reel run demos/*.tape -o 'out/{tape}.gif' --theme "Catppuccin Mocha" --keys
+$ reel run untrusted.tape --deny Env,Source,Require --skip Screenshot
+```
+
+See [Make demos from tapes](/cli/tapes), and the [tape language](/cli/tapes#tape-language).

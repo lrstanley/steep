@@ -1,0 +1,66 @@
+---
+title: Record your terminal
+description: Record a command or your shell as you use it, or render a recording from script(1).
+---
+
+`reel rec` runs a program in the terminal you're in, and records it. You use it as you normally would.
+
+```console
+reel rec -o demo.cast -o demo.gif -- htop
+```
+
+Without a command, it records your `$SHELL`. Exit the program to stop.
+
+The program runs in reel's emulator, and what it draws is shown in your terminal, so the recording has your terminal's size.
+
+## Marking moments
+
+Press `ctrl+]` then `m` to drop a mark while recording. Marks are what you cut and aim effects at later:
+
+```console
+reel export demo.cast --between mark:1,mark:2 -o part.gif
+```
+
+`ctrl+]` twice sends the key to the program, for those that use it. `--prefix` changes it:
+
+```console
+reel rec --prefix ctrl+g -o demo.cast
+```
+
+## Options
+
+`reel rec` takes all of the [outputs](/cli/outputs), [appearance flags](/cli/appearance), and [effects](/cli/effects). You can also decide later, which is usually better:
+
+```console
+reel rec -o demo.cast
+reel export demo.cast -o demo.webp --chrome --keys
+```
+
+## Secrets
+
+A `.cast` holds everything drawn and every key typed. If you might type a password while recording, don't share the file. To hide one in what you do share, see [Effects](/cli/effects#secrets).
+
+## Render script(1) recordings
+
+`script(1)` is on most Unix systems, so it's sometimes all you have. Record with a timing file, so the output has real times:
+
+```console
+script --log-out typescript --log-timing timing --command htop
+```
+
+Then render it:
+
+```console
+reel attach typescript --timing timing --size 80x24 -o out.gif
+```
+
+| Flag | Is |
+| --- | --- |
+| `--timing`, `-t` | The timing file. Without one, the output is played at once. |
+| `--size` | The size the typescript was recorded at, since it doesn't say. The default is 80x24. |
+
+All the [outputs](/cli/outputs), [appearance flags](/cli/appearance), and [effects](/cli/effects) work here. Write a `.cast` to keep it in a form the other commands read:
+
+```console
+reel attach typescript -t timing --size 120x40 -o out.cast
+```

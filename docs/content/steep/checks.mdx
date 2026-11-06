@@ -1,0 +1,248 @@
+---
+title: Waits and checks
+description: The three ways to check the screen, how waiting and settling work, and conditions beyond plain text.
+---
+
+Every check in steep follows one naming convention, so the name tells you what happens if it fails.
+
+| Prefix | If the check fails | Blocks? | Use it for |
+| --- | --- | --- | --- |
+| `Wait*` | Stops the test, after the timeout | Yes, until it holds | Anything the program still has to do |
+| `Assert*` | Reports the failure, and the test carries on | No | Checking several things about a finished screen |
+| `Require*` | Stops the test immediately | No | A check that the rest of the test depends on |
+
+## The same failure, three ways
+
+Here's how a test goes on after each kind of failure:
+
+<DemoGrid>
+  <Demo src="fail-assert.webp" alt="A recording that continues after two failed assertions and lists both on the FAIL card" cast="fail-assert.cast" caption="Assert: the test carries on, and the card lists both failures." />
+  <Demo src="fail-require.webp" alt="A recording that stops at the first failed check" cast="fail-require.cast" caption="Require: the test stops at the first." />
+  <Demo src="fail-wait.webp" alt="A recording that waits for a tea that never appears, then fails" cast="fail-wait.cast" caption="Wait: the test gives the program time, then stops." />
+</DemoGrid>
+
+With `Assert`, both missing teas are reported and the steps after them still run:
+
+```go
+h.Wait("Sencha").
+	Assert("Genmaicha").
+	Assert("Hojicha").
+	KeyDown().
+	Assert("Matcha")
+```
+
+With `Require`, the first failure ends the test, so `Hojicha` isn't checked:
+
+```go
+h.Wait("Sencha").
+	Require("Genmaicha").
+	Assert("Hojicha").
+	KeyDown()
+```
+
+[Failures](/steep/failures) shows what each of these prints.
+
+## Choosing
+
+**Most of a test should be `Wait`.** A program draws at its own pace, and the check after an input usually runs before the program has redrawn. `Assert` right after `Key` is a race, so a test that does that passes on your machine and fails in CI.
+
+**Use `Assert` once the screen has settled.** After a `Wait`, the screen has what you waited for, and an `Assert` can check the rest of it:
+
+```go
+h.Key("enter").
+	Wait("Order placed").
+	Assert("Matcha").
+	AssertNot("Error")
+```
+
+**Use `Require` when carrying on would be pointless.** If a dialog isn't open, the next ten steps will only fail with confusing messages.
+
+## The checks
+
+Each of these has an `Assert` and a `Require` form. On a harness, they return the harness for chaining.
+
+| Check | Holds when |
+| --- | --- |
+| `Assert(content)` | The text is on the screen. With a `[]string`, every one of them is. |
+| `AssertNot(content)` | The text isn't. With a `[]string`, none of them is. |
+| `AssertFor(cond)` | A [condition](/steep/checks#conditions) holds |
+| `AssertWidth(n)`, `AssertHeight(n)`, `AssertDimensions(w, h)` | The output has that size |
+| `AssertHasMessage[T]()` | The model has received a `T` (see [Messages](/steep/program#messages)) |
+| `AssertSnapshot()`, `AssertJSON()` | The screen matches a [snapshot](/steep/snapshots) |
+
+The `Require` forms are `Require`, `RequireNot`, `RequireFor`, `RequireWidth`, `RequireHeight`, `RequireDimensions`, `RequireHasMessage`, `RequireSnapshot`, and `RequireJSON`.
+
+The `Wait` family blocks on the same kinds of thing: `Wait(content)`, `WaitNot(content)`, `WaitFor(cond)`, `WaitSettle()`, `WaitSettleMessages()`, `WaitMessage[T]()`, and `WaitFinished()`.
+
+## Checks without a harness
+
+The package also has functions of the same names, which check anything with a `func() string`, so you can use them on a model's output without running a program. `Assert` returns whether it passed:
+
+```go
+func TestView(t *testing.T) {
+	view := func() string { return renderMenu(menu) }
+
+	if steep.Assert(t, view, "Sencha") {
+		steep.AssertWidth(t, view, 40)
+	}
+	steep.Require(t, view, []string{"Sencha", "Matcha"})
+}
+```
+
+## Options
+
+Every check takes options for that call only:
+
+```go
+h.Wait("Matcha is ready", steep.WithTimeout(10*time.Second))
+```
+
+`steep.WithANSI(false)` strips ANSI from a view you pass to the package's functions, such as `steep.Assert(t, view, "Sencha", steep.WithANSI(false))`. A harness checks the screen's text, which has none.
+
+## Waiting and settling
+
+Your program runs concurrently with your test. After `Key("enter")` returns, the key has been sent, but your program may not have handled it, let alone redrawn. So a test has to wait for what it expects.
+
+### Wait for what you expect
+
+`Wait` blocks until text is on the screen, and returns as soon as it is. It's the check to reach for first.
+
+```go
+h.Key("enter").Wait("Order placed")
+```
+
+It doesn't poll. Screen waits are woken each time the terminal changes, so a wait returns right after the redraw, and doesn't cost anything while nothing happens.
+
+| Wait | Until |
+| --- | --- |
+| `Wait(content)` | The text is on the screen. With a `[]string`, all of them are. |
+| `WaitNot(content)` | The text is gone. With a `[]string`, all of them are. |
+| `WaitFor(cond)` | A [condition](/steep/checks#conditions) holds |
+| `Locate(cond)` | The same, and it returns where the match is |
+
+If it doesn't happen within the timeout, the test stops, and steep prints what was on the screen:
+
+See [what that looks like](/steep/failures#a-wait-that-times-out).
+
+### Settling
+
+Sometimes there's no text to wait for. You pressed a key that should change nothing, or a screen's only difference is a color. For those, `WaitSettle` waits until the screen's text has stopped changing:
+
+```go
+h.Key("enter").
+	WaitSettle(). // The brew redraws every 60ms, so this returns once it's done.
+	Assert("Sencha is ready")
+```
+
+It returns once the screen's text hasn't changed for the settle period, 100ms by default, counting from the call. Each change restarts the count.
+
+<SettleDiagram />
+
+<Demo src="settle.webp" alt="A progress bar filling while the brew runs, then the status changes to ready" caption="WaitSettle returns once the brew's redraws stop." />
+
+There are three things to know about it:
+
+- **A change can come after the period.** If your program does something slow before it redraws, the screen may look settled before the change arrives. Prefer `Wait` when you know what to look for.
+- **A repaint isn't a change.** Only the screen's text counts, so a color change or a redraw of the same text doesn't restart the period.
+- **It never returns if the program never stops.** A spinner or a clock keeps the text changing, so the wait [fails at the timeout](/steep/failures#a-settle-that-never-settles).
+
+### Settling on messages
+
+`WaitSettleMessages` waits until the model hasn't received a message for the settle period. That's useful for programs that are still working but not drawing, or for a screen with an animation that never stops. You can tell it which messages don't count:
+
+```go
+h := steep.NewHarness(t, newModel(), steep.WithSettleIgnoreMsgs(spinner.TickMsg{}))
+h.Key("enter").WaitSettleMessages()
+```
+
+Pass a value of each type to ignore. Types have to match exactly. It needs a `tea.Program`, so an exec harness can't use it.
+
+### Waiting for messages
+
+To wait for a specific message rather than a quiet period, use [`WaitMessage`](/steep/program#messages).
+
+### Which to use
+
+<Mermaid chart={`flowchart TD
+  A{Do you know what will be on the screen?} -->|Yes| W[Wait or WaitFor]
+  A -->|No| B{Does the screen stop changing?}
+  B -->|Yes| S[WaitSettle]
+  B -->|No, it animates| C{Do you know the message that ends it?}
+  C -->|Yes| M[WaitMessage]
+  C -->|No| Q[WaitSettleMessages with WithSettleIgnoreMsgs]
+`} />
+
+### The timers
+
+| Option | Variable | Default | Controls |
+| --- | --- | --- | --- |
+| `WithTimeout` | `STEEP_TIMEOUT` | 2s | How long any blocking wait may take: startup, waits, settles, and mutations |
+| `WithSettle` | `STEEP_SETTLE` | 100ms | The quiet period. Capped at 80% of the timeout. |
+| `WithCheck` | `STEEP_CHECK` | 10ms | How often `WaitSettleMessages` re-checks. Screen waits don't poll. |
+| `WithSlow` | `STEEP_SLOW` | Off | A sleep after every action, for programs that need real time between them |
+
+A variable overrides its option unless the harness has `WithIgnoreEnv(true)`. So a slow CI machine can be handled with no code changes:
+
+```console
+STEEP_TIMEOUT=30s go test ./...
+```
+
+You can pass any of these to one call, such as `h.Wait("Report ready", steep.WithTimeout(time.Minute))`.
+
+`WithSlow` isn't needed for recordings, which play back the timeline as it happened. It's for programs that need time between actions, or for slowing a demo down so it can be followed.
+
+### Don't sleep
+
+```go
+// Avoid: wastes a second, and fails on a machine that needs two.
+h.Key("enter").Sleep(time.Second).Assert("Order placed")
+
+// Better: returns as soon as it's true.
+h.Key("enter").Wait("Order placed")
+```
+
+## Conditions
+
+`WaitFor`, `AssertFor`, `RequireFor`, and `Locate` take a `reel.Condition`, which is more flexible than text.
+
+```go
+h.WaitFor(reel.Matches(regexp.MustCompile(`\d+ rows`)))
+h.AssertFor(reel.NotContains("Error"))
+h.Locate(reel.Contains("[ Save ]")).LeftClick()
+```
+
+| Condition | Holds when | Locates |
+| --- | --- | --- |
+| `reel.Contains(texts...)` | Every text is on the screen | Where each first appears |
+| `reel.NotContains(texts...)` | None of them is | Nothing |
+| `reel.Matches(re)` | The regular expression matches | Where it first matches |
+| `reel.NotMatches(re)` | It doesn't match | Nothing |
+| `reel.ScreenFunc(fn)` | `fn` returns true for the screen's text | Nothing |
+| `reel.OnCursorLine(c)` | `c` holds for the cursor's line alone | What `c` locates |
+
+### The cursor's line
+
+`OnCursorLine` waits for a prompt without being fooled by the same text earlier on the screen. That's mostly useful for shells and programs that print rather than take over the screen:
+
+```go
+h := steep.NewExecHarness(t, exec.Command("bash", "--norc"))
+h.WaitFor(reel.OnCursorLine(reel.Matches(regexp.MustCompile(`\$ $`))))
+```
+
+It doesn't hold while the viewport is scrolled away from the cursor.
+
+### Your own conditions
+
+`ScreenFunc` is for anything else. It's only checked when the screen changes, so it should depend on the text alone:
+
+```go
+h.WaitFor(reel.ScreenFunc(func(text string) bool {
+	return strings.Count(text, "✓") == 3
+}))
+```
+
+A type with `Check` and `String` methods is a condition too, and its matches let `Locate` point at what it found. See [`reel.Condition`](https://pkg.go.dev/github.com/lrstanley/steep/reel#Condition).
+
+### Text and ANSI
+
+Screen conditions see the screen's text, with no escape sequences. So `reel.Contains("Matcha")` matches wherever that word is drawn, in any color. To check a color or style, use a [JSON snapshot](/steep/snapshots#json-snapshots), or a [text snapshot](/steep/snapshots#text-snapshots) with its ANSI sequences kept.

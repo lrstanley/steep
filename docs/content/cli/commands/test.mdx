@@ -1,0 +1,20 @@
+---
+title: reel test
+description: Run tapes as tests.
+---
+
+```console
+reel test [flags] <paths> ...
+```
+
+Runs tapes, and directories of `*.tape` files, without writing their outputs. A failed `Wait` or `Snapshot` fails the tape, and any failed tape makes the exit code [3](/cli/configuration#exit-codes).
+
+| Flag | Is |
+| --- | --- |
+| `--update`, `-u` | Writes each `Snapshot`'s screen to its golden file, instead of comparing them |
+| `--artifacts DIR` | Writes a `.cast` and a `.gif` of each failed tape here |
+| `--deny`, `--skip` | As for [`reel run`](/cli/commands/run) |
+
+<include cwd lang="console">fixtures/cli-test.output</include>
+
+See [Test with tapes](/cli/test).

@@ -1,0 +1,209 @@
+---
+title: Debugging
+description: "See what a test did: logs, the inspector, marks, messages and source lines, and hooks."
+---
+
+## Step through a failure in the inspector
+
+A test failed, and you have a `.cast` file. The [inspector](https://inspector.getsteep.dev/) is a web page that replays it. It runs in your browser, and the file never leaves it.
+
+<Steps>
+<Step>
+#### Record the failure
+
+Record with everything the inspector can show:
+
+```console
+STEEP_EXPORT_MODE=failure \
+STEEP_EXPORT='{name}.cast' \
+STEEP_SOURCE=on \
+STEEP_RECORD_MESSAGES=on \
+go test -artifacts -run TestMenu ./...
+```
+
+The test's output has the path to the file it wrote.
+</Step>
+
+<Step>
+#### Open it
+
+Go to [inspector.getsteep.dev](https://inspector.getsteep.dev/) and drop the file onto the page. To try this without a failure of your own, [open the one from this page](https://inspector.getsteep.dev/?url=https%3A%2F%2Fgetsteep.dev%2Fcasts%2Ffail-wait.cast).
+</Step>
+
+<Step>
+#### Find the failure
+
+The timeline has a lane for each kind of event, and failures stand out on it. Select one to see the screen at that moment, and the message. With sources recorded, the Recording tab says which line of the test reported it.
+</Step>
+
+<Step>
+#### Step backward
+
+Use the event list to step through what happened before the failure. After each event, you see the screen as it was. Look for the input that should have changed the screen, and the output that followed it, if any.
+
+Some questions this answers quickly:
+
+- **Did the key arrive?** Look for its input event, and the output after it.
+- **Did the program respond late?** Compare the time of the output with the wait's timeout.
+- **Was the text there and gone again?** Step through the frames around the wait.
+- **Did the model get the message?** With messages recorded, they're in the event list too.
+</Step>
+</Steps>
+
+### Share it
+
+A `.cast` is a text file, and small enough to attach to a bug report. Anyone can open it, and [you can link to one](/reel/inspecting#linking-to-a-recording).
+
+<Callout type="warn" title="Check what's in it">
+  A `.cast` holds everything the program drew and every key typed into it. [Redaction effects](/reel/redact) don't change it, which is why a profile can't have both. Check for secrets before sharing one.
+</Callout>
+
+## Logging
+
+Turn on logging to see what a test did, in order, around a failure. It doesn't need a code change:
+
+```console
+STEEP_LOG=on go test -v -run TestMenu ./...
+```
+
+In code, use `WithLog`:
+
+```go
+h := steep.NewHarness(t, newModel(), steep.WithLog(t))
+```
+
+Each is a hook that logs every action before and after it runs, through `t.Log`. With `-v` or a failure, they show up in the test's output.
+
+### To your own logger
+
+`LoggerHook` takes a `*slog.Logger`, such as to send them somewhere else, or to change the level:
+
+```go
+logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+h := steep.NewHarness(t, newModel(), steep.WithHooks(steep.LoggerHook(t, logger)))
+```
+
+### Logs from your program
+
+A program under a model harness runs in your test's process. So it can log to `t` if you pass that in. Otherwise, write to a file or a buffer, since printing to stdout from a Bubble Tea model won't reach the emulated terminal:
+
+```go
+m := newModel()
+m.log = func(format string, args ...any) { t.Logf(format, args...) }
+h := steep.NewHarness(t, m)
+```
+
+## Marks
+
+`Mark` names a moment in the recording:
+
+```go
+h.Wait("Sencha").
+	Mark("login:done").
+	KeyDown(reel.Repeat(3)).
+	Mark("step:3")
+```
+
+Marks don't change what the test does. They're how you say "here" to everything that reads the recording later: a [still at each mark](/steep/recording#stills), an [effect between two marks](/reel/effects), or a [`Timeline.Between`](/reel/how-it-works#timelines-and-asciicast) that cuts a window out of a recording. The [inspector](/steep/debugging#step-through-a-failure-in-the-inspector) shows them on its timeline.
+
+### Naming
+
+Use the form `category:value`, so tools can group marks by the text before the first `:`. The label must not be empty.
+
+These categories are the harness's own, and using one is a test error:
+
+`input`, `terminal`, `program`, `wait`, `ready`, `close`, `assert`, `capture`, `failure`
+
+### The harness's marks
+
+The harness marks each action once it's done, and each failure as it's reported, as [Timeline and marks](/steep/how-it-works#timeline-and-marks) describes. To turn them off, because a recording has too many to read or they get in your way:
+
+```go
+steep.WithAutoMarks(false)                          // none
+steep.WithAutoMarks(false, "assert", "capture")     // not these
+steep.WithAutoMarks(false), steep.WithAutoMarks(true, steep.MarkFailure) // only failures
+```
+
+Calls apply in order. Annotations are still recorded. A category that an output or still asks for is marked anyway, so its stills are written.
+
+### Missing marks
+
+A profile can look for a mark that never happened, such as a pause on `step:3` in a test that failed at `step:1`. That doesn't stop an export. For a failed test it's logged, and for a passing test it's a test error, since a passing test should reach its own marks. `failure:n` marks are the exception, so one profile can pause on `failure:1` whatever the result.
+
+## Messages and source lines
+
+Two options add more to a recording. They're off by default, and you can turn them on from the environment for one run:
+
+```console
+STEEP_RECORD_MESSAGES=on STEEP_SOURCE=on STEEP_EXPORT_MODE=failure go test -artifacts ./...
+```
+
+### Messages
+
+`WithRecordMessages(true)` records each message the model receives as a `steep.message` annotation, of its type and `%+v` value. Then the [inspector](/steep/debugging#step-through-a-failure-in-the-inspector) shows what the model received between two frames.
+
+It's off by default because programs that tick or animate get many messages, and each one grows the timeline and the `.cast` file.
+
+<Callout type="warn" title="Secrets">
+  `tea.EnvMsg` is never recorded, since it holds the whole environment. Other messages are recorded as they are, including any secret they hold. Don't share a recording with messages if your model handles secrets.
+</Callout>
+
+An exec harness has no messages, so this does nothing there.
+
+### Source lines
+
+`WithSource(true)` records where in your test each annotation and mark came from: the file, line, and function of the test's line that led to it, past any helpers. In the inspector, each mark and failure then links back to its line.
+
+File paths are relative to the module's root, so a recording doesn't contain home or build directories. `steep.start` also gets the test's package, its module, and its directory in the module.
+
+Annotations and marks that no line of the test led to don't get a source. That includes messages the model receives, and anything `Close` does as a cleanup.
+
+While it's off, no stack is walked, so it costs nothing.
+
+## Hooks
+
+A hook is a function that runs before and after each harness action. The logger is one, and you can write your own to take a screenshot on every wait, or to check an invariant all the way through a test.
+
+```go
+var h *steep.Harness
+checkNoErrors := func(event steep.HookEvent, stage steep.HookStage, _ any) error {
+	if event == steep.HookInput && stage == steep.HookStageAfter && strings.Contains(h.View(), "Error") {
+		return errors.New("the program drew an error")
+	}
+	return nil
+}
+
+h = steep.NewHarness(t, newModel(), steep.WithHooks(checkNoErrors))
+```
+
+An error from a hook fails the test immediately. `WithHooks` calls accumulate.
+
+### Events
+
+| Event | Fires for | Metadata |
+| --- | --- | --- |
+| `HookInput` | Keyboard, paste, and mouse actions | `InputMeta` |
+| `HookTerminal` | Changes to the terminal, such as a resize | None |
+| `HookProgram` | Actions on the program, such as a message sent to it | None |
+| `HookWait` | Waits and sleeps | `WaitMeta` |
+| `HookReady` | The program's start | None |
+| `HookClose` | The program's end, and the harness's | `WaitMeta`, for `WaitFinished` |
+| `HookAssert` | Assertions | `AssertMeta` |
+| `HookCapture` | Snapshot comparisons and image captures | `CaptureMeta` |
+
+The stage is `HookStageBefore` or `HookStageAfter`. The metadata marshals to JSON as the matching fields of the annotation the harness records, and has a `LogValue` for `slog`.
+
+```go
+func(event steep.HookEvent, stage steep.HookStage, metadata any) error {
+	if meta, ok := metadata.(steep.InputMeta); ok && stage == steep.HookStageBefore {
+		t.Logf("%s %s", meta.Kind, meta.Key)
+	}
+	return nil
+}
+```
+
+See [pkg.go.dev](https://pkg.go.dev/github.com/lrstanley/steep#Hook) for every field.
+
+### Order
+
+A mark is placed once an action is done, before its After hooks run. So an After hook can look at a timeline that already has the action's mark.

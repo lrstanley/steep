@@ -1,0 +1,97 @@
+---
+title: Introduction
+description: What steep is, what a test looks like, how to install it, and why you would.
+---
+
+steep is a test harness for terminal programs in Go. It runs your program in an emulated terminal, drives it with keys, text, mouse events, and resizes, and checks what it draws. It works with `go test` and the `testing` package, so there's nothing new to run.
+
+```go
+func TestMenu(t *testing.T) {
+	steep.NewHarness(t, newModel()).
+		Wait("Sencha").
+		KeyDown().
+		Assert("Matcha").
+		Key("enter").
+		Wait("Matcha is ready").
+		AssertSnapshot()
+}
+```
+
+That test starts a [Bubble Tea](https://github.com/charmbracelet/bubbletea) model, waits for its menu to draw, presses the down arrow and enter, waits for the brew to finish, and compares the screen with a saved snapshot. If you turn recording on, steep also leaves you the run as a video:
+
+<Demo src="first-test.webp" alt="The tea shop being tested: a keypress moves down its menu, enter brews a tea, and a card reads PASS" cast="first-test.cast" caption="This test, recorded by steep." />
+
+<Callout type="warn" title="Pre-1.0">
+  steep's API may change in breaking ways until v1.0.0. Pin a version in your `go.mod` and check the release notes when you upgrade.
+</Callout>
+
+## What it tests
+
+steep has three harnesses, and they share the same inputs, waits, assertions, snapshots, and recordings:
+
+| Harness | Runs | Use it for |
+| --- | --- | --- |
+| [`NewHarness`](/steep/harnesses#model-harness) | A root `tea.Model` | A whole Bubble Tea program |
+| [`NewComponentHarness`](/steep/harnesses#component-harness) | A model with `View() string` | One component, such as a form or a list |
+| [`NewExecHarness`](/steep/harnesses#exec-harness) | Any command, on a pseudo-terminal | A built binary, or a program that doesn't use Bubble Tea |
+
+## Installation
+
+To install:
+
+```console
+go get github.com/lrstanley/steep@latest
+```
+
+That's all a test needs. The terminal emulator is compiled into reel, so nothing else has to be installed to run tests, and that includes the snapshots and assertions.
+
+Exports are off unless you turn them on. Video and WebP formats need [ffmpeg](https://ffmpeg.org) on your `PATH`, and [the rest need nothing](/reel/formats). Fonts are built in, so recordings draw the same on any machine.
+
+## Why test your TUI
+
+Most terminal programs are tested by running them and looking. That works until the program has more screens than you can walk through before each release. A test does the same walk every time, on every commit, at terminal sizes and colors you wouldn't think to try.
+
+### Manual testing, and what replaces it
+
+| You do this by hand | With steep |
+| --- | --- |
+| Run the program, press some keys, and look at the screen | `Key`, `Type`, and `Wait` do it in milliseconds, in `go test` |
+| Drag the window to see if the layout breaks | `Resize(48, 16)`, then assert or compare a snapshot |
+| Try the mouse, if you remember | `Locate(reel.Contains("Save")).LeftClick()` clicks what's on the screen |
+| Check it in a terminal with fewer colors | `WithColor(steep.ColorANSI)` runs it as that terminal would |
+| Notice that a screen looks different from last month | A snapshot fails, and its diff shows what changed |
+| Ask someone to describe what went wrong | The failed test leaves a video and a file you can step through |
+
+### Why not just test Update and View?
+
+You can, and those tests are quick. Calling `Update` with a message and checking `View()` covers your logic, but it skips the parts of a terminal program that tend to break:
+
+- **Commands.** `Update` returns a `tea.Cmd`. A unit test has to run it and feed the result back, and a real program does that concurrently.
+- **Real input.** A real key press is bytes through a terminal, encoded by whatever keyboard mode your program asked for. A `tea.KeyPressMsg` you built by hand skips all of it.
+- **What the terminal shows.** `View()` is a string with escape sequences. It isn't what's on the screen after the terminal handles wrapping, wide characters, and the alternate screen.
+
+steep runs your program in a real `tea.Program`, attached to a terminal emulator. So a test sees the screen a user would, and you can still use [`Mutate`](/steep/program) to reach into the model when you need to.
+
+### What a test costs
+
+Tests of a screen can be brittle. A snapshot of a whole screen fails when anything on it changes, on purpose or not. You can keep that under control:
+
+- Assert on the text that matters, and keep [snapshots](/steep/snapshots) for screens where the layout itself is what you're testing.
+- [Wait for what you expect](/steep/checks#waiting-and-settling) rather than sleeping, so tests don't depend on how fast the machine is.
+- Update snapshots on purpose with `UPDATE_SNAPSHOTS=true`, and read the diff before committing it.
+
+### What steep won't do
+
+- **It doesn't judge how a screen looks.** A snapshot says a screen changed. You decide whether it's better.
+- **It doesn't test real terminals.** Your program runs against one emulator, [libghostty-vt](/steep/how-it-works), not against iTerm2 or Windows Terminal. A bug in how a specific terminal handles a sequence won't show up.
+- **It doesn't replace unit tests.** Keep them for logic. A steep test is for behavior a user would see.
+
+## Where to go next
+
+<Cards>
+  <Card title="Your first test" href="/steep/first-test" description="Write a test from an empty file, break it, and read the failure." />
+  <Card title="Add steep to an existing project" href="/steep/existing-project" description="Start with a test that needs no refactoring, then go further only if it helps." />
+  <Card title="How it works" href="/steep/how-it-works" description="What runs where, and how steep relates to reel." />
+</Cards>
+
+steep records through [reel](/reel), a Go library you can also use without tests, and the [`reel` CLI](/cli) does the same without Go. The [inspector](https://inspector.getsteep.dev/) opens any recording, so you can step through a failure event by event.
