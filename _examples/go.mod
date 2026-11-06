@@ -15,7 +15,7 @@ require (
 	github.com/charmbracelet/harmonica v0.2.0
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/lrstanley/clix/v2 v2.0.7
-	github.com/lrstanley/go-nf v0.0.0-20261018042953-dc908cf1060f
+	github.com/lrstanley/go-nf 052bb0b267f6
 	github.com/lrstanley/steep v0.0.0
 	github.com/lrstanley/steep/reel v0.0.0
 )
