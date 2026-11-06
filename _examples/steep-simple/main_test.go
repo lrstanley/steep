@@ -12,8 +12,10 @@ import (
 )
 
 func TestModel(t *testing.T) {
+	// The first frame is drawn before the model gets its window size, and shows
+	// only the first rows. Row 20 is on screen only once the table has resized.
 	steep.NewHarness(t, newRankingModel()).
-		Wait("Tokyo").
+		Wait("Guangzhou").
 		AssertSnapshot(snapshot.WithANSI(false)).
 		AssertJSON()
 }

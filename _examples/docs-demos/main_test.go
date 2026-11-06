@@ -139,6 +139,13 @@ func TestTerminalState(t *testing.T) {
 	if !h.IsAltScreen() {
 		t.Error("the shop should be on the alternate screen")
 	}
+	// tea.Raw runs as a command of its own, so the notification can land after
+	// the frame that announces it, and Wait can't see it arrive, since it doesn't
+	// change the screen.
+	deadline := time.Now().Add(5 * time.Second)
+	for len(h.Notifications()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
 	if n := h.Notifications(); len(n) != 1 || n[0].Body != "Sencha is ready" {
 		t.Errorf("notifications = %+v", n)
 	}
