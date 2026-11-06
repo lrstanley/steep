@@ -1,10 +1,10 @@
 name: inspector
 
-# typechecks, tests, and builds the inspector. deployment is handled by Cloudflare Workers Builds, see
+# typechecks, tests, and builds the inspector, and deploys it to Cloudflare from master, see
 # inspector/wrangler.jsonc.
 #
 # the site is built from most of the repo (reel, steep, the examples), so this ignores only what it
-# can't use. like Workers Builds, this has no go.work: "task setup" could hide a build that fails there.
+# can't use. this has no go.work, as it doesn't need one: the examples point at this checkout themselves.
 
 on:
   pull_request:
@@ -36,7 +36,7 @@ jobs:
         with:
           version: ${{ steps.go-version.outputs.version }}
       - uses: lrstanley/.github/composite/install-node@master
-      # as Workers Builds does: the task's plain install would accept a stale bun.lock.
+      # the task's plain install would accept a stale bun.lock.
       - working-directory: inspector
         run: bun install --frozen-lockfile
       - uses: lrstanley/.github/composite/invoke-task@master
@@ -48,3 +48,9 @@ jobs:
       - uses: lrstanley/.github/composite/invoke-task@master
         with:
           task: inspector:build
+      - if: github.ref == 'refs/heads/master'
+        working-directory: inspector
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bunx wrangler@4 deploy
