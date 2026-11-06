@@ -9,7 +9,7 @@ require (
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/lrstanley/bubbletint/v2 v2.0.4
 	github.com/lrstanley/clix/v2 v2.0.7
-	github.com/lrstanley/steep/reel v0.0.0
+	github.com/lrstanley/steep/reel v0.0.0-alpha.0
 )
 
 require (
