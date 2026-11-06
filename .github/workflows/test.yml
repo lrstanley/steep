@@ -26,7 +26,7 @@ jobs:
         with:
           version: many
           num-minor: 1
-          num-patch: 2
+          num-patch: 1
       - uses: lrstanley/.github/composite/go-versions@master
         id: latest
         with:
