@@ -9,25 +9,77 @@ const shownEvent = computed(() => (frame.value?.state.applied ?? 0) - 1)
 
 const view = useTemplateRef<HTMLCanvasElement>('view')
 const area = useTemplateRef<HTMLElement>('area')
+const box = useTemplateRef<HTMLElement>('box')
 const { width: areaW } = useElementSize(area)
 
-// Frames are drawn at the scale they are shown at: the device's pixel ratio,
-// less however much the frame is shrunk to fit its panel, in steps of a
-// quarter rounded up so text stays sharp. Drawing more pixels than are shown
-// costs time in both reel and the browser.
-const fitScale = computed(() => {
+// natural is the frame's size in CSS pixels at 100%, which changes a little
+// with the scale it is drawn at, as reel rounds cells to whole pixels.
+const natural = computed(() => {
   const f = frame.value
-  if (!f?.width || !areaW.value)
+  if (!f?.width || !f.height)
     return null
-  const dpr = window.devicePixelRatio || 1
-  const natural = f.width / (f.scale ?? frameScale.value)
-  const fit = Math.min(1, (areaW.value - 48) / natural)
-  return Math.max(0.5, Math.min(dpr, Math.ceil(fit * dpr * 4) / 4))
+  const s = f.scale ?? frameScale.value
+  return { w: f.width / s, h: f.height / s }
 })
-watchDebounced(fitScale, (s) => {
+
+// zoom, set with ctrl+scroll, shows the frame at factor times base, its
+// natural width when zooming began, so drawing it again at another scale
+// does not resize it. Without it, the frame shrinks to fit its panel.
+const zoom = ref<{ factor: number, base: number } | null>(null)
+const shownW = computed(() => zoom.value ? zoom.value.factor * zoom.value.base : Math.min(natural.value?.w ?? 0, areaW.value - 48))
+watch(generation, () => zoom.value = null)
+
+// Frames are drawn at the scale they are shown at, the device's pixel ratio
+// times the zoom, in steps of a quarter rounded up so text stays sharp, and
+// at most about 16 megapixels. Drawing more pixels than are shown costs time
+// in both reel and the browser. As a frame's size is not quite in proportion
+// to its scale, the scale stays while it is close enough, or two scales could
+// each ask for the other.
+const drawScale = computed(() => {
+  const f = frame.value
+  if (!f?.width || !f.height || !areaW.value)
+    return null
+  const s = f.scale ?? frameScale.value
+  const want = s * shownW.value * (window.devicePixelRatio || 1) / f.width
+  if (s >= want * 0.98 && s <= want * 1.25)
+    return s
+  const budget = Math.floor(s * Math.sqrt(4096 * 4096 / (f.width * f.height)) * 4) / 4
+  return Math.max(0.5, Math.min(budget, Math.ceil(want * 4) / 4))
+})
+watchDebounced(drawScale, (s) => {
   if (s && s !== frameScale.value)
     setScale(s)
 }, { debounce: 150, immediate: true })
+
+// zoomTo shows the frame at z, keeping the point under (x, y) in place.
+async function zoomTo(z: typeof zoom.value, x?: number, y?: number) {
+  const a = area.value
+  const b = box.value
+  if (!a || !b)
+    return
+  const r = b.getBoundingClientRect()
+  x ??= r.left + r.width / 2
+  y ??= r.top + r.height / 2
+  const fx = (x - r.left) / r.width
+  const fy = (y - r.top) / r.height
+  zoom.value = z
+  await nextTick()
+  const n = b.getBoundingClientRect()
+  a.scrollLeft += n.left + fx * n.width - x
+  a.scrollTop += n.top + fy * n.height - y
+}
+
+function onWheel(e: WheelEvent) {
+  const n = natural.value
+  if (!(e.ctrlKey || e.metaKey) || !n)
+    return
+  e.preventDefault()
+  const base = zoom.value?.base ?? n.w
+  const now = shownW.value / base
+  const factor = Math.min(8, Math.max(Math.min(0.25, now), now * Math.exp(-e.deltaY * 0.0025)))
+  zoomTo({ factor, base }, e.clientX, e.clientY)
+}
+
 const overlay = useTemplateRef<HTMLCanvasElement>('overlay')
 const pinned = ref<{ x: number, y: number } | null>(null)
 
@@ -174,10 +226,10 @@ const inspected = computed(() => {
 })
 
 const cssSize = computed(() => {
-  const f = frame.value
-  if (!f?.width || !f.height)
+  const n = natural.value
+  if (!n)
     return {}
-  return { width: `${f.width / (f.scale ?? frameScale.value)}px`, aspectRatio: `${f.width} / ${f.height}` }
+  return { width: `${zoom.value ? shownW.value : n.w}px`, aspectRatio: `${n.w} / ${n.h}` }
 })
 
 const codepoints = (s: string) => [...s].map(ch => `U+${ch.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}`).join(' ')
@@ -187,13 +239,15 @@ const codepoints = (s: string) => [...s].map(ch => `U+${ch.codePointAt(0)!.toStr
   <div class="flex h-full flex-col">
     <Transport />
 
-    <div ref="area" class="relative min-h-0 flex-1 overflow-auto scrollbar-thin bg-[radial-gradient(rgb(255_255_255/0.06)_1px,transparent_1px)] [background-size:16px_16px]">
-      <div class="flex min-h-full min-w-full items-center justify-center p-6">
+    <div ref="area" class="relative min-h-0 flex-1 overflow-auto scrollbar-thin bg-[radial-gradient(rgb(255_255_255/0.06)_1px,transparent_1px)] [background-size:16px_16px]" @wheel="onWheel">
+      <!-- Zoomed, the frame can be wider than the panel, so this grows with it to scroll to both edges. -->
+      <div class="flex min-h-full min-w-full items-center justify-center p-6" :class="{ 'w-max': zoom !== null }">
         <Skeleton v-if="!frame" class="aspect-[16/10] w-[640px] max-w-full" />
         <div
           v-show="frame"
-          class="relative max-w-full"
-          :class="display?.chrome ? 'drop-shadow-[0_16px_32px_rgb(0_0_0/0.6)]' : 'shadow-[0_0_0_1px_rgb(255_255_255/0.08),0_24px_60px_-20px_rgb(0_0_0/0.8)]'"
+          ref="box"
+          class="relative shrink-0"
+          :class="[zoom === null && 'max-w-full', display?.chrome ? 'drop-shadow-[0_16px_32px_rgb(0_0_0/0.6)]' : 'shadow-[0_0_0_1px_rgb(255_255_255/0.08),0_24px_60px_-20px_rgb(0_0_0/0.8)]']"
           :style="cssSize"
         >
           <canvas ref="view" class="block size-full" />
@@ -227,8 +281,17 @@ const codepoints = (s: string) => [...s].map(ch => `U+${ch.codePointAt(0)!.toStr
         <Spinner v-if="shownEvent !== cursor" class="size-3" />
         <span v-if="frame" class="tabular">{{ frame.cols }}×{{ frame.rows }}</span>
         <span v-if="frame?.state.alt_screen">alt screen</span>
-        <span class="ml-auto font-sans text-dim">Hover a cell to inspect it, click to pin</span>
+        <span class="ml-auto font-sans text-dim">Hover a cell to inspect it, click to pin, ctrl+scroll to zoom</span>
       </template>
+      <button
+        v-if="zoom !== null"
+        class="tabular shrink-0 rounded px-1 text-foreground hover:bg-muted"
+        :class="{ 'ml-auto': inspected }"
+        title="Fit to the panel"
+        @click="zoomTo(null)"
+      >
+        {{ Math.round(zoom.factor * 100) }}%
+      </button>
     </div>
   </div>
 </template>
