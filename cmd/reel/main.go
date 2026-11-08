@@ -42,6 +42,11 @@ func main() {
 		clix.WithAppInfo[Flags](clix.AppInfo{
 			Name:        "reel",
 			Description: "Record terminals, and render recordings.",
+			Links: []clix.Link{
+				{Name: "docs", URL: "https://getsteep.dev/cli"},
+				{Name: "llms.txt", URL: "https://getsteep.dev/llms.txt"},
+				{Name: "inspector", URL: "https://inspector.getsteep.dev"},
+			},
 		}),
 		clix.WithVersionPlugin[Flags](),
 		clix.WithMarkdownPlugin[Flags](),
