@@ -58,6 +58,9 @@ type Header struct {
 	// graphics the terminal keeps, which other readers ignore. Zero means
 	// the file does not say.
 	KittyStorage uint64
+	// CursorBlink is reel's own "cursor_blink", whether the cursor blinks
+	// by default, which other readers ignore.
+	CursorBlink bool
 }
 
 // Theme is the colors a terminal starts with. Fg and Bg are set. Cursor is
@@ -103,6 +106,7 @@ type castHeader struct {
 	CellWidth    int            `json:"cell_width,omitzero"`
 	CellHeight   int            `json:"cell_height,omitzero"`
 	KittyStorage uint64         `json:"kitty_storage,omitzero"`
+	CursorBlink  bool           `json:"cursor_blink,omitzero"`
 }
 
 type castTerm struct {

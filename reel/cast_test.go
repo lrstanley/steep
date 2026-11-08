@@ -766,3 +766,33 @@ func TestCutKeepsScrollbackSize(t *testing.T) {
 		}
 	}
 }
+
+// TestCastCursorBlink checks that a session's default cursor blink reaches
+// the .cast header and the terminal a replay of it opens.
+func TestCastCursorBlink(t *testing.T) {
+	t.Parallel()
+	s, err := Open(t.Context(), 4, 1, WithCursorBlink(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Write([]byte("a")); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Close()
+	data := writeCast(t, s.Timeline(), CastV3)
+	if !bytes.Contains(data, []byte(`"cursor_blink":true`)) {
+		t.Errorf("header %s has no cursor blink", bytes.SplitN(data, []byte("\n"), 2)[0])
+	}
+	back := readCast(t, data)
+	if !back.header.CursorBlink {
+		t.Error("read header lost the cursor blink")
+	}
+	r, err := newReplay(t.Context(), replayRuntime, back.header, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.close()
+	if !r.term.Cursor().Blink {
+		t.Error("replay cursor does not blink")
+	}
+}

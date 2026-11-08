@@ -72,6 +72,9 @@ const fmt = (v: unknown) => (typeof v === 'object' ? JSON.stringify(v) : String(
         <InfoRow v-if="h.kitty_storage" label="Kitty storage" mono>
           {{ h.kitty_storage }}
         </InfoRow>
+        <InfoRow v-if="h.cursor_blink" label="Cursor blink" mono>
+          on
+        </InfoRow>
         <InfoRow v-for="[k, v] in [['Foreground', h.fg], ['Background', h.bg], ['Cursor', h.cursor]].filter(([, v]) => v)" :key="k" :label="k!" mono>
           <span class="flex items-center gap-1.5">
             <span class="size-3 rounded-[3px] border border-border-strong" :style="{ background: v }" />{{ v }}

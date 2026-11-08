@@ -94,6 +94,9 @@ type settings struct {
 	width, height            int
 	typingSpeed, waitTimeout time.Duration
 	waitPattern              *regexp.Regexp
+	// cursorBlink is whether the cursor blinks unless the program picks.
+	// VHS's default is true.
+	cursorBlink bool
 	// sizeSet is whether Width or Height was set, which decides how the
 	// screen is sized (see [Tape.Run]).
 	sizeSet bool
@@ -104,7 +107,7 @@ func newSettings() settings {
 		Padding: new(defaultPadding),
 		shell:   defaultShell(), width: defaultWidth, height: defaultHeight,
 		typingSpeed: defaultTypingSpeed, waitTimeout: defaultWaitTimeout,
-		waitPattern: defaultWaitPattern,
+		waitPattern: defaultWaitPattern, cursorBlink: true,
 	}
 }
 
@@ -213,10 +216,8 @@ func (c *compiler) setOther(s *settings, name syntax.Token) (string, error) {
 	case "LoopOffset":
 		return "", errors.New("LoopOffset is not supported")
 	case "CursorBlink":
-		on, err := c.boolArg(name)
-		if err == nil && !on {
-			return "CursorBlink false is ignored: the cursor blinks as the program sets it", nil
-		}
+		v, err := c.boolArg(name)
+		s.cursorBlink = v
 		return "", err
 	case "WaitPattern":
 		tok, _ := c.take()

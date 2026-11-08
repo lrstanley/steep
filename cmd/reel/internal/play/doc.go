@@ -106,8 +106,7 @@
 //	PlaybackSpeed <x>     [reel.Profile.Speed]
 //	WaitTimeout <time>    15s
 //	WaitPattern <regexp>  />$/
-//	CursorBlink <bool>    false is ignored with a warning: the cursor blinks
-//	                      as the program sets it
+//	CursorBlink <bool>    true; the program can still set its own
 //	LoopOffset            an error
 //
 // reel adds these, which VHS does not read:

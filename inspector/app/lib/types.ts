@@ -9,6 +9,7 @@ export interface CastHeader {
   cell_width?: number
   cell_height?: number
   kitty_storage?: number
+  cursor_blink?: boolean
   fg?: string
   bg?: string
   cursor?: string

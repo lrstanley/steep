@@ -95,6 +95,7 @@ type headerJSON struct {
 	CellWidth    int        `json:"cell_width,omitempty"`
 	CellHeight   int        `json:"cell_height,omitempty"`
 	KittyStorage uint64     `json:"kitty_storage,omitempty"`
+	CursorBlink  bool       `json:"cursor_blink,omitempty"`
 	Fg           string     `json:"fg,omitempty"`
 	Bg           string     `json:"bg,omitempty"`
 	Cursor       string     `json:"cursor,omitempty"`
@@ -138,6 +139,7 @@ func (x *inspector) summary() summaryJSON {
 			Cols: h.Cols, Rows: h.Rows, Title: h.Title, SkipPristine: h.SkipPristine,
 			Scrollback: h.Scrollback, CellWidth: h.CellWidth, CellHeight: h.CellHeight,
 			KittyStorage: h.KittyStorage,
+			CursorBlink:  h.CursorBlink,
 			Fg:           hex(h.Theme.Fg), Bg: hex(h.Theme.Bg), Cursor: hex(h.Theme.Cursor),
 		},
 		Duration:      ms(x.tl.Duration()),

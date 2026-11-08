@@ -78,6 +78,7 @@ func newReplay(ctx context.Context, rt *vt.Runtime, h Header, start int, from ti
 		vt.WithClock(func() time.Duration { return r.now }),
 		vt.WithCellSize(h.CellWidth, h.CellHeight),
 		kittyStorage(h.KittyStorage),
+		vt.WithCursorBlink(h.CursorBlink),
 	)
 	if err != nil {
 		return nil, err

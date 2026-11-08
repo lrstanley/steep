@@ -412,11 +412,11 @@ Set FontSize 40
 		t.Fatal(err)
 	}
 	s := tp.settings
-	got := fmt.Sprintf("%s %dx%d %dx%d %v %q %v %v %v %d %d %d %v %d %v %v %v %v %q %v %v %v %v %v %v",
+	got := fmt.Sprintf("%s %dx%d %dx%d %v %q %v %v %v %d %d %d %v %d %v %v %v %v %q %v %v %v %v %v %v %v",
 		s.shell, s.cols, s.rows, s.width, s.height, *s.FontSize, *s.FontFamily, *s.LetterSpacing, *s.LineHeight,
 		s.typingSpeed, *s.Padding, *s.Margin, *s.BorderRadius, *s.WindowBar, *s.FPS, *s.Speed, s.waitTimeout,
-		s.waitPattern, *s.MarginFill, *s.Title, *s.Scrollbar, *s.PromptMarks, *s.LinkUnderline, *s.Bell, *s.KeyOverlay, *s.Toasts)
-	want := `zsh 100x30 800x400 18 "Fira Code, JetBrains Mono" 1.5 1.2 20ms 0 10 8 true 30 2 3s \$ $ #674EFF "demo" true true true true true true`
+		s.waitPattern, *s.MarginFill, *s.Title, *s.Scrollbar, *s.PromptMarks, *s.LinkUnderline, *s.Bell, *s.KeyOverlay, *s.Toasts, s.cursorBlink)
+	want := `zsh 100x30 800x400 18 "Fira Code, JetBrains Mono" 1.5 1.2 20ms 0 10 8 true 30 2 3s \$ $ #674EFF "demo" true true true true true true false`
 	if got != want {
 		t.Errorf("settings:\n got %s\nwant %s", got, want)
 	}
@@ -439,7 +439,6 @@ Set FontSize 40
 	for _, want := range []string{
 		"17:5: WindowBar Rings is drawn as Colorful",
 		"18:5: WindowBarSize is ignored",
-		"23:5: CursorBlink false is ignored",
 		"32:5: Set FontSize after the first command is ignored",
 	} {
 		if !strings.Contains(warnings, want) {
@@ -453,7 +452,7 @@ Set FontSize 40
 	}
 	if d := defaults.settings; d.width != 1200 || d.height != 600 || d.FontSize != nil || *d.Padding != 60 ||
 		d.typingSpeed != 50*time.Millisecond || d.waitTimeout != 15*time.Second || d.waitPattern.String() != ">$" ||
-		*d.Theme != "Catppuccin Mocha" {
+		!d.cursorBlink || *d.Theme != "Catppuccin Mocha" {
 		t.Errorf("defaults = %+v, want VHS's, with the theme name", d)
 	}
 

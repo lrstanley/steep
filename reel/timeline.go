@@ -144,6 +144,11 @@ type Header struct {
 	// when it runs out. Zero is vt's default. A session's is set
 	// [WithKittyStorage].
 	KittyStorage uint64
+	// CursorBlink is whether the cursor blinks by default (see
+	// [vt.WithCursorBlink]), so a replay draws the cursor the program left
+	// to the default as it was recorded. A session's is set
+	// [WithCursorBlink].
+	CursorBlink bool
 }
 
 // Colors is a foreground, background, and cursor color. Non-nil colors are

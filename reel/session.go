@@ -90,6 +90,8 @@ type sessionConfig struct {
 	cellW, cellH int
 	// kittyStorage is [Header.KittyStorage].
 	kittyStorage uint64
+	// cursorBlink is [Header.CursorBlink].
+	cursorBlink bool
 	// kittyFiles is set [WithKittyFiles].
 	kittyFiles bool
 	// unknown is [WithUnknownSequence].
@@ -104,6 +106,14 @@ type sessionConfig struct {
 // timeline's header, so replays match. Zero leaves vt's default.
 func WithKittyStorage(n uint64) SessionOption {
 	return func(cfg *sessionConfig) { cfg.kittyStorage = n }
+}
+
+// WithCursorBlink sets whether the cursor blinks by default (see
+// [vt.WithCursorBlink]). A program can still pick a blinking or steady
+// cursor itself. It is written to the timeline's header, so replays match.
+// The default is a steady cursor.
+func WithCursorBlink(on bool) SessionOption {
+	return func(cfg *sessionConfig) { cfg.cursorBlink = on }
 }
 
 // WithCellSize sets the terminal's pixel size of one cell, which programs
@@ -218,6 +228,7 @@ func Open(ctx context.Context, cols, rows int, opts ...SessionOption) (*Session,
 		vt.WithClock(func() time.Duration { return timeline.now() }),
 		vt.WithCellSize(cfg.cellW, cfg.cellH),
 		kittyStorage(cfg.kittyStorage),
+		vt.WithCursorBlink(cfg.cursorBlink),
 		vt.WithUnknownSequence(cfg.unknown),
 	)
 	if err != nil {
@@ -231,6 +242,7 @@ func Open(ctx context.Context, cols, rows int, opts ...SessionOption) (*Session,
 		Cols: cols, Rows: rows, Theme: theme, Title: cfg.title,
 		SkipPristine: cfg.skipPristine, Scrollback: cfg.scrollback,
 		CellWidth: cfg.cellW, CellHeight: cfg.cellH, KittyStorage: cfg.kittyStorage,
+		CursorBlink: cfg.cursorBlink,
 	}
 	timeline = newTimeline(h)
 	s := &Session{

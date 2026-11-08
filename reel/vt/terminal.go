@@ -91,6 +91,8 @@ type Terminal struct {
 	checksumReport bool
 	// checksumFlags is the XTCHECKSUM variant restored by a full reset.
 	checksumFlags ChecksumFlags
+	// cursorBlink is [WithCursorBlink]'s default, which a full reset keeps.
+	cursorBlink bool
 
 	// replies is the pty response stream drained by Read. The VT-write
 	// callback appends to it and must not block.

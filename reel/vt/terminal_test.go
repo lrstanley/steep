@@ -407,6 +407,42 @@ func TestScrollbackReenabledOnCheckout(t *testing.T) {
 	}
 }
 
+// TestCursorBlinkOption checks that WithCursorBlink sets the blink a
+// program's DECSCUSR 0 and a full reset restore, and that a pooled terminal
+// takes the next checkout's.
+func TestCursorBlinkOption(t *testing.T) {
+	t.Parallel()
+	rt := NewRuntime(1)
+	term, err := rt.Open(context.Background(), 4, 2, WithCursorBlink(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, step := range []struct {
+		write string
+		want  bool
+	}{
+		{"", true},
+		{"\x1b[2 q", false}, // steady block
+		{"\x1b[0 q", true},  // the default
+		{"\x1b[2 q\x1bc", true},
+	} {
+		writeTerm(t, term, step.write)
+		if got := term.Cursor().Blink; got != step.want {
+			t.Errorf("after %q: blink = %v, want %v", step.write, got, step.want)
+		}
+	}
+	_ = term.Close()
+
+	term, err = rt.Open(context.Background(), 4, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = term.Close() })
+	if term.Cursor().Blink {
+		t.Error("a pooled terminal kept the last checkout's blink")
+	}
+}
+
 func TestScrollbackCap(t *testing.T) {
 	t.Parallel()
 	term := openTest(t, 4, 2)

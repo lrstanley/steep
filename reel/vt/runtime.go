@@ -60,6 +60,7 @@ type openConfig struct {
 	cellH      int
 	kitty      uint64
 	unknown    func(UnknownSequence)
+	blink      bool
 }
 
 // UnknownSequenceMaxBytes is how much of each sequence
@@ -83,6 +84,14 @@ func WithUnknownSequence(fn func(UnknownSequence)) Option {
 // past 32 MiB is not returned to its pool when closed.
 func WithKittyStorage(n uint64) Option {
 	return func(cfg *openConfig) { cfg.kitty = n }
+}
+
+// WithCursorBlink sets whether the cursor blinks by default: at the start,
+// and after a program selects the default style (DECSCUSR 0) or resets the
+// terminal. A program can still pick a blinking or steady cursor itself.
+// The default is a steady cursor.
+func WithCursorBlink(on bool) Option {
+	return func(cfg *openConfig) { cfg.blink = on }
 }
 
 // WithCellSize sets the pixel size of one cell, which a program reads with
@@ -207,6 +216,15 @@ func (t *Terminal) configure(cfg openConfig) error {
 		if err := t.mod.SetU64Option(t.term, wasmvt.TerminalOptionKittyImageStorageLimit, cfg.kitty); err != nil {
 			return err
 		}
+	}
+	// A full reset keeps the default, so a pooled terminal still has the
+	// last checkout's.
+	if cfg.blink != t.cursorBlink {
+		t.cursorBlink = cfg.blink
+		if err := t.mod.SetBoolOption(t.term, wasmvt.TerminalOptionDefaultCursorBlink, cfg.blink); err != nil {
+			return err
+		}
+		t.gridFresh = false
 	}
 	w, h := uint32(defaultCellWidth), uint32(defaultCellHeight)
 	if cfg.cellW > 0 {

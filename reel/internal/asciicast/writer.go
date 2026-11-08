@@ -42,6 +42,7 @@ func headerOf(h Header) castHeader {
 	hl := castHeader{
 		Version: h.Version, Title: h.Title, SkipPristine: h.SkipPristine, Scrollback: h.Scrollback,
 		CellWidth: h.CellWidth, CellHeight: h.CellHeight, KittyStorage: h.KittyStorage,
+		CursorBlink: h.CursorBlink,
 	}
 	if !h.Timestamp.IsZero() {
 		hl.Timestamp = h.Timestamp.Unix()

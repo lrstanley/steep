@@ -120,7 +120,7 @@ func (t *Tape) Run(ctx context.Context, opts ...RunOption) (*Result, error) {
 	}
 	res.Profile = pl.profile
 
-	s, err := reel.Open(ctx, pl.cols, pl.rows, reel.WithTitle(pl.profile.Title))
+	s, err := reel.Open(ctx, pl.cols, pl.rows, reel.WithTitle(pl.profile.Title), reel.WithCursorBlink(st.cursorBlink))
 	if err != nil {
 		return res, err
 	}
