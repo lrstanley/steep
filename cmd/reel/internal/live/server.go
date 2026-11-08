@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -83,6 +84,9 @@ func Serve(ctx context.Context, cfg Config) (err error) {
 	}
 	defer lk.Close()
 	sock := Socket(cfg.Dir, cfg.Name)
+	if sockErr := checkSocket(sock); sockErr != nil {
+		return sockErr
+	}
 	_ = os.Remove(sock) // A stale socket of a server that is gone.
 
 	ctx, stop := context.WithCancel(ctx)
@@ -159,6 +163,13 @@ func (srv *server) serve(ctx context.Context, conn net.Conn) {
 		resp = srv.handle(ctx, req)
 	}
 	_ = json.NewEncoder(conn).Encode(resp)
+	// Windows resets a connection closed with input unread, which can
+	// discard the response before the client reads it; ending the output,
+	// then waiting a moment for the client to close, closes it cleanly.
+	if uc, ok := conn.(*net.UnixConn); ok && uc.CloseWrite() == nil {
+		_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+		_, _ = io.Copy(io.Discard, conn)
+	}
 	if req.Op == OpStop && resp.Error == "" {
 		srv.stopOnce.Do(srv.stop)
 	}

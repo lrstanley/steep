@@ -13,6 +13,15 @@ import (
 	"syscall"
 )
 
+// errRefused is the error for dialing a socket nothing listens on.
+const errRefused = syscall.ECONNREFUSED
+
+// mkdir creates dir, and its parents, if they do not exist, so that only
+// the user can open them.
+func mkdir(dir string) error {
+	return os.MkdirAll(dir, 0o700) //nolint:gosec // G703: the directory is the user's own choice, or their runtime directory.
+}
+
 // checkDir reports an error unless dir is a directory, not a symlink, that
 // the user owns and only the user can open: as the sockets in it take no
 // credentials, it is what keeps other users out of the sessions.

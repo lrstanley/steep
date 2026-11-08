@@ -182,16 +182,23 @@ func (c *SessionStartCmd) Run(ctx context.Context, sc *SessionCmd) error {
 	if err != nil {
 		return err
 	}
-	defer logFile.Close()
-	// The server outlives this command, so it is not canceled with it.
-	cmd := exec.CommandContext(context.WithoutCancel(ctx), self, args...) //nolint:gosec // reel runs itself.
-	cmd.Stderr = logFile
-	cmd.SysProcAttr = detached()
-	out, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
+	var cmd *exec.Cmd
+	var out io.ReadCloser
+	for _, attr := range detached() {
+		// The server outlives this command, so it is not canceled with it.
+		cmd = exec.CommandContext(context.WithoutCancel(ctx), self, args...) //nolint:gosec // reel runs itself.
+		cmd.Stderr = logFile
+		cmd.SysProcAttr = attr
+		if out, err = cmd.StdoutPipe(); err != nil {
+			break
+		}
+		if err = cmd.Start(); err == nil {
+			break
+		}
 	}
-	err = cmd.Start()
+	// Only the server keeps the log open, so it can remove it (Windows
+	// removes no file another process has open).
+	_ = logFile.Close()
 	if err != nil {
 		return err
 	}
@@ -257,6 +264,7 @@ func (c *SessionServeCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	handleCtrlC()
 	err = live.Serve(ctx, live.Config{
 		Dir: dir, Name: c.Name, Cols: cols, Rows: rows, Command: c.Command,
 		Env: c.Env, WorkDir: c.Dir, Linger: c.Linger,
@@ -270,7 +278,9 @@ func (c *SessionServeCmd) Run(ctx context.Context) error {
 		},
 	})
 	if err == nil {
-		// The log, which start opened for it, is only kept for a failure.
+		// The log, which start opened for it as its standard error, is only
+		// kept for a failure. Windows removes no file that is open.
+		_ = os.Stderr.Close()
 		_ = os.Remove(live.Log(dir, c.Name))
 	}
 	return err

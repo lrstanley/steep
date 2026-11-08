@@ -10,6 +10,7 @@ require (
 	github.com/lrstanley/bubbletint/v2 v2.0.4
 	github.com/lrstanley/clix/v2 v2.0.7
 	github.com/lrstanley/steep/reel v0.0.0-alpha.1
+	golang.org/x/sys v0.49.0
 )
 
 require (
@@ -31,6 +32,5 @@ require (
 	github.com/xo/terminfo v1.3.1 // indirect
 	golang.org/x/image v0.47.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 )

@@ -8,8 +8,11 @@ package main
 
 import "syscall"
 
-// detached starts a process in a session of its own, so it outlives the
-// terminal it was started from.
-func detached() *syscall.SysProcAttr {
-	return &syscall.SysProcAttr{Setsid: true}
+// detached returns the ways to start a process in a session of its own, so
+// it outlives the terminal it was started from, to try in order.
+func detached() []*syscall.SysProcAttr {
+	return []*syscall.SysProcAttr{{Setsid: true}}
 }
+
+// handleCtrlC does nothing: ctrl+c is the terminal's to signal.
+func handleCtrlC() {}

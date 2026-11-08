@@ -127,18 +127,21 @@ var ErrNoSession = errors.New("no such session")
 
 // Dir returns the directory the sessions' sockets are in, creating it
 // only the user can open: $REEL_RUNTIME_DIR, or reel in $XDG_RUNTIME_DIR,
-// or a directory of the user's in the temporary directory.
+// or a directory of the user's in the temporary directory (on Windows,
+// whose temporary directory is the user's own, reel in it).
 func Dir() (string, error) {
 	dir := os.Getenv("REEL_RUNTIME_DIR")
 	if dir == "" {
-		if xdg := os.Getenv("XDG_RUNTIME_DIR"); xdg != "" {
+		switch xdg, uid := os.Getenv("XDG_RUNTIME_DIR"), os.Getuid(); {
+		case xdg != "":
 			dir = filepath.Join(xdg, "reel")
-		} else {
-			dir = filepath.Join(os.TempDir(), fmt.Sprintf("reel-%d", os.Getuid()))
+		case uid < 0: // Windows.
+			dir = filepath.Join(os.TempDir(), "reel")
+		default:
+			dir = filepath.Join(os.TempDir(), fmt.Sprintf("reel-%d", uid))
 		}
 	}
-	// The directory is the user's own choice, or their runtime directory.
-	if err := os.MkdirAll(dir, 0o700); err != nil { //nolint:gosec // G703: see above.
+	if err := mkdir(dir); err != nil {
 		return "", err
 	}
 	if err := checkDir(dir); err != nil {
@@ -149,6 +152,15 @@ func Dir() (string, error) {
 
 // Socket returns the path of the socket of the session name.
 func Socket(dir, name string) string { return filepath.Join(dir, name+".sock") }
+
+// checkSocket reports an error for a socket path too long to bind or dial,
+// which the system reports only as an invalid argument.
+func checkSocket(path string) error {
+	if limit := len(syscall.RawSockaddrUnix{}.Path); len(path) >= limit {
+		return fmt.Errorf("socket path %s is too long (%d bytes, the limit is %d); set REEL_RUNTIME_DIR to a shorter directory, or use a shorter session name", path, len(path), limit-1)
+	}
+	return nil
+}
 
 // Log returns the path of the log of the server of the session name.
 func Log(dir, name string) string { return filepath.Join(dir, name+".log") }
@@ -173,12 +185,16 @@ func Call(ctx context.Context, dir, name string, req Request) (*Response, error)
 	if !ValidName(name) {
 		return nil, errInvalidName(name)
 	}
+	sock := Socket(dir, name)
+	if err := checkSocket(sock); err != nil {
+		return nil, err
+	}
 	var d net.Dialer
-	conn, err := d.DialContext(ctx, "unix", Socket(dir, name))
+	conn, err := d.DialContext(ctx, "unix", sock)
 	if err != nil {
 		// Only a missing socket, or one nothing listens on, is a session
 		// that is gone; anything else, such as a timeout, is reported.
-		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ECONNREFUSED) {
+		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, errRefused) {
 			err = ErrNoSession
 		}
 		return nil, fmt.Errorf("session %q: %w", name, err)
@@ -211,7 +227,7 @@ func List(ctx context.Context, dir string) ([]Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	var out []Info
+	out := []Info{} // [], not null, in JSON.
 	for _, sock := range socks {
 		name := strings.TrimSuffix(filepath.Base(sock), ".sock")
 		cctx, cancel := context.WithTimeout(ctx, 2*time.Second)
