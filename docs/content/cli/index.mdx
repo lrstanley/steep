@@ -32,11 +32,30 @@ Run `reel <command> --help` for every flag. Commands that list things print a ta
 
 ## Installation
 
+Download the binary for your platform from [the releases page](https://github.com/lrstanley/steep/releases). It's a single file, with nothing to install alongside it.
+
+| Platform | File |
+| --- | --- |
+| Linux | `reel_linux_amd64`, `reel_linux_arm64` |
+| macOS | `reel_darwin_arm64` (Apple silicon), `reel_darwin_amd64` (Intel) |
+| Windows | `reel_windows_amd64.exe`, `reel_windows_arm64.exe` |
+
+On Linux and macOS, make it executable and put it on your `PATH`, named `reel`:
+
+```console
+$ chmod +x reel_linux_amd64
+$ sudo mv reel_linux_amd64 /usr/local/bin/reel
+```
+
+Each release has the SHA-256 of every file in `steep_checksums.txt`. To check the files you downloaded, run `sha256sum --check --ignore-missing steep_checksums.txt` in the same directory. The macOS binaries aren't signed, so if a browser downloaded one, macOS blocks it the first time it runs. `xattr -d com.apple.quarantine reel` lets it run.
+
+Or, with Go:
+
 ```console
 go install github.com/lrstanley/steep/cmd/reel@latest
 ```
 
-That's the only time you need Go. Video and WebP formats need [ffmpeg](https://ffmpeg.org) on your `PATH`, and [the rest need nothing](/reel/formats). `reel run` and `reel test` need a shell, and tapes run in `bash` unless they say otherwise. Fonts are built in, so recordings look the same on any machine.
+Video and WebP formats need [ffmpeg](https://ffmpeg.org) on your `PATH`, and [the rest need nothing](/reel/formats). `reel run` and `reel test` need a shell, and tapes run in `bash` unless they say otherwise. Fonts are built in, so recordings look the same on any machine.
 
 ## Next
 

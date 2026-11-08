@@ -116,6 +116,17 @@ go get -u github.com/lrstanley/steep@latest
 ```
 <!-- template:end:goget -->
 
+### The `reel` CLI
+
+Download `reel` for Linux, macOS, or Windows (amd64 or arm64) from [the releases page](https://github.com/lrstanley/steep/releases),
+with checksums in `steep_checksums.txt`, or build it with Go:
+
+```console
+go install github.com/lrstanley/steep/cmd/reel@latest
+```
+
+See [the CLI docs](https://getsteep.dev/cli#installation) for the steps.
+
 ### Related libraries
 
 - [reel](https://getsteep.dev/reel): records terminals and renders recordings, from Go. steep records through it.

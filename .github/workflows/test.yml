@@ -81,6 +81,13 @@ jobs:
       - uses: lrstanley/.github/composite/golangci-lint@master
         with:
           working-directory: ${{ matrix.module }}
+  # a snapshot of what release.yml publishes, so a broken release config shows up before a tag does.
+  go-build:
+    needs: [go-test, go-lint]
+    uses: lrstanley/.github/.github/workflows/lang-go-release.yml@master
+    secrets: inherit
+    with:
+      upload-artifacts: true
   codecov:
     needs: [go-versions]
     runs-on: ubuntu-latest

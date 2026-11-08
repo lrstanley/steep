@@ -70,6 +70,8 @@ go get github.com/lrstanley/steep/reel@latest          # reel alone
 go install github.com/lrstanley/steep/cmd/reel@latest  # the reel CLI
 \`\`\`
 
+Prebuilt \`reel\` binaries for Linux, macOS, and Windows, on amd64 and arm64, are on [the releases page](https://github.com/lrstanley/steep/releases), with checksums in \`steep_checksums.txt\`.
+
 ## Documentation
 
 ${SECTIONS.map((s) => `- [${s.title}](/${s.path}/llms.txt): ${s.summary}`).join("\n")}

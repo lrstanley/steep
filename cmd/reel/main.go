@@ -20,6 +20,14 @@ import (
 	"github.com/lrstanley/steep/reel"
 )
 
+// Release builds set these with -ldflags. Left empty, as with go install, clix
+// reads them from the binary's build info.
+var (
+	version string
+	commit  string
+	date    string
+)
+
 // Flags are reel's commands.
 type Flags struct {
 	Run     RunCmd     `cmd:"" help:"Run VHS tapes and write their outputs."`
@@ -42,6 +50,9 @@ func main() {
 		clix.WithAppInfo[Flags](clix.AppInfo{
 			Name:        "reel",
 			Description: "Record terminals, and render recordings.",
+			Version:     version,
+			Commit:      commit,
+			Date:        date,
 			Links: []clix.Link{
 				{Name: "docs", URL: "https://getsteep.dev/cli"},
 				{Name: "llms.txt", URL: "https://getsteep.dev/llms.txt"},

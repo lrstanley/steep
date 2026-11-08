@@ -1,0 +1,25 @@
+# read by lrstanley/.github's goreleaser/run.sh (see .github/workflows/release.yml), which merges this into its
+# shared goreleaser config.
+goreleaser:
+  pre:
+    before:
+      hooks:
+        # go.work is gitignored, and snapshot builds of master may need reel changes that aren't published yet. on a
+        # release commit, every module already pins the released reel, so this changes nothing there.
+        - go work init ./reel ./cmd/reel
+    git:
+      # the module tags point at the same commits as the v* tag, which is the one that names the release.
+      ignore_tags: ["reel/*", "cmd/*"]
+  # one entry per binary. run.sh fills in the flags, ldflags, and env each one leaves out.
+  builds:
+    - id: reel
+      dir: cmd/reel
+      main: .
+      binary: reel
+      targets:
+        - linux_amd64
+        - linux_arm64
+        - darwin_amd64
+        - darwin_arm64
+        - windows_amd64
+        - windows_arm64
