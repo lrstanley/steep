@@ -39,7 +39,8 @@ goreleaser:
         repository:
           owner: lrstanley
           name: homebrew-tap
-          token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
+          # token fields only accept a bare {{ .Env.NAME }}.
+          token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
         commit_author:
           use_github_app_token: true
         commit_msg_template: "feat(reel): update to {{ .Tag }}"
