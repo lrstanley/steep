@@ -18,3 +18,4 @@ jobs:
     secrets: inherit
     with:
       upload-artifacts: true
+      homebrew-tap: true

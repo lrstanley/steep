@@ -120,7 +120,13 @@ go get -u github.com/lrstanley/steep@latest
 
 ### The `reel` CLI
 
-Download `reel` for Linux, macOS, or Windows (amd64 or arm64) from [the releases page](https://github.com/lrstanley/steep/releases),
+Install `reel` on macOS or Linux with [Homebrew](https://brew.sh):
+
+```console
+brew install lrstanley/tap/reel
+```
+
+Or download it for Linux, macOS, or Windows (amd64 or arm64) from [the releases page](https://github.com/lrstanley/steep/releases),
 with checksums in `steep_checksums.txt`, or build it with Go:
 
 ```console

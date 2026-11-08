@@ -23,3 +23,30 @@ goreleaser:
         - darwin_arm64
         - windows_amd64
         - windows_arm64
+  post:
+    # a cask in lrstanley/homebrew-tap, built from the raw binaries rather than archives. lang-go-release.yml mints
+    # HOMEBREW_TAP_TOKEN from the bot app on tag runs when homebrew-tap is set in release.yml.
+    homebrew_casks:
+      - name: reel
+        ids: [binary]
+        description: Make terminal recordings from VHS tapes, and render them as GIFs, videos, and stills
+        homepage: https://getsteep.dev/cli
+        # every tag updates the tap, prereleases included, as no release is stable yet. skip_upload: auto would skip
+        # them.
+        # snapshot builds disable the release, and GoReleaser can't derive the download URL without it.
+        url:
+          template: "https://github.com/lrstanley/steep/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+        repository:
+          owner: lrstanley
+          name: homebrew-tap
+          token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
+        commit_author:
+          use_github_app_token: true
+        commit_msg_template: "feat(reel): update to {{ .Tag }}"
+        hooks:
+          post:
+            # the macOS binaries aren't signed, and Gatekeeper refuses quarantined unsigned binaries.
+            install_steps: |
+              on_macos do
+                run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}"]
+              end

@@ -70,7 +70,7 @@ go get github.com/lrstanley/steep/reel@latest          # reel alone
 go install github.com/lrstanley/steep/cmd/reel@latest  # the reel CLI
 \`\`\`
 
-Prebuilt \`reel\` binaries for Linux, macOS, and Windows, on amd64 and arm64, are on [the releases page](https://github.com/lrstanley/steep/releases), with checksums in \`steep_checksums.txt\`.
+On macOS or Linux, \`brew install lrstanley/tap/reel\` installs the \`reel\` CLI with [Homebrew](https://brew.sh). Prebuilt \`reel\` binaries for Linux, macOS, and Windows, on amd64 and arm64, are on [the releases page](https://github.com/lrstanley/steep/releases), with checksums in \`steep_checksums.txt\`.
 
 ## Documentation
 
