@@ -138,6 +138,32 @@ func TestExportPristine(t *testing.T) {
 	)
 }
 
+// TestExportPristineAfter checks that a program leaving the terminal bare
+// as it exits, as Bubble Tea does leaving the alternate screen, is skipped
+// at the end of a recording but not before later output.
+func TestExportPristineAfter(t *testing.T) {
+	t.Parallel()
+	const enter, leave = "\x1b[?1049h\x1b[?25l", "\x1b[?1049l\x1b[?25h"
+	h := Header{Cols: 4, Rows: 1, SkipPristine: true}
+	exited := []Event{outAt(0, enter+"app"), outAt(100, leave), Exit{event: at(300)}}
+	assertFrames(t, exportFrames(t, buildTimeline(h, exited...), Profile{FPS: 100}),
+		wantFrame{"app", 0, 300 * ms, true},
+	)
+	assertFrames(t, exportFrames(t, buildTimeline(Header{Cols: 4, Rows: 1}, exited...), Profile{FPS: 100}),
+		wantFrame{"app", 0, 100 * ms, true},
+		wantFrame{"", 100 * ms, 200 * ms, true},
+	)
+	// Every bare frame before the next paint is kept, in order.
+	next := buildTimeline(h, outAt(0, enter+"app"), outAt(100, leave), Focus{event: at(150)},
+		outAt(200, "$ "), Exit{event: at(300)})
+	assertFrames(t, exportFrames(t, next, Profile{FPS: 100}),
+		wantFrame{"app", 0, 100 * ms, true},
+		wantFrame{"", 100 * ms, 50 * ms, true},
+		wantFrame{"", 150 * ms, 50 * ms, false},
+		wantFrame{"$", 200 * ms, 100 * ms, false},
+	)
+}
+
 func TestExportSpeed(t *testing.T) {
 	t.Parallel()
 	tl := buildTimeline(Header{Cols: 4, Rows: 1}, outAt(0, "a"), outAt(1000, "b"), Exit{event: at(2000)})

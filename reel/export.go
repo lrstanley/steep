@@ -29,7 +29,7 @@ import (
 // For a timeline from [Timeline.Between], frames are those of its window,
 // opening on the screen the earlier events left. Output is deterministic
 // (see [Timeline]). [Header.SkipPristine] skips the bare terminal before
-// the first paint. A window with no frames at all shows the terminal as it
+// the first paint and after the last. A window with no frames at all shows the terminal as it
 // is at the end.
 //
 // Output paths may contain {name} variables: those of

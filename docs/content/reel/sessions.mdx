@@ -74,7 +74,7 @@ The [conditions](/steep/checks#conditions) are `Contains`, `NotContains`, `Match
 | --- | --- |
 | `WithTitle(title)` | Names the recording |
 | `WithTypingDelay(d)` | Pauses after each key press, so a recording shows typing |
-| `WithSkipPristine()` | Skips the bare terminal before a first paint, for programs that write queries first, as Bubble Tea does |
+| `WithSkipPristine()` | Skips the bare terminal before the first paint and after the last, for programs that write queries first or clear the screen as they exit, as Bubble Tea does |
 | `WithScrollback(lines)` | Sets how much history is kept |
 | `WithScrollOnInput(enabled)` | Sets whether input scrolls a scrolled viewport back down |
 | `WithSource(enabled)`, `WithSourceSkip(pkgs...)` | Records where in Go source each mark and annotation came from |
@@ -142,7 +142,7 @@ s, err := reel.Open(ctx, 80, 24, reel.WithSkipPristine())
 p := tea.NewProgram(model, tea.WithInput(s), tea.WithOutput(s), tea.WithWindowSize(80, 24))
 ```
 
-`WithSkipPristine` leaves out the blank terminal before the first paint, since Bubble Tea writes capability queries first.
+`WithSkipPristine` leaves out the blank terminal before the first paint, since Bubble Tea writes capability queries first, and the one it leaves after leaving the alternate screen. A blank terminal between two paints, such as a program exiting before the next command runs, is kept.
 
 To do this in a test, [steep](/steep/harnesses#model-harness) is built for it.
 

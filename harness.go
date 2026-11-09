@@ -151,8 +151,9 @@ func newHarness(tb testing.TB, opts []Option) *Harness {
 	}
 	autoMarks := cfg.autoMarked(tb)
 
-	// Bubble Tea writes capability queries before its first paint, so the
-	// recording starts on that paint rather than on the blank terminal.
+	// Bubble Tea writes capability queries before its first paint, and leaves
+	// the alternate screen as it exits, so the recording starts and ends on
+	// its paints rather than on the blank terminal.
 	session, err := reel.Open(
 		tb.Context(), max(cfg.width, 1), max(cfg.height, 1),
 		reel.WithTitle(tb.Name()), reel.WithSkipPristine(),

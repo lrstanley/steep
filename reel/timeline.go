@@ -121,14 +121,17 @@ type Header struct {
 	// Title names the recording; it is not the window title the program
 	// sets.
 	Title string
-	// SkipPristine makes a replay draw no frame while the terminal still
-	// looks as it did when opened (blank screen, same title, colors,
-	// cursor, progress, and status), so a recording starts on the
-	// program's first paint rather than the bare terminal. It is off by
-	// default because programs that start on a blank screen on purpose,
-	// such as a shell with an empty prompt, want that frame shown. Set it
-	// for programs that write capability queries before their first paint,
-	// as Bubble Tea programs do.
+	// SkipPristine makes a replay draw no frame while the terminal looks as
+	// it did when opened (blank screen, same title, colors, cursor,
+	// progress, and status), before the program's first paint or after its
+	// last. A recording then starts on the first paint rather than the bare
+	// terminal, and ends on the last paint rather than the bare terminal a
+	// program leaves as it exits, such as by leaving the alternate screen.
+	// A bare terminal between two paints is still drawn. It is off by
+	// default because programs that start or end on a blank screen on
+	// purpose, such as a shell with an empty prompt, want that frame shown.
+	// Set it for programs that write capability queries before their first
+	// paint, as Bubble Tea programs do.
 	SkipPristine bool
 	// Scrollback is how many lines of history the terminal keeps. Zero
 	// keeps none. A session's is [vt.DefaultScrollback] unless opened

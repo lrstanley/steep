@@ -36,9 +36,12 @@ type replay struct {
 	focused bool
 
 	// skipPristine drops frames that look like a fresh terminal (pristine)
-	// until the first real frame, per [Header.SkipPristine].
+	// before the first real frame and after the last, per
+	// [Header.SkipPristine]. Pristine frames after a real one are held in
+	// blanks until the next real frame, and dropped if none comes.
 	skipPristine bool
 	pristine     vt.State
+	blanks       []CellFrame
 
 	// sent is the last frame's state; an event must change its look (see
 	// [vt.State.SameLook]), including focus or colors, to make a new frame.
@@ -214,7 +217,8 @@ func (r *replay) current(at time.Duration) CellFrame {
 }
 
 // commit passes on the terminal as a frame at at, unless it is in
-// synchronized output, looks unchanged, or is still pristine.
+// synchronized output, looks unchanged, or is pristine before the first
+// real frame. Pristine frames after one are held until the next real frame.
 func (r *replay) commit(at time.Duration, inWindow bool) error {
 	if r.frame == nil || r.term.Held() {
 		return nil
@@ -223,7 +227,8 @@ func (r *replay) commit(at time.Duration, inWindow bool) error {
 	if r.haveSent && r.sent.SameLook(st) {
 		return nil
 	}
-	if r.skipPristine && !r.haveSent && r.isPristine(st, r.term.Text()) {
+	pristine := r.skipPristine && r.isPristine(st)
+	if pristine && !r.haveSent {
 		return nil
 	}
 	r.haveSent, r.sent = true, st
@@ -231,15 +236,25 @@ func (r *replay) commit(at time.Duration, inWindow bool) error {
 		r.early = true
 		return nil
 	}
-	return r.send(CellFrame{Screen: r.term.Screen(), State: st, At: at})
+	cf := CellFrame{Screen: r.term.Screen(), State: st, At: at}
+	if pristine {
+		r.blanks = append(r.blanks, cf)
+		return nil
+	}
+	for _, b := range r.blanks {
+		if err := r.send(b); err != nil {
+			return err
+		}
+	}
+	r.blanks = r.blanks[:0]
+	return r.send(cf)
 }
 
-// isPristine reports whether st and the screen text look like the fresh
+// isPristine reports whether st and the screen look like the fresh
 // terminal.
-func (r *replay) isPristine(st vt.State, text string) bool {
+func (r *replay) isPristine(st vt.State) bool {
 	p := r.pristine
-	return strings.TrimSpace(text) == "" && len(r.term.Images()) == 0 &&
-		st.Title == p.Title &&
+	return st.Title == p.Title &&
 		st.ShownProgress() == p.ShownProgress() &&
 		st.ProgramStatusGeneration == p.ProgramStatusGeneration &&
 		st.AltScreen == p.AltScreen &&
@@ -247,7 +262,9 @@ func (r *replay) isPristine(st vt.State, text string) bool {
 		st.Background == p.Background &&
 		st.ReverseColors == p.ReverseColors &&
 		len(st.PromptMarks) == len(p.PromptMarks) &&
-		st.Cursor == p.Cursor
+		st.Cursor == p.Cursor &&
+		len(r.term.Images()) == 0 &&
+		strings.TrimSpace(r.term.Text()) == ""
 }
 
 // send passes on cf, preceded by the opening frame if cf comes after the
@@ -266,8 +283,10 @@ func (r *replay) send(cf CellFrame) error {
 }
 
 // finish ensures the recording has at least one frame: the pending opening
-// frame, or else the current terminal if nothing was emitted.
+// frame, or else the current terminal if nothing was emitted. Held
+// pristine frames are dropped, so the last real frame plays to the end.
 func (r *replay) finish() error {
+	r.blanks = nil
 	switch {
 	case r.frame == nil:
 		return nil

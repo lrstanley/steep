@@ -27,7 +27,9 @@ A program may write capability queries before its first paint, as Bubble Tea doe
 
 ## The last frame is blank
 
-A program that clears the screen as it exits leaves a blank end, and a `.png` output draws that. Mark the end before it quits, and cut there with `tl.Between("", "end")`. A steep harness does this for you, at `close:1`.
+A program that clears the screen as it exits leaves a blank end, and a `.png` output draws that. Open the session with `reel.WithSkipPristine()`, which leaves out a bare terminal after the last paint, as it does before the first. A steep harness does this for you.
+
+When the end isn't bare, such as when the program leaves its title set, mark the end before it quits and cut there with `tl.Between("", "end")`.
 
 ## Glyphs are boxes
 
