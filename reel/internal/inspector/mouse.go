@@ -13,21 +13,26 @@ import (
 	"github.com/lrstanley/steep/reel/vt"
 )
 
-// mouseSettle is how long after a mouse event [effects.Mouse], with its
-// defaults, keeps moving: the idle pointer hides after a second and fades
-// out over 250ms, outlasting a press's ripple and its glide, which waits
-// for a press at most a glide. Between spans of it, the mouse holds still,
-// so frames need not be drawn again as the playhead moves. TestMouse
-// checks it.
-const mouseSettle = 1250 * time.Millisecond
+// mouseLead and mouseSettle are how long before and after a mouse event
+// [effects.Mouse], with its defaults, moves. The pointer sets off for an
+// event to arrive as it is sent, gliding for at most four of its 150ms
+// glides. After the event, the idle pointer hides after a second and fades
+// out over 250ms, outlasting a press's ripple, and the pointer's glide
+// there, which is late by a glide at most. Between spans of them, the mouse
+// holds still, so frames need not be drawn again as the playhead moves.
+// TestMouse checks them.
+const (
+	mouseLead   = 600 * time.Millisecond
+	mouseSettle = 1250 * time.Millisecond
+)
 
 // mouseStep is the step of the mouse's [reel.Context]. Its frames are
 // paused, drawn as of one moment, so any step draws them alike.
 const mouseStep = 10 * time.Millisecond
 
-// mouseSpans are the spans of time, in ms, the mouse moves in: from each
-// mouse event of events' inputs, for mouseSettle, merged where they
-// overlap.
+// mouseSpans are the spans of time, in ms, the mouse moves in: around each
+// mouse event of events' inputs, from mouseLead before it to mouseSettle
+// after, merged where they overlap.
 func mouseSpans(events []reel.Event) [][2]float64 {
 	var spans [][2]float64
 	for _, ev := range events {
@@ -35,7 +40,7 @@ func mouseSpans(events []reel.Event) [][2]float64 {
 		if !ok || !hasMouse(in.Data) {
 			continue
 		}
-		start, end := ms(in.At()), ms(in.At()+mouseSettle)
+		start, end := ms(max(in.At()-mouseLead, 0)), ms(in.At()+mouseSettle)
 		if n := len(spans); n > 0 && start <= spans[n-1][1] {
 			spans[n-1][1] = end
 			continue

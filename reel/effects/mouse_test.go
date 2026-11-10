@@ -13,7 +13,6 @@ import (
 	"math"
 	"math/rand/v2"
 	"slices"
-	"sort"
 	"testing"
 	"time"
 
@@ -64,22 +63,25 @@ func assertMouseFrames(t *testing.T, in, out []reel.Frame, hidden time.Duration)
 	}
 }
 
-// TestMouseClick checks a left click: the pointer appears on its cell with
-// a blue ripple that spreads and fades on every step, then hides.
+// TestMouseClick checks a left click: the pointer fades in on its cell
+// before it, then shows a blue ripple that spreads and fades on every step,
+// then hides.
 func TestMouseClick(t *testing.T) {
 	t.Parallel()
 	tl := buildTimeline(t, 16, 3, "",
 		output(0, mouseScreen),
-		input(100, sgrMouse(sgrLeft, 3, 1, false)+sgrMouse(sgrLeft, 3, 1, true)),
+		input(400, sgrMouse(sgrLeft, 3, 1, false)+sgrMouse(sgrLeft, 3, 1, true)),
 		output(3000, " "),
 	)
 	in, out := mouseFrames(t, tl, Mouse(WithPointerHide(time.Second)))
-	if out[0].Image != in[0].Image || out[0].Delay != 100*ms {
-		t.Fatalf("first frame %+v, want the terminal's own until the click", infoOf(out[:1]))
+	// The pointer sets off to fade in 250ms before the click, first showing
+	// on the step after.
+	if out[0].Image != in[0].Image || out[0].Delay != 200*ms {
+		t.Fatalf("first frame %+v, want the terminal's own until the pointer fades in", infoOf(out[:1]))
 	}
 	// The pointer hides a second after the click, and fades for 250ms.
-	assertMouseFrames(t, in, out, 1350*ms)
-	assertGolden(t, "mouse-click", out[1:10])
+	assertMouseFrames(t, in, out, 1650*ms)
+	assertGolden(t, "mouse-click", out[1:13])
 }
 
 // TestMouseDrag checks a left drag down and across, one cell per step: the
@@ -102,12 +104,54 @@ func TestMouseDrag(t *testing.T) {
 	assertGolden(t, "mouse-drag", slices.Concat(out[1:12], out[14:16]))
 }
 
-// TestMouseFastDrag checks that, with the defaults, the pointer keeps up
-// with a drag of motion quicker than its glide, as [reel.Session.Drag]
-// sends it: it reaches the press's cell first, even with motion at the
-// same offset waiting for it, then stays within a cell of the latest
-// event's cell, at the end of the trail, and reaches the release cell as
-// soon after a quicker release as the release came after the motion.
+// testStage returns a mouse stage with the shortest glide glide, cells half
+// as wide as high, and the defaults' other timings, but a fade of 100ms.
+func testStage(glide time.Duration) *mouseStage {
+	return &mouseStage{
+		parts: MouseAll, glide: glide, hide: time.Second, fade: 100 * ms, ripple: mouseRipple,
+		aspect: 0.5, unit: 20,
+	}
+}
+
+// addAll adds each event to s, as known from the start.
+func addAll(s *mouseStage, events ...mouseEvent) {
+	for _, ev := range events {
+		s.add(ev.at, 0, ev.MouseEvent)
+	}
+}
+
+// mev is a mouse event of action and button at (x, y), at offset at.
+func mev(at time.Duration, action vt.MouseAction, button vt.MouseButton, x, y int) mouseEvent {
+	return mouseEvent{at: at, Action: action, Button: button, X: x, Y: y}
+}
+
+// assertSmooth checks that the pointer moves smoothly from offset from to
+// to, sampled every millisecond: no jump in its position, nor in its
+// velocity, as a snap or a stop and start would make.
+func assertSmooth(t *testing.T, s *mouseStage, from, to time.Duration) {
+	t.Helper()
+	prev, pv := s.pos(from), vec{}
+	for at := from + ms; at <= to; at += ms {
+		p := s.pos(at)
+		v := p.sub(prev)
+		if d := v.len(); d > 0.5 {
+			t.Fatalf("at %v: pointer jumps %v cells in 1ms, from %v to %v", at, d, prev, p)
+		}
+		if at > from+ms {
+			if dv := v.sub(pv).len(); dv > 0.01 {
+				t.Fatalf("at %v: pointer's speed jumps by %v cells/ms", at, dv)
+			}
+		}
+		prev, pv = p, v
+	}
+}
+
+// TestMouseFastDrag checks that, with the defaults, the pointer follows a
+// drag of motion quicker than its glide, as [reel.Session.Drag] sends it,
+// smoothly: it reaches the press's cell before moving on, even with motion
+// at the same offset waiting for it, then stays close behind the latest
+// event's cell, at the end of the trail, and comes to rest on the release
+// cell soon after the release.
 func TestMouseFastDrag(t *testing.T) {
 	t.Parallel()
 	events := []event{
@@ -123,65 +167,93 @@ func TestMouseFastDrag(t *testing.T) {
 	}
 	events = append(events, input(2000, sgrMouse(sgrLeft, 50, 4, true)))
 	tl := buildTimeline(t, 60, 10, "", events...)
-	s := &mouseStage{
-		ctx: &reel.Context{Timeline: tl}, parts: MouseAll,
-		glide: mouseGlide, hide: mouseHide, fade: mouseFade, ripple: mouseRipple,
-	}
-	s.readEvents()
-	if l := s.look(250 * ms); l.pos != (vec{2.5, 4.5}) {
+	s := testStage(mouseGlide)
+	s.fade = mouseFade
+	s.ctx = &reel.Context{Timeline: tl}
+	s.readEvents(0, math.MaxInt64)
+	press := s.events[1]
+	if l := s.look(press.landed); l.pos != (vec{2.5, 4.5}) {
 		t.Errorf("once the glide to the press ends: pointer at %v, want on its cell", l.pos)
 	}
-	for _, at := range []time.Duration{300 * ms, 500 * ms, 1010 * ms, 1555 * ms, 1999 * ms} {
-		latest := s.events[sort.Search(len(s.events), func(i int) bool { return s.events[i].at > at })-1].cell()
+	for _, ev := range s.events[2:] {
+		if ev.move.start < press.landed {
+			t.Errorf("motion at %v leaves at %v, before the pointer reaches the press at %v", ev.at, ev.move.start, press.landed)
+		}
+	}
+	for _, at := range []time.Duration{500 * ms, 1010 * ms, 1555 * ms, 1999 * ms} {
+		latest := s.events[s.sent(at)].cell()
 		l := s.look(at)
-		if math.Abs(l.pos.x-latest.x) > 1 || l.pos.y != latest.y {
-			t.Errorf("at %v: pointer at %v, want within a cell of %v", at, l.pos, latest)
+		if l.pos.x < latest.x-2 || l.pos.x > latest.x+1 || math.Abs(l.pos.y-latest.y) > 1e-9 {
+			t.Errorf("at %v: pointer at %v, want close behind %v", at, l.pos, latest)
 		}
 		if path := s.trailPath(l.trail); path[len(path)-1] != l.pos {
 			t.Errorf("at %v: trail ends at %v, want at the pointer, %v", at, path[len(path)-1], l.pos)
 		}
 	}
-	if l := s.look(2020 * ms); l.pos != (vec{50.5, 4.5}) {
-		t.Errorf("20ms after the release: pointer at %v, want on its cell", l.pos)
+	if l := s.look(2300 * ms); l.pos != (vec{50.5, 4.5}) {
+		t.Errorf("300ms after the release: pointer at %v, want on its cell", l.pos)
 	}
+	assertSmooth(t, s, press.landed, 2300*ms)
 }
 
-// TestSmoothPath checks that a smoothed path keeps its ends, keeps the
-// points of a straight line where they are, even with a leg of no length,
-// and curves through the steps of a path that steps from cell to cell
-// instead of jumping at them, and that a path is resampled up to its end,
-// even when its last leg is shorter than a step.
-func TestSmoothPath(t *testing.T) {
+// TestResample checks that a path is resampled up to its end, even when its
+// last leg is shorter than a step, and that a path with no length is its
+// start alone.
+func TestResample(t *testing.T) {
 	t.Parallel()
 	if got, want := resample([]vec{{0, 0}, {2.5, 0}}, 1), []vec{{0, 0}, {1, 0}, {2, 0}, {2.5, 0}}; !slices.Equal(got, want) {
 		t.Errorf("resampled: %v, want %v", got, want)
 	}
-	if got := smoothPath([]vec{{1, 1}, {1, 1}}, 1, 4); !slices.Equal(got, []vec{{1, 1}}) {
+	if got := resample([]vec{{1, 1}, {1, 1}}, 1); !slices.Equal(got, []vec{{1, 1}}) {
 		t.Errorf("no length: %v, want its start", got)
 	}
-	line := smoothPath([]vec{{0, 0}, {4, 3}, {4, 3}, {10.4, 7.8}}, 1, 3)
-	if len(line) != 14 || line[13] != (vec{10.4, 7.8}) {
-		t.Fatalf("line: %v, want 14 points to (10.4, 7.8)", line)
-	}
-	for i, p := range line[:13] {
-		if want := (vec{0.8 * float64(i), 0.6 * float64(i)}); math.Hypot(p.x-want.x, p.y-want.y) > 1e-9 {
-			t.Errorf("line: point %d at %v, want %v", i, p, want)
+}
+
+// TestMotion checks the pointer's motions: that a glide and a spring start
+// from the state they are given, that a glide comes to rest on its cell at
+// its end, bowed out of its line midway, that a spring is at rest by its
+// end, and that each one's velocity and acceleration are those its
+// position changes by.
+func TestMotion(t *testing.T) {
+	t.Parallel()
+	near := func(a, b vec, tol float64) bool { return a.sub(b).len() <= tol }
+	from, vel, acc, to := vec{1, 2}, vec{30, -10}, vec{-200, 50}, vec{20, 8}
+	glide := motion{start: time.Second, dur: 300 * ms, from: from, vel: vel, acc: acc, to: to, bow: bowOf(from, to, 0.5)}
+	spring := motion{start: time.Second, from: from, vel: vel, to: to, omega: followStiffness / mouseGlide.Seconds()}
+	spring.dur = springRest(from, vel, to, spring.omega)
+	for _, tc := range []struct {
+		name string
+		m    motion
+	}{{"glide", glide}, {"spring", spring}} {
+		m := tc.m
+		if p, v, a := m.state(m.start); !near(p, from, 1e-9) || !near(v, vel, 1e-9) || (m.omega == 0 && !near(a, acc, 1e-9)) {
+			t.Errorf("%s: starts at %v, moving %v, accelerating %v; want %v, %v, %v", tc.name, p, v, a, from, vel, acc)
+		}
+		if p, _, _ := m.state(m.start + m.dur - ms/10); !near(p, to, 0.01) {
+			t.Errorf("%s: at %v by its end, want at rest on %v", tc.name, p, to)
+		}
+		const h = 1e-4
+		for k := 1; k < 20; k++ {
+			at := m.start + m.dur*time.Duration(k)/20
+			p, v, a := m.state(at)
+			step := time.Duration(h * float64(time.Second))
+			pb, vb, _ := m.state(at - step)
+			pa, va, _ := m.state(at + step)
+			if dv := pa.sub(pb).scale(0.5 / h); !near(dv, v, 1e-3*max(1, v.len())) {
+				t.Errorf("%s at %v: velocity %v, want %v", tc.name, at, v, dv)
+			}
+			if da := va.sub(vb).scale(0.5 / h); !near(da, a, 1e-2*max(1, a.len())) {
+				t.Errorf("%s at %v: acceleration %v, want %v", tc.name, at, a, da)
+			}
+			_ = p
 		}
 	}
-	// Steps of 10 across, then 2 down.
-	var steps []vec
-	for i := range 4 {
-		steps = append(steps, vec{float64(10 * i), float64(2 * i)}, vec{float64(10*i + 10), float64(2 * i)})
+	// Moving right and down, the bow is up and right of the line.
+	if b := glide.bow; b.y >= 0 || b.x <= 0 {
+		t.Errorf("bow %v, want up and right", b)
 	}
-	got := smoothPath(steps, 0.5, 6)
-	if got[0] != steps[0] || got[len(got)-1] != steps[len(steps)-1] {
-		t.Errorf("steps: from %v to %v, want from %v to %v", got[0], got[len(got)-1], steps[0], steps[len(steps)-1])
-	}
-	for k := 1; k < len(got); k++ {
-		// Resampled unsmoothed, a step drops 0.5 over no width.
-		if dx, dy := got[k].x-got[k-1].x, got[k].y-got[k-1].y; dy > 0.5*math.Abs(dx)+1e-9 {
-			t.Errorf("steps: drops %v over %v at %v, want a gentle curve", dy, dx, got[k])
-		}
+	if b := bowOf(vec{0, 0}, vec{0, 10}, 0.5); b.y != 0 || b.x >= 0 {
+		t.Errorf("straight down: bow %v, want left", b)
 	}
 }
 
@@ -227,18 +299,20 @@ func TestPaintMask(t *testing.T) {
 // end or view, and not for another alpha.
 func TestMouseTrailMask(t *testing.T) {
 	t.Parallel()
-	s := &mouseStage{glide: 100 * ms, ripple: 400 * ms, unit: 20}
-	s.add(0, vt.MouseEvent{Action: vt.MousePress, Button: vt.MouseLeft, X: 0, Y: 0})
-	s.add(10*ms, vt.MouseEvent{Action: vt.MouseMotion, Button: vt.MouseLeft, X: 5, Y: 0})
-	s.add(20*ms, vt.MouseEvent{Action: vt.MouseMotion, Button: vt.MouseLeft, X: 5, Y: 3})
-	tr := trailLook{first: 0, last: 2, end: vec{5.5, 2}, alpha: 0xff}
+	s := testStage(100 * ms)
+	addAll(s,
+		mev(0, vt.MousePress, vt.MouseLeft, 0, 0),
+		mev(10*ms, vt.MouseMotion, vt.MouseLeft, 5, 0),
+		mev(20*ms, vt.MouseMotion, vt.MouseLeft, 5, 3),
+	)
+	tr := trailLook{first: 0, from: 0, until: 15 * ms, alpha: 0xff}
 	view, grid := cellView{w: 10, h: 20}, image.Rect(0, 0, 100, 100)
 	mask := s.trailMask(tr, view, grid)
 	tr.alpha = 0x40
 	if s.trailMask(tr, view, grid) != mask {
 		t.Error("another alpha: drawn again, want the same mask")
 	}
-	tr.end = vec{5.5, 3.5}
+	tr.until = 200 * ms
 	longer := s.trailMask(tr, view, grid)
 	if longer == mask || longer.Rect.Max.Y <= mask.Rect.Max.Y {
 		t.Errorf("another end: mask %v, want a new one past %v", longer.Rect, mask.Rect)
@@ -345,25 +419,20 @@ func TestMouseErrors(t *testing.T) {
 }
 
 // TestMouseEvents checks what each mouse event leaves the mouse doing, and
-// where the pointer glides from.
+// where the pointer moves to it from.
 func TestMouseEvents(t *testing.T) {
 	t.Parallel()
-	s := &mouseStage{glide: 100 * ms, hide: time.Second, fade: 100 * ms, ripple: 400 * ms}
-	for _, ev := range []struct {
-		at time.Duration
-		m  vt.MouseEvent
-	}{
-		{0, vt.MouseEvent{Action: vt.MouseMotion, Button: vt.MouseUnknown, X: 0, Y: 0}},
-		{50 * ms, vt.MouseEvent{Action: vt.MousePress, Button: vt.MouseLeft, X: 2, Y: 0}},
-		{200 * ms, vt.MouseEvent{Action: vt.MouseMotion, Button: vt.MouseLeft, X: 3, Y: 0}},
-		{200 * ms, vt.MouseEvent{Action: vt.MousePress, Button: vt.MouseWheelUp, X: 3, Y: 0}},
-		{300 * ms, vt.MouseEvent{Action: vt.MouseRelease, Button: vt.MouseLeft, X: 3, Y: 0}},
-		{400 * ms, vt.MouseEvent{Action: vt.MouseMotion, Button: vt.MouseRight, X: 4, Y: 0}},
-		{2 * time.Second, vt.MouseEvent{Action: vt.MouseRelease, Button: vt.MouseUnknown, X: 6, Y: 0}},
-		{4 * time.Second, vt.MouseEvent{Action: vt.MouseMotion, Button: vt.MouseUnknown, X: 1, Y: 0}},
-	} {
-		s.add(ev.at, ev.m)
-	}
+	s := testStage(100 * ms)
+	addAll(s,
+		mev(0, vt.MouseMotion, vt.MouseUnknown, 0, 0),
+		mev(50*ms, vt.MousePress, vt.MouseLeft, 2, 0),
+		mev(200*ms, vt.MouseMotion, vt.MouseLeft, 3, 0),
+		mev(200*ms, vt.MousePress, vt.MouseWheelUp, 3, 0),
+		mev(300*ms, vt.MouseRelease, vt.MouseLeft, 3, 0),
+		mev(400*ms, vt.MouseMotion, vt.MouseRight, 4, 0),
+		mev(2*time.Second, vt.MouseRelease, vt.MouseUnknown, 6, 0),
+		mev(4*time.Second, vt.MouseMotion, vt.MouseUnknown, 1, 0),
+	)
 	want := []struct {
 		fromX float64
 		held  vt.MouseButton
@@ -372,86 +441,118 @@ func TestMouseEvents(t *testing.T) {
 		{0.5, vt.MouseUnknown, -1},
 		{0.5, vt.MouseLeft, 1},
 		{2.5, vt.MouseLeft, 1},
-		// The motion at the same offset had not started gliding.
-		{2.5, vt.MouseLeft, 1},
+		// The motion at the same offset had reached its cell.
+		{3.5, vt.MouseLeft, 1},
 		{3.5, vt.MouseUnknown, 1},
 		// Motion with a button held drags without a press.
 		{3.5, vt.MouseRight, 5},
 		{4.5, vt.MouseUnknown, 5},
-		// The pointer had hidden, so it shows at the cell.
-		{1.5, vt.MouseUnknown, -1},
+		// The pointer had hidden, so it fades in where it was.
+		{6.5, vt.MouseUnknown, -1},
 	}
 	for i, w := range want {
 		ev := s.events[i]
-		if ev.from.x != w.fromX || ev.held != w.held || ev.drag != w.drag {
-			t.Errorf("event %d: from %v, held %v, drag %d; want from %v, held %v, drag %d", i, ev.from.x, ev.held, ev.drag, w.fromX, w.held, w.drag)
+		if ev.move.from.x != w.fromX || ev.held != w.held || ev.drag != w.drag {
+			t.Errorf("event %d: from %v, held %v, drag %d; want from %v, held %v, drag %d", i, ev.move.from.x, ev.held, ev.drag, w.fromX, w.held, w.drag)
 		}
+	}
+	if ev := s.events[7]; ev.shown != 0 {
+		t.Errorf("after hiding: shown %v as it moves, want 0", ev.shown)
+	}
+	if a := s.alpha(s.events[7].at); a != 1 {
+		t.Errorf("after hiding: alpha %v as the event is sent, want 1", a)
 	}
 }
 
-// TestMousePressReached checks that the pointer reaches the cell of a press
-// before the drag motion after it moves it on, and that a press where the
-// pointer already is keeps nothing waiting.
-func TestMousePressReached(t *testing.T) {
+// TestMouseArrives checks that the pointer sets off for an event before it
+// is sent, to arrive as it is, and with too little time, that it glides
+// quicker and arrives late, the events after a press waiting for it, a
+// glide at most.
+func TestMouseArrives(t *testing.T) {
 	t.Parallel()
-	s := &mouseStage{glide: 150 * ms, hide: time.Second, fade: 100 * ms, ripple: 400 * ms}
-	for _, ev := range []struct {
-		at time.Duration
-		m  vt.MouseEvent
-	}{
-		{0, vt.MouseEvent{Action: vt.MouseMotion, Button: vt.MouseUnknown, X: 0, Y: 0}},
-		{500 * ms, vt.MouseEvent{Action: vt.MousePress, Button: vt.MouseLeft, X: 4, Y: 0}},
-		{540 * ms, vt.MouseEvent{Action: vt.MouseMotion, Button: vt.MouseLeft, X: 5, Y: 0}},
-		{580 * ms, vt.MouseEvent{Action: vt.MouseMotion, Button: vt.MouseLeft, X: 6, Y: 0}},
-		{700 * ms, vt.MouseEvent{Action: vt.MouseMotion, Button: vt.MouseLeft, X: 7, Y: 0}},
-		{1500 * ms, vt.MouseEvent{Action: vt.MousePress, Button: vt.MouseLeft, X: 7, Y: 0}},
-		{1520 * ms, vt.MouseEvent{Action: vt.MouseMotion, Button: vt.MouseLeft, X: 8, Y: 0}},
-		// Presses quicker than the pointer reaches them wait a glide at most.
-		{2000 * ms, vt.MouseEvent{Action: vt.MousePress, Button: vt.MouseRight, X: 0, Y: 3}},
-		{2010 * ms, vt.MouseEvent{Action: vt.MousePress, Button: vt.MouseRight, X: 4, Y: 3}},
-		{2020 * ms, vt.MouseEvent{Action: vt.MousePress, Button: vt.MouseRight, X: 8, Y: 3}},
-	} {
-		s.add(ev.at, ev.m)
+	s := testStage(150 * ms)
+	addAll(s,
+		mev(0, vt.MouseMotion, vt.MouseUnknown, 0, 0),
+		mev(500*ms, vt.MousePress, vt.MouseLeft, 30, 0),
+		mev(540*ms, vt.MouseMotion, vt.MouseLeft, 31, 0),
+		mev(1500*ms, vt.MouseRelease, vt.MouseLeft, 31, 0),
+		// Presses quicker than the pointer reaches them.
+		mev(2000*ms, vt.MousePress, vt.MouseRight, 0, 3),
+		mev(2010*ms, vt.MousePress, vt.MouseRight, 30, 3),
+		mev(2020*ms, vt.MousePress, vt.MouseRight, 60, 9),
+	)
+	press := s.events[1]
+	if press.move.start >= 400*ms || press.landed != press.at {
+		t.Errorf("press: leaves at %v, lands at %v; want to leave well before, and land at %v", press.move.start, press.landed, press.at)
 	}
-	// pos is where the pointer is at t, from the last event by then.
-	pos := func(t time.Duration) float64 {
-		return s.pos(sort.Search(len(s.events), func(i int) bool { return s.events[i].at > t })-1, t).x
+	if x := s.pos(450 * ms).x; x <= 0.5 || x >= 30.5 {
+		t.Errorf("at 450ms, x = %v, want on the way to the press", x)
 	}
-	if x := pos(560 * ms); x <= 0.5 || x >= 4.5 {
-		t.Errorf("at 560ms, gliding to the press, x = %v, want between 0.5 and 4.5", x)
+	if p := s.pos(500 * ms); p != (vec{30.5, 0.5}) {
+		t.Errorf("at the press, pointer at %v, want on its cell", p)
 	}
-	if x := pos(650 * ms); x != 4.5 {
-		t.Errorf("at 650ms, once the glide to the press ends, x = %v, want 4.5", x)
+	if p := s.pos(450 * ms); p.y >= 0.5 {
+		t.Errorf("at 450ms, y = %v, want bowed up out of the line", p.y)
 	}
-	if x := pos(675 * ms); x <= 4.5 || x >= 6.5 {
-		t.Errorf("at 675ms, gliding on from the press, x = %v, want between 4.5 and 6.5", x)
+	quick, quicker := s.events[5], s.events[6]
+	if quick.landed <= quick.at || quick.move.dur < s.reach(vec{0.5, 3.5}, vec{}, quick.cell())/2 {
+		t.Errorf("quick press: lands at %v after a %v glide; want late, at most twice as quick", quick.landed, quick.move.dur)
 	}
-	if x := pos(850 * ms); x != 7.5 {
-		t.Errorf("at 850ms, x = %v, want 7.5", x)
+	if want := min(quick.landed, quicker.at+s.glide); quicker.move.start != want || want <= quicker.at {
+		t.Errorf("quicker press: leaves at %v, want once the pointer reaches the press before, a glide at most, at %v", quicker.move.start, want)
 	}
-	// The trail waits for the pointer too.
-	if tr := s.trail(3, 600*ms); tr.alpha != 0 {
-		t.Errorf("trail at 600ms, before the pointer reaches the press: %+v, want none", tr)
-	}
-	if tr := s.trail(3, 700*ms); tr.alpha == 0 {
-		t.Error("no trail at 700ms, once the pointer left the press")
-	}
-	for i, want := range []time.Duration{0, 500 * ms, 650 * ms, 650 * ms, 700 * ms, 1500 * ms, 1520 * ms, 2000 * ms, 2150 * ms, 2170 * ms} {
-		if got := s.events[i].start; got != want {
-			t.Errorf("event %d starts gliding at %v, want %v", i, got, want)
+	for _, ev := range s.events {
+		if ev.move.start > ev.at+s.glide {
+			t.Errorf("event at %v leaves at %v, more than a glide late", ev.at, ev.move.start)
 		}
+	}
+	assertSmooth(t, s, 0, 3*time.Second)
+}
+
+// TestMouseGlideBack checks that a glide is measured from where the pointer
+// leaves: back to where a glide before it set off from, it glides rather
+// than jumping.
+func TestMouseGlideBack(t *testing.T) {
+	t.Parallel()
+	s := testStage(150 * ms)
+	addAll(s,
+		mev(0, vt.MouseMotion, vt.MouseUnknown, 0, 0),
+		mev(0, vt.MouseMotion, vt.MouseUnknown, 40, 0),
+		mev(500*ms, vt.MouseMotion, vt.MouseUnknown, 0, 0),
+	)
+	if back := s.events[2]; back.move.dur == 0 || back.move.from != (vec{40.5, 0.5}) {
+		t.Errorf("back: glides from %v over %v, want from (40.5, 0.5) over a while", back.move.from, back.move.dur)
+	}
+	assertSmooth(t, s, 0, time.Second)
+}
+
+// TestMouseLive checks that, live, the pointer sets off for an event no
+// sooner than the start of the frame it is read for.
+func TestMouseLive(t *testing.T) {
+	t.Parallel()
+	s := testStage(150 * ms)
+	s.add(0, 0, vt.MouseEvent{Action: vt.MouseMotion, Button: vt.MouseUnknown, X: 0, Y: 0})
+	s.add(time.Second, 950*ms, vt.MouseEvent{Action: vt.MousePress, Button: vt.MouseLeft, X: 30, Y: 0})
+	if ev := s.events[1]; ev.move.start != 950*ms || ev.landed <= ev.at {
+		t.Errorf("press: leaves at %v, lands at %v; want to leave at 950ms, and land late", ev.move.start, ev.landed)
+	}
+	s.add(2*time.Second, 2100*ms, vt.MouseEvent{Action: vt.MousePress, Button: vt.MouseLeft, X: 0, Y: 0})
+	if ev := s.events[2]; ev.move.start != 2100*ms {
+		t.Errorf("press read after it was sent: leaves at %v, want at 2.1s", ev.move.start)
 	}
 }
 
-// TestMouseLook checks what the mouse shows over a drag: the ripple of the
-// press, the held button, the trail while it is held and as it fades, and
-// the pointer hiding.
+// TestMouseLook checks what the mouse shows over a drag: the pointer fading
+// in, the ripple of the press, the held button, the trail while it is held
+// and as it fades, and the pointer hiding.
 func TestMouseLook(t *testing.T) {
 	t.Parallel()
-	s := &mouseStage{parts: MouseAll, glide: 100 * ms, hide: time.Second, fade: 100 * ms, ripple: 400 * ms}
-	s.add(0, vt.MouseEvent{Action: vt.MousePress, Button: vt.MouseLeft, X: 1, Y: 1})
-	s.add(100*ms, vt.MouseEvent{Action: vt.MouseMotion, Button: vt.MouseLeft, X: 2, Y: 1})
-	s.add(200*ms, vt.MouseEvent{Action: vt.MouseRelease, Button: vt.MouseLeft, X: 2, Y: 1})
+	s := testStage(100 * ms)
+	addAll(s,
+		mev(0, vt.MousePress, vt.MouseLeft, 1, 1),
+		mev(100*ms, vt.MouseMotion, vt.MouseLeft, 2, 1),
+		mev(200*ms, vt.MouseRelease, vt.MouseLeft, 2, 1),
+	)
 	ripples := func(l mouseLook) int {
 		return slices.IndexFunc(l.ripples[:], func(r rippleLook) bool { return r.button == vt.MouseUnknown })
 	}
@@ -463,10 +564,11 @@ func TestMouseLook(t *testing.T) {
 		ripples int
 		trail   trailLook
 	}{
-		{0, 1.5, 0xff, vt.MouseLeft, 1, trailLook{}},
-		{150 * ms, 2, 0xff, vt.MouseLeft, 1, trailLook{first: 0, last: 1, end: vec{2, 1.5}, alpha: 0xff}},
-		{300 * ms, 2.5, 0xff, vt.MouseUnknown, 1, trailLook{first: 0, last: 2, end: vec{2.5, 1.5}, alpha: 0xd7}},
-		{500 * ms, 2.5, 0xff, vt.MouseUnknown, 0, trailLook{first: 0, last: 2, end: vec{2.5, 1.5}, alpha: 0x28}},
+		{0, 1.5, 0, vt.MouseLeft, 1, trailLook{}},
+		{50 * ms, 2, 0x80, vt.MouseLeft, 1, trailLook{first: 0, until: 50 * ms, alpha: 0xff}},
+		{150 * ms, 2.5, 0xff, vt.MouseLeft, 1, trailLook{first: 0, until: 100 * ms, alpha: 0xff}},
+		{300 * ms, 2.5, 0xff, vt.MouseUnknown, 1, trailLook{first: 0, until: 200 * ms, alpha: 0xd7}},
+		{500 * ms, 2.5, 0xff, vt.MouseUnknown, 0, trailLook{first: 0, until: 200 * ms, alpha: 0x28}},
 		{1250 * ms, 2.5, 0x80, vt.MouseUnknown, 0, trailLook{}},
 	} {
 		l := s.look(tc.t)
@@ -487,12 +589,14 @@ func TestMouseLook(t *testing.T) {
 // another button, leave a drag going on.
 func TestMouseExtraButtons(t *testing.T) {
 	t.Parallel()
-	s := &mouseStage{glide: 100 * ms, hide: time.Second, fade: 100 * ms, ripple: 400 * ms}
-	s.add(0, vt.MouseEvent{Action: vt.MousePress, Button: vt.MouseLeft, X: 1, Y: 1})
-	s.add(10*ms, vt.MouseEvent{Action: vt.MousePress, Button: vt.MouseBackward, X: 2, Y: 1})
-	s.add(20*ms, vt.MouseEvent{Action: vt.MouseMotion, Button: vt.MouseBackward, X: 3, Y: 1})
-	s.add(30*ms, vt.MouseEvent{Action: vt.MouseRelease, Button: vt.MouseBackward, X: 3, Y: 1})
-	s.add(40*ms, vt.MouseEvent{Action: vt.MouseRelease, Button: vt.MouseRight, X: 3, Y: 1})
+	s := testStage(100 * ms)
+	addAll(s,
+		mev(0, vt.MousePress, vt.MouseLeft, 1, 1),
+		mev(10*ms, vt.MousePress, vt.MouseBackward, 2, 1),
+		mev(20*ms, vt.MouseMotion, vt.MouseBackward, 3, 1),
+		mev(30*ms, vt.MouseRelease, vt.MouseBackward, 3, 1),
+		mev(40*ms, vt.MouseRelease, vt.MouseRight, 3, 1),
+	)
 	for i, ev := range s.events {
 		if ev.held != vt.MouseLeft || ev.drag != 0 {
 			t.Errorf("event %d: held %v, drag %d; want left held, drag 0", i, ev.held, ev.drag)
@@ -500,30 +604,41 @@ func TestMouseExtraButtons(t *testing.T) {
 	}
 }
 
-// TestMouseTrailPath checks where a trail ends: behind a pointer still on
-// its way to the press, along the last leg as far as the pointer, and with
-// the legs before it whole when the pointer cuts back across them.
+// TestMouseTrailPath checks that a trail is the path the pointer took, from
+// the press to where it is, and once released, that it stops where the
+// pointer set off for the next event, rather than follow it on.
 func TestMouseTrailPath(t *testing.T) {
 	t.Parallel()
-	s := &mouseStage{glide: 100 * ms, ripple: 400 * ms}
-	for i, c := range []image.Point{{0, 0}, {10, 0}, {10, 10}, {0, 0}} {
-		action := vt.MouseMotion
-		if i == 0 {
-			action = vt.MousePress
-		}
-		s.add(time.Duration(i)*10*ms, vt.MouseEvent{Action: action, Button: vt.MouseLeft, X: c.X, Y: c.Y})
+	s := testStage(100 * ms)
+	addAll(s,
+		mev(0, vt.MousePress, vt.MouseLeft, 0, 0),
+		mev(50*ms, vt.MouseMotion, vt.MouseLeft, 10, 0),
+		mev(100*ms, vt.MouseMotion, vt.MouseLeft, 10, 4),
+		mev(150*ms, vt.MouseRelease, vt.MouseLeft, 10, 4),
+		mev(160*ms, vt.MouseMotion, vt.MouseUnknown, 0, 9),
+	)
+	held := s.look(120 * ms).trail
+	path := s.trailPath(held)
+	if path[0] != (vec{0.5, 0.5}) || path[len(path)-1] != s.pos(120*ms) {
+		t.Errorf("held: trail from %v to %v, want from the press to the pointer, %v", path[0], path[len(path)-1], s.pos(120*ms))
 	}
-	for _, tc := range []struct {
-		name string
-		tr   trailLook
-		want []vec
-	}{
-		{"before the press", trailLook{first: 0, last: 1, end: vec{-3, 0.5}}, []vec{{0.5, 0.5}, {0.5, 0.5}}},
-		{"along the leg", trailLook{first: 0, last: 1, end: vec{4.5, 1}}, []vec{{0.5, 0.5}, {4.5, 0.5}}},
-		{"cutting back", trailLook{first: 0, last: 3, end: vec{5.5, 0.5}}, []vec{{0.5, 0.5}, {10.5, 0.5}, {10.5, 10.5}, {3, 3}}},
-	} {
-		if got := s.trailPath(tc.tr); !slices.Equal(got, tc.want) {
-			t.Errorf("%s: %v, want %v", tc.name, got, tc.want)
+	// Each point is where the pointer was at a later sample than the last.
+	at := held.from
+	for k, p := range path[:len(path)-1] {
+		for at < held.until && s.pos(at) != p {
+			at += mouseTrailSample
+		}
+		if at >= held.until {
+			t.Fatalf("held: trail point %d at %v, not where the pointer was after the point before", k, p)
+		}
+	}
+	released, rel := s.look(300*ms).trail, s.events[3]
+	if released.alpha == 0 || released.until != s.events[4].move.start || released.until >= rel.move.start+rel.move.dur {
+		t.Errorf("released: trail %+v, want one until the pointer set off again, at %v", released, s.events[4].move.start)
+	}
+	for _, p := range s.trailPath(released) {
+		if p.y > 4.5+1e-9 {
+			t.Errorf("released: trail reaches %v, past the release toward the next event", p)
 		}
 	}
 }

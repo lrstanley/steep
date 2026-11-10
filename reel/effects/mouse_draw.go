@@ -121,25 +121,6 @@ func resample(path []vec, step float64) []vec {
 	return out
 }
 
-// smoothPath returns path resampled every step (see [resample]), each point
-// the average of it and the k points on each side of it. Toward the ends
-// the points are averaged with fewer, evenly around them, so the ends stay
-// put.
-func smoothPath(path []vec, step float64, k int) []vec {
-	pts := resample(path, step)
-	out := make([]vec, len(pts))
-	for i := range pts {
-		r := min(k, i, len(pts)-1-i)
-		var sum vec
-		for _, p := range pts[i-r : i+r+1] {
-			sum.x, sum.y = sum.x+p.x, sum.y+p.y
-		}
-		m := float64(2*r + 1)
-		out[i] = vec{sum.x / m, sum.y / m}
-	}
-	return out
-}
-
 // cover raises the coverage of each pixel of mask to that of sh. Shapes
 // drawn into one mask overlap, such as the legs of a trail, so pixels
 // already covered whole are skipped.

@@ -12,13 +12,14 @@ import (
 )
 
 // TestMouse checks that a cast with mouse input draws the mouse by
-// default, moving for mouseSettle after its last event and then holding
-// still, and that the player's image is left alone.
+// default, fading in before its first event, within mouseLead of it, and
+// moving for mouseSettle after its last event and then holding still, and
+// that the player's image is left alone.
 func TestMouse(t *testing.T) {
 	cast := `{"version":2,"width":20,"height":4}
 [0.1, "o", "\u001b[?1000h\u001b[?1006hclick me"]
-[0.5, "i", "\u001b[<0;5;2M"]
-[0.6, "i", "\u001b[<0;5;2m"]
+[1.0, "i", "\u001b[<0;5;2M"]
+[1.1, "i", "\u001b[<0;5;2m"]
 [3.0, "o", " done"]
 `
 	x, err := load(t.Context(), []byte(cast), 1)
@@ -29,10 +30,11 @@ func TestMouse(t *testing.T) {
 	if !x.displayFor.Mouse || x.displayReason["mouse"] == "" {
 		t.Errorf("mouse = %v (%q), want on for the mouse input", x.displayFor.Mouse, x.displayReason["mouse"])
 	}
-	if want := [][2]float64{{500, 600 + ms(mouseSettle)}}; !slices.Equal(x.mouseSpans, want) {
+	if want := [][2]float64{{1000 - ms(mouseLead), 1100 + ms(mouseSettle)}}; !slices.Equal(x.mouseSpans, want) {
 		t.Errorf("mouse spans = %v, want %v", x.mouseSpans, want)
 	}
-	if err = x.seek(2); err != nil {
+	// Before the press, so the offsets below are drawn as of themselves.
+	if err = x.seek(0); err != nil {
 		t.Fatal(err)
 	}
 	img, err := x.player.Image()
@@ -40,11 +42,13 @@ func TestMouse(t *testing.T) {
 		t.Fatal(err)
 	}
 	bare := bytes.Clone(img.Pix)
-	release := 600 * time.Millisecond
+	press, release := time.Second, 1100*time.Millisecond
 	for _, tc := range []struct {
 		at    time.Duration
 		drawn bool
 	}{
+		{press - 300*time.Millisecond, false},
+		{press - 200*time.Millisecond, true},
 		{release, true},
 		{release + mouseSettle - 50*time.Millisecond, true},
 		{release + mouseSettle, false},

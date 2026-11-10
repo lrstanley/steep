@@ -34,10 +34,9 @@ const (
 	// mouseTrailStep is how far apart, in cell heights, the points of a
 	// drawn trail are.
 	mouseTrailStep = 0.25
-	// mouseTrailSmooth is how many points either side of a point of a
-	// drawn trail it is averaged with: three cell heights, so a drag that
-	// steps from cell to cell draws a gentle curve.
-	mouseTrailSmooth = 3 / mouseTrailStep
+	// mouseTrailSample is how often, in timeline time, a trail samples the
+	// path the pointer took.
+	mouseTrailSample = 4 * time.Millisecond
 )
 
 var (
@@ -123,22 +122,27 @@ func WithButtonColor(button vt.MouseButton, c color.Color) MouseOption {
 	}
 }
 
-// WithPointerGlide sets how long the pointer takes to move to the cell of
-// each mouse event, easing in and out, in playback time. Motion quicker
-// than that after the motion before it, such as a drag's, and the release
-// that ends it, move the pointer at a steady pace over the time between
-// them instead, so it keeps up with fast motion, an event behind at most.
-// A press is not cut short: the
-// pointer reaches its cell before it moves on, so the events after it wait
-// up to a glide. The default is 150ms; zero or less moves it there at once.
+// WithPointerGlide sets how long, in playback time, the pointer takes to
+// glide to the next cell. It glides as a hand moves a mouse: easing in and
+// out along a gentle arc, and taking longer the farther it goes, up to four
+// times as long across a wide screen. It sets off ahead of each event, so it
+// arrives as the event is sent. With too little time for that, it glides up
+// to twice as quick, then arrives late, and the events after a press wait
+// for it to reach the press, a glide at most.
+//
+// Motion quicker than a glide after the motion before it, such as a drag's,
+// and the release that ends it, are followed smoothly instead, the pointer
+// keeping close behind them, so a drag that steps from cell to cell is drawn
+// as a curve. The default is 150ms; zero or less moves the pointer to each
+// event's cell at once.
 func WithPointerGlide(d time.Duration) MouseOption {
 	return func(m *mouse) { m.glide = d }
 }
 
 // WithPointerHide sets how long, in playback time, the pointer stays after
 // the last mouse event while no button is held. It then fades out over
-// 250ms, and the next mouse event shows it again at its cell. The default
-// is 1s; zero or less never hides it.
+// 250ms, and fades in again where it was as it sets off for the next mouse
+// event. The default is 1s; zero or less never hides it.
 func WithPointerHide(d time.Duration) MouseOption {
 	return func(m *mouse) { m.hide = d }
 }
@@ -152,7 +156,8 @@ func WithMouseParts(p MouseParts) MouseOption {
 // Mouse returns an effect that draws the mouse on the terminal frames, from
 // the mouse events of the timeline's [reel.Input] events, such as those of
 // [reel.Session.Mouse], [reel.Session.Click], and [reel.Session.Drag]: a
-// pointer that glides to the cell of each event (see [WithPointerGlide]), a
+// pointer that glides to the cell of each event, arriving as it is sent (see
+// [WithPointerGlide]), a
 // ripple where a button is pressed, a disc under the pointer while it is
 // held, and a trail along the path of a drag, which fades once the button is
 // released. Ripples, discs, and trails take the button's color (see
@@ -227,6 +232,7 @@ func (e mouse) Start(ctx *reel.Context) (reel.Stage, error) {
 		hide:    timeline(e.hide),
 		fade:    timeline(mouseFade),
 		ripple:  timeline(mouseRipple),
+		aspect:  float64(ctx.Layout.Cell.X) / float64(max(ctx.Layout.Cell.Y, 1)),
 		unit:    float64(ctx.Layout.Cell.Y),
 		pointer: pointerSprite(e.style, cmp.Or(e.size, size), e.pointer),
 	}
@@ -254,9 +260,13 @@ type mouseStage struct {
 	ctx     *reel.Context
 	parts   MouseParts
 	buttons [len(buttonColors)]color.NRGBA
-	// glide, hide, fade, and ripple are in timeline time. A zero hide never
-	// hides the pointer.
+	// glide, hide, fade, and ripple are in timeline time. glide is the
+	// shortest glide, and a zero one moves the pointer at once. A zero hide
+	// never hides the pointer.
 	glide, hide, fade, ripple time.Duration
+	// aspect is a cell's width over its height, which glides measure
+	// distance by.
+	aspect float64
 	// unit is the height of a cell of the terminal font, which ripples,
 	// discs, and trails are sized by.
 	unit float64
@@ -272,8 +282,9 @@ type mouseStage struct {
 	events []mouseEvent
 	read   int
 	// reached is when the pointer reaches the cell of the last press, which
-	// later events wait for, up to a glide.
-	reached time.Duration
+	// later events wait for, up to a glide, and late is the most any press
+	// was reached after it was sent.
+	reached, late time.Duration
 
 	// layout is the rasterizer's layout for screens of size.
 	layout render.Layout
@@ -297,22 +308,21 @@ type trailMaskKey struct {
 // vec is a point in cells, or in pixels once a [cellView] maps it.
 type vec struct{ x, y float64 }
 
-// lerp is the point u of the way from v to w.
-func (v vec) lerp(w vec, u float64) vec { return vec{v.x + (w.x-v.x)*u, v.y + (w.y-v.y)*u} }
-
 // mouseEvent is a mouse event at offset at into the timeline, with what it
 // left the mouse doing.
 type mouseEvent struct {
 	vt.MouseEvent
 
 	at time.Duration
-	// start is when the pointer starts to glide to the event's cell, from
-	// from: at, or once it reaches the cell of a press before it. glide is
-	// how long it takes, at a steady pace when steady is set, or easing in
-	// and out.
-	start, glide time.Duration
-	from         vec
-	steady       bool
+	// move is how the pointer moves to the event's cell. It starts once the
+	// event before it was sent and the event is known, so the pointer
+	// arrives as it is sent when there is time to, or as soon after as it
+	// can. landed is when it reaches the cell, or at if sooner.
+	move   motion
+	landed time.Duration
+	// shown is the pointer's opacity, from 0 to 1, as move starts. A pointer
+	// that had hidden fades in from there as it moves.
+	shown float64
 	// held is the button held after the event, or [vt.MouseUnknown].
 	held vt.MouseButton
 	// drag is the index of the event that started the drag the event is
@@ -328,7 +338,19 @@ func (s *mouseStage) run(f reel.Frame, emit func(reel.Frame)) {
 		emit(f)
 		return
 	}
-	s.readEvents()
+	// The pointer moves to an event once it is read, so it can arrive as
+	// the event is sent. A complete timeline is read at once. A live one is
+	// read up to the end of the frame, as far as it is sure to have grown,
+	// so the pointer never changes what a frame before showed, and moves
+	// the same however far ahead the recording is.
+	end := time.Duration(math.MaxInt64)
+	if s.ctx.Live {
+		end = f.At
+		if !f.Paused {
+			end += s.timeline(f.Delay)
+		}
+	}
+	s.readEvents(f.At, end)
 	if len(s.events) == 0 {
 		emit(f)
 		return
@@ -339,7 +361,7 @@ func (s *mouseStage) run(f reel.Frame, emit func(reel.Frame)) {
 	grid := s.layout.Grid.Add(f.Image.Rect.Min)
 	// The mouse holds still from settled on, until the next event.
 	last := s.events[len(s.events)-1]
-	settled := max(last.start+s.glide, last.at+max(s.ripple, s.hide+s.fade))
+	settled := max(last.move.start+max(last.move.dur, s.fade), last.landed+s.ripple, last.at+s.hide+s.fade)
 	var cuts []time.Duration
 	for p := time.Duration(0); p < f.Delay && f.At+s.timeline(p) <= settled; p += s.ctx.Step {
 		cuts = append(cuts, p)
@@ -357,9 +379,17 @@ func (s *mouseStage) timeline(p time.Duration) time.Duration {
 }
 
 // readEvents adds the mouse events of the inputs appended to the timeline
-// since it last read.
-func (s *mouseStage) readEvents() {
+// since it last read, up to those at offset end or later, unless at now,
+// the start of the frame they are read for.
+func (s *mouseStage) readEvents(now, end time.Duration) {
+	known := time.Duration(0)
+	if s.ctx.Live {
+		known = now
+	}
 	for ev := range s.ctx.Timeline.EventsFrom(s.read) {
+		if at := ev.At(); at >= end && at > now {
+			return
+		}
 		s.read++
 		in, ok := ev.(reel.Input)
 		if !ok {
@@ -367,36 +397,78 @@ func (s *mouseStage) readEvents() {
 		}
 		for _, st := range vt.DecodeInput(in.Data) {
 			if st.Kind == vt.StrokeMouse {
-				s.add(in.At(), st.Mouse)
+				s.add(in.At(), known, st.Mouse)
 			}
 		}
 	}
 }
 
-// add appends the mouse event m at offset at.
-func (s *mouseStage) add(at time.Duration, m vt.MouseEvent) {
-	ev := mouseEvent{MouseEvent: m, at: at, start: min(max(at, s.reached), at+s.glide), glide: s.glide, drag: -1}
-	ev.from = ev.cell()
-	var prev mouseEvent
-	if n := len(s.events); n > 0 {
+// add appends the mouse event m at offset at, known from offset known on.
+func (s *mouseStage) add(at, known time.Duration, m vt.MouseEvent) {
+	ev := mouseEvent{MouseEvent: m, at: at, drag: -1}
+	to := ev.cell()
+	prev := mouseEvent{drag: -1}
+	// The pointer leaves for the event's cell once it is known, the event
+	// before it was sent, and the pointer reached the last press, waiting a
+	// glide at most.
+	from := known
+	n := len(s.events)
+	if n > 0 {
 		prev = s.events[n-1]
-		if s.alpha(prev, at) > 0 {
-			ev.from = s.pos(n-1, ev.start)
-		}
-		// Easing to each cell of motion quicker than a glide would restart
-		// the glide on every event and fall behind. Moving on steadily for
-		// as long as the motion before it took reaches the cell as the next
-		// event at that pace comes in. The first motion after a press, and
-		// motion at the same offset, which would move at once, still ease,
-		// so the pointer leaves the press's cell gradually.
-		if d := at - prev.at; m.Action != vt.MousePress && prev.Action == vt.MouseMotion && 0 < d && d < s.glide {
-			ev.glide, ev.steady = d, true
-		}
-	} else {
-		prev.drag = -1
+		from = max(from, prev.at, prev.move.start, min(s.reached, at+s.glide))
 	}
-	if m.Action == vt.MousePress && ev.from != ev.cell() {
-		s.reached = ev.start + ev.glide
+	p, v, a := s.state(from)
+	if n == 0 {
+		p = to
+	}
+	hidden := s.alpha(at) < 1
+	mv := motion{start: from, from: p, vel: v, acc: a, to: to}
+	switch d := at - prev.at; {
+	case s.glide <= 0:
+		mv = motion{start: max(from, at), from: to, to: to}
+	case n > 0 && m.Action != vt.MousePress && prev.Action == vt.MouseMotion && 0 < d && d < s.glide:
+		// Motion quicker than a glide, such as a drag's, would stop and
+		// start the pointer on every event. Following it as a spring
+		// does smooths it into a curve, which keeps close behind it.
+		mv.omega = followStiffness / s.glide.Seconds()
+		mv.dur = springRest(p, v, to, mv.omega)
+	default:
+		// Glide to arrive as the event is sent: as long as the distance
+		// calls for, and a pointer that had hidden fades in first. With
+		// less time than that, glide quicker, up to twice as quick, then
+		// arrive late. A pointer still moving as the event is sent leaves
+		// at once; one at rest by then may wait there, as its state does
+		// not change before it leaves.
+		rest := n == 0
+		if n > 0 {
+			if end := prev.move.start + prev.move.dur; end <= max(from, at) {
+				from, rest = max(from, end), true
+				p, v, a = s.state(from)
+			}
+		}
+		mv.from, mv.vel, mv.acc = p, v, a
+		mv.dur = s.reach(p, v, to)
+		lead := mv.dur
+		if hidden {
+			lead = max(lead, s.fade)
+		}
+		mv.start = from
+		if rest {
+			mv.start = max(from, at-lead)
+		}
+		if room := at - from; room < mv.dur {
+			mv.dur = max(room, mv.dur/2)
+		}
+		mv.bow = bowOf(mv.from, to, s.aspect)
+	}
+	ev.move, ev.landed = mv, at
+	if mv.omega == 0 {
+		ev.landed = max(at, mv.start+mv.dur)
+	}
+	ev.shown = s.alpha(mv.start)
+	if m.Action == vt.MousePress {
+		s.reached = ev.landed
+		s.late = max(s.late, ev.landed-at)
 	}
 	switch {
 	case m.Action == vt.MousePress && isButton(m.Button):
@@ -420,30 +492,59 @@ func (s *mouseStage) add(at time.Duration, m vt.MouseEvent) {
 	s.events = append(s.events, ev)
 }
 
-// pos is where the pointer is at offset t, from the event i on: gliding
-// to the cell of the last event up to i it has started gliding to.
-func (s *mouseStage) pos(i int, t time.Duration) vec {
-	for i > 0 && t < s.events[i].start {
-		i--
+// reach is how long a glide from p, moving at v, to to takes: the shortest
+// glide to the next cell, longer the farther it goes (see [glideReach]), up
+// to [glideLongest] times that, and none for a pointer at rest there.
+func (s *mouseStage) reach(p, v, to vec) time.Duration {
+	gap := to.sub(p)
+	dist := math.Hypot(gap.x*s.aspect, gap.y)
+	if dist < restSlack && v.len()*s.glide.Seconds() < restSlack {
+		return 0
 	}
-	ev := s.events[i]
-	d := t - ev.start
-	if d >= ev.glide {
-		return ev.cell()
-	}
-	if ev.steady {
-		return ev.from.lerp(ev.cell(), float64(d)/float64(ev.glide))
-	}
-	return ev.from.lerp(ev.cell(), 1-eased(d, ev.glide))
+	return time.Duration(float64(s.glide) * min(1+glideReach*math.Log2(1+dist), glideLongest))
 }
 
-// alpha is the pointer's opacity at offset t, from the event ev on.
-func (s *mouseStage) alpha(ev mouseEvent, t time.Duration) uint8 {
-	idle := t - ev.at - s.hide
-	if s.hide == 0 || ev.held != vt.MouseUnknown || idle < 0 {
-		return 0xff
+// moving is the index of the last event the pointer has started moving to
+// by offset t, or -1.
+func (s *mouseStage) moving(t time.Duration) int {
+	return sort.Search(len(s.events), func(i int) bool { return s.events[i].move.start > t }) - 1
+}
+
+// sent is the index of the last event sent by offset t, or -1.
+func (s *mouseStage) sent(t time.Duration) int {
+	return sort.Search(len(s.events), func(i int) bool { return s.events[i].at > t }) - 1
+}
+
+// state is the pointer's position, velocity, and acceleration at offset t,
+// at rest before it first moves.
+func (s *mouseStage) state(t time.Duration) (p, v, a vec) {
+	j := s.moving(t)
+	if j < 0 {
+		return vec{}, vec{}, vec{}
 	}
-	return uint8(math.Round(0xff * eased(idle, s.fade)))
+	return s.events[j].move.state(t)
+}
+
+// pos is where the pointer is at offset t.
+func (s *mouseStage) pos(t time.Duration) vec {
+	p, _, _ := s.state(t)
+	return p
+}
+
+// alpha is the pointer's opacity at offset t, from 0 to 1: fading in as it
+// moves to an event after it had hidden, and fading out once the mouse is
+// idle with no button held.
+func (s *mouseStage) alpha(t time.Duration) float64 {
+	j := s.moving(t)
+	if j < 0 {
+		return 0
+	}
+	ev := s.events[j]
+	a := ev.shown + (1-ev.shown)*(1-eased(t-ev.move.start, s.fade))
+	if idle := t - ev.at - s.hide; s.hide > 0 && ev.held == vt.MouseUnknown && idle > 0 {
+		a = min(a, eased(idle, s.fade))
+	}
+	return a
 }
 
 // mouseLook is what the mouse shows at one moment, mapped onto the frame by
@@ -467,12 +568,12 @@ type rippleLook struct {
 	age    uint8
 }
 
-// trailLook is the trail of a drag, along the cells of the events first to
-// last, its last leg as far as the point of it nearest end, at opacity
-// alpha. A zero alpha is no trail.
+// trailLook is the trail of the drag the event first started: the path the
+// pointer took from offset from to until, at opacity alpha. A zero alpha is
+// no trail.
 type trailLook struct {
-	first, last int
-	end         vec
+	first       int
+	from, until time.Duration
 	alpha       uint8
 }
 
@@ -507,28 +608,28 @@ func (s *mouseStage) lookAt(f reel.Frame, grid image.Rectangle, p time.Duration)
 
 // look is what the mouse shows at offset t, with a zero view.
 func (s *mouseStage) look(t time.Duration) mouseLook {
-	i := sort.Search(len(s.events), func(i int) bool { return s.events[i].at > t }) - 1
-	if i < 0 {
+	if s.moving(t) < 0 {
 		return mouseLook{}
 	}
-	ev := s.events[i]
-	l := mouseLook{pos: s.pos(i, t)}
+	l := mouseLook{pos: s.pos(t)}
 	if s.parts&MousePointer != 0 {
-		l.alpha = s.alpha(ev, t)
+		l.alpha = uint8(math.Round(0xff * s.alpha(t)))
 	}
-	if s.parts&MouseClicks != 0 {
-		l.held = ev.held
-		n := 0
-		for j := i; j >= 0 && n < mouseRipples && t-s.events[j].at < s.ripple; j-- {
-			if e := s.events[j]; e.Action == vt.MousePress && isButton(e.Button) && !hidden(s.cuts, e.at) {
-				age := uint8(0xff * float64(t-e.at) / float64(s.ripple))
-				l.ripples[n] = rippleLook{at: e.cell(), button: e.Button, age: age}
-				n++
+	if i := s.sent(t); i >= 0 {
+		if s.parts&MouseClicks != 0 {
+			l.held = s.events[i].held
+			n := 0
+			for j := i; j >= 0 && n < mouseRipples && t-s.events[j].at < s.ripple+s.late; j-- {
+				e := s.events[j]
+				if age := t - e.landed; age >= 0 && age < s.ripple && e.Action == vt.MousePress && isButton(e.Button) && !hidden(s.cuts, e.at) {
+					l.ripples[n] = rippleLook{at: e.cell(), button: e.Button, age: uint8(0xff * float64(age) / float64(s.ripple))}
+					n++
+				}
 			}
 		}
-	}
-	if s.parts&MouseDrags != 0 {
-		l.trail = s.trail(i, t)
+		if s.parts&MouseDrags != 0 {
+			l.trail = s.trail(i, t)
+		}
 	}
 	if l.alpha == 0 && l.held == vt.MouseUnknown && l.ripples[0].button == vt.MouseUnknown && l.trail.alpha == 0 {
 		return mouseLook{}
@@ -537,14 +638,11 @@ func (s *mouseStage) look(t time.Duration) mouseLook {
 }
 
 // trail is the trail at offset t, after event i: of the drag going on, or
-// of one released less than a ripple before t. A drag that never moved
-// has none. The trail follows the path the program was sent, and ends where
-// the pointer is, so it never runs ahead of the pointer gliding along it.
+// of one released less than a ripple before t. A drag that never moved has
+// none. The trail is the path the pointer took, from when it reached the
+// drag's start to where it is, or to where it came to rest after the
+// release, so it never runs ahead of the pointer, nor follows it on.
 func (s *mouseStage) trail(i int, t time.Duration) trailLook {
-	// Events the pointer has not started gliding to are not on its path yet.
-	for i > 0 && t < s.events[i].start {
-		i--
-	}
 	r := i
 	for r >= 0 && s.events[r].drag < 0 && t-s.events[r].at < s.ripple {
 		r--
@@ -553,46 +651,63 @@ func (s *mouseStage) trail(i int, t time.Duration) trailLook {
 		return trailLook{}
 	}
 	ev := s.events[r]
-	start := s.events[ev.drag].MouseEvent
-	if !slices.ContainsFunc(s.events[ev.drag:r+1], func(e mouseEvent) bool { return e.X != start.X || e.Y != start.Y }) {
-		return trailLook{}
-	}
 	alpha := 1.0
+	until := t
 	switch {
 	case ev.held == vt.MouseUnknown:
 		alpha = eased(t-ev.at, s.ripple)
+		until = min(until, ev.move.start+ev.move.dur)
+		if r+1 < len(s.events) {
+			until = min(until, s.events[r+1].move.start)
+		}
 	case r < i:
 		// The button was let go without a release the encoding reported.
 		return trailLook{}
 	}
-	if alpha == 0 {
+	// The pointer may have set off for motion of the drag not sent yet. At
+	// rest, it draws the same trail.
+	j := s.moving(until)
+	until = min(until, s.events[j].move.start+s.events[j].move.dur)
+	start := s.events[ev.drag]
+	moved := func(e mouseEvent) bool { return e.drag == ev.drag && (e.X != start.X || e.Y != start.Y) }
+	if alpha == 0 || until <= start.landed || !slices.ContainsFunc(s.events[ev.drag:max(r, j)+1], moved) {
 		return trailLook{}
 	}
-	// Where the pointer is, or was when the next event moved it on.
-	end := s.pos(i, t)
-	if r < i {
-		end = s.events[r+1].from
-	}
-	return trailLook{first: ev.drag, last: r, end: end, alpha: uint8(math.Round(0xff * alpha))}
+	return trailLook{first: ev.drag, from: start.landed, until: until, alpha: uint8(math.Round(0xff * alpha))}
 }
 
-// trailPath is the path tr draws, in cells: the cells of its events, the
-// path the pointer glides along. The legs before the last were sent, so
-// they are drawn whole, and the last as far as the pointer has come along
-// it, which is nowhere before the pointer reaches the press.
+// trailPath is the path tr draws, in cells: where the pointer was every
+// [mouseTrailSample] from tr.from, and at tr.until. A pointer at rest adds
+// one point, however long a drag holds still.
 func (s *mouseStage) trailPath(tr trailLook) []vec {
-	cells := make([]vec, 0, tr.last-tr.first+1)
-	for _, ev := range s.events[tr.first : tr.last+1] {
-		cells = append(cells, ev.cell())
+	var path []vec
+	j := s.moving(tr.from)
+	for t := tr.from; t < tr.until; t += mouseTrailSample {
+		for j+1 < len(s.events) && s.events[j+1].move.start <= t {
+			j++
+		}
+		mv := s.events[j].move
+		if t < mv.start+mv.dur {
+			p, _, _ := mv.state(t)
+			path = append(path, p)
+			continue
+		}
+		if len(path) == 0 || path[len(path)-1] != mv.to {
+			path = append(path, mv.to)
+		}
+		if j+1 == len(s.events) {
+			break
+		}
+		// Skip to the last sample before the pointer moves again.
+		if gap := s.events[j+1].move.start - t; gap > mouseTrailSample {
+			t += gap - 1 - (gap-1)%mouseTrailSample
+		}
 	}
-	n := len(cells)
-	cells[n-1] = closest(tr.end, cells[n-2], cells[n-1])
-	return cells
+	return append(path, s.pos(tr.until))
 }
 
 // trailMask is the coverage of the trail tr, mapped onto a frame by view
-// and cut to grid, smoothed in pixels, as cells are not square (see
-// [smoothPath]). The mask is shared with later calls, and is not to be
+// and cut to grid. The mask is shared with later calls, and is not to be
 // changed.
 func (s *mouseStage) trailMask(tr trailLook, view cellView, grid image.Rectangle) *image.Alpha {
 	tr.alpha = 0
@@ -605,14 +720,14 @@ func (s *mouseStage) trailMask(tr trailLook, view cellView, grid image.Rectangle
 	for k, c := range cells {
 		path[k] = view.at(c)
 	}
-	path = smoothPath(path, view.h*mouseTrailStep, mouseTrailSmooth)
+	path = resample(path, view.h*mouseTrailStep)
 	// cover scans each shape's box, and the legs are a fraction of a cell
 	// long, so each is a capsule of its own rather than one shape for the
 	// trail.
-	segs := make([]shape, len(path)-1)
+	segs := make([]shape, max(1, len(path)-1))
 	var box image.Rectangle
 	for k := range segs {
-		segs[k] = capsule(path[k], path[k+1], s.unit/4)
+		segs[k] = capsule(path[k], path[min(k+1, len(path)-1)], s.unit/4)
 		box = box.Union(segs[k].box)
 	}
 	// A zoom may put much of the trail off the grid.

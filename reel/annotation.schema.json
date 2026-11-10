@@ -121,7 +121,7 @@
         "middle_color": {"description": "The color of the middle button. Left out, \"#87d787\".", "$ref": "#/$defs/reel.effect.rgb_color"},
         "right_color": {"description": "The color of the right button. Left out, \"#ffaf5f\".", "$ref": "#/$defs/reel.effect.rgb_color"},
         "glide_ms": {
-          "description": "How long the pointer takes to move to the cell of each event, in playback time. Left out, 150. Zero moves it there at once.",
+          "description": "How long the pointer takes to glide to the next cell, in playback time; farther glides take up to four times as long. Left out, 150. Zero moves it to each event's cell at once.",
           "type": "integer", "minimum": 0
         },
         "hide_ms": {

@@ -131,14 +131,14 @@ Mouse input doesn't show in a terminal, so a recording of it looks like the prog
 Effects: []reel.Effect{effects.Mouse()},
 ```
 
-It draws a pointer that glides to each event's cell, a ripple where a button is pressed, a disc under the pointer while it's held, and a trail along a drag, which fades once the button is released. The pointer hides once the mouse is idle.
+It draws a pointer that glides to each event's cell, a ripple where a button is pressed, a disc under the pointer while it's held, and a trail along a drag, which fades once the button is released. The pointer moves the way a hand moves a mouse: it sets off ahead of each event so it lands as the event is sent, eases in and out along a slight arc, and takes longer the farther it goes. A drag's cell-by-cell motion is smoothed into a curve. The pointer hides once the mouse is idle, and fades back in where it was when it next moves.
 
 | Option | Sets | Default |
 | --- | --- | --- |
 | `WithPointerStyle(s)` | `PointerArrow` or `PointerDot` | Arrow |
 | `WithPointerSize(px)` | The pointer's height, or a dot's diameter | A cell's height, or half that for a dot |
 | `WithPointerColor(c)` | Its fill | White |
-| `WithPointerGlide(d)` | How long it takes to reach a cell | 150ms |
+| `WithPointerGlide(d)` | How long it takes to glide to the next cell; farther glides take up to 4× as long | 150ms |
 | `WithPointerHide(d)` | How long it stays after the last event | 1s |
 | `WithButtonColor(button, c)` | The ripples, disc, and trail of a button | Blue, green, and orange for left, middle, and right |
 | `WithMouseParts(p)` | Which of `MousePointer`, `MouseClicks`, and `MouseDrags` to draw | All |
