@@ -21,7 +21,7 @@ import (
 // scaleFor returns the scale at which the font is size points at 96 DPI, so
 // tests can ask for a known cell geometry.
 func scaleFor[T int | float64](size T) float64 {
-	return float64(size) / 11
+	return ScaleForFontSize(float64(size) * 96 / 72)
 }
 
 func assertPanic(t *testing.T, name string, fn func()) {

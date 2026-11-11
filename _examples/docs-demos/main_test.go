@@ -31,9 +31,9 @@ const (
 	// fixtureDir holds text the site's pages include: golden files, and
 	// the output of failing tests.
 	fixtureDir = "../../docs/fixtures"
-	// demoScale draws at twice the size, so recordings stay sharp at the width
-	// of a page, and on a high-density screen.
-	demoScale = 2
+	// demoScale draws at 1.5 times the size, so recordings stay sharp at the
+	// width of a page, and on a high-density screen.
+	demoScale = 1.5
 )
 
 // exporting reports whether this run writes the site's files.

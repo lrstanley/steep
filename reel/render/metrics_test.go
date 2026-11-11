@@ -18,9 +18,9 @@ import (
 func TestWithScale(t *testing.T) {
 	t.Parallel()
 
-	// The default scale is 11pt at 96 DPI, which gives 9x20 cells.
+	// The default scale is 13.5pt at 96 DPI, which gives 11x25 cells.
 	base := MustNew()
-	if got, want := base.Layout(1, 1).Cell, (image.Point{X: 9, Y: 20}); got != want {
+	if got, want := base.Layout(1, 1).Cell, (image.Point{X: 11, Y: 25}); got != want {
 		t.Fatalf("default cell size = %v, want %v", got, want)
 	}
 
@@ -29,9 +29,11 @@ func TestWithScale(t *testing.T) {
 		if got := d.Metrics().Scale; got != scale {
 			t.Fatalf("Metrics().Scale = %v, want %v", got, scale)
 		}
-		// Cells snap to whole pixels, so allow a pixel of rounding.
+		// Cells snap to whole pixels, so the default cell's rounding grows
+		// with the scale.
 		got, want := d.Layout(1, 1).Cell, base.Layout(1, 1).Cell
-		if math.Abs(float64(got.X)-float64(want.X)*scale) > 1 || math.Abs(float64(got.Y)-float64(want.Y)*scale) > 1 {
+		tol := max(1, scale)
+		if math.Abs(float64(got.X)-float64(want.X)*scale) > tol || math.Abs(float64(got.Y)-float64(want.Y)*scale) > tol {
 			t.Fatalf("scale %v: cell size = %v, want ~%v x %v", scale, got, scale*float64(want.X), scale*float64(want.Y))
 		}
 	}

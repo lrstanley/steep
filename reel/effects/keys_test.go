@@ -6,6 +6,7 @@ package effects
 
 import (
 	"bytes"
+	"image"
 	"os"
 	"path/filepath"
 	"slices"
@@ -136,7 +137,9 @@ func TestKeysOverlay(t *testing.T) {
 	)
 	var in []reel.Frame
 	out := exportFrames(t, tl, reel.Profile{
-		Effects: []reel.Effect{recordFrames{&in, 1}, Keys(300 * ms)},
+		// Cells large enough that the chips, drawn at the font's size, fit.
+		Rasterizer: testutil.Rasterizer{Cell: image.Pt(4, 4)},
+		Effects:    []reel.Effect{recordFrames{&in, 1}, Keys(300 * ms)},
 	})
 	if len(in) != 1 {
 		t.Fatalf("%d terminal frames, want 1", len(in))

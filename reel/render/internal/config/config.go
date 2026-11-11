@@ -20,10 +20,10 @@ import (
 )
 
 const (
-	// BaseFontSizePx is the font size in pixels at a scale of 1 (11pt at 96
-	// DPI). Scale is the only font sizing knob; there is no physical display, so
+	// BaseFontSizePx is the font size in pixels at a scale of 1 (13.5pt at
+	// 96 DPI). Scale is the only font sizing knob; there is no physical display, so
 	// points and DPI carry no extra meaning.
-	BaseFontSizePx = 11.0 * 96.0 / 72.0
+	BaseFontSizePx = 13.5 * 96.0 / 72.0
 
 	DefaultScale            = 1.0
 	DefaultCursorBlinkSpeed = 600 * time.Millisecond

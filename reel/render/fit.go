@@ -23,8 +23,8 @@ const (
 )
 
 // ScaleForFontSize returns the [WithScale] scale at which the font is px
-// pixels tall, where a scale of 1 is the default size (11pt at 96 DPI, about
-// 14.7px).
+// pixels tall, where a scale of 1 is the default size (13.5pt at 96 DPI,
+// 18px).
 func ScaleForFontSize(px float64) float64 {
 	return px / config.BaseFontSizePx
 }

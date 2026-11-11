@@ -148,8 +148,8 @@ func WithIconHeightSingle(scale float64) Option {
 }
 
 // WithScale sets the size of everything drawn from the font: glyphs, and so
-// the cell size and the image size with them. Defaults to 1, which is 11pt at
-// 96 DPI (about 14.7px). Use 2 for twice the pixels in each direction.
+// the cell size and the image size with them. Defaults to 1, which is 13.5pt
+// at 96 DPI (18px). Use 2 for twice the pixels in each direction.
 //
 // Fixed pixel lengths ([WithPadding], [WithMargin], [WithBorderRadius],
 // [WithProgressBarHeight], and so on) do not scale with it. Must be > 0.
