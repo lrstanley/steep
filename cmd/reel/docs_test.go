@@ -68,3 +68,40 @@ func TestDocsCoverCommands(t *testing.T) {
 	}
 	walk("", p.Model.Node)
 }
+
+// TestDocsLinks fails when a command's --help links a docs page, or a
+// section of one, that doesn't exist, or a command has no guide.
+func TestDocsLinks(t *testing.T) {
+	var cli struct {
+		Flags `embed:""`
+	}
+	p, err := kong.New(&cli, kong.Vars{"spec": specHelp}, withDocsLinks(), kong.Exit(func(int) { t.Fatal("exited") }))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := filepath.Join("..", "..", "docs", "content")
+	for _, cmd := range p.Model.Leaves(true) {
+		for node := cmd; node.Type == kong.CommandNode; node = node.Parent {
+			name := node.Path()
+			links := commandDocs(node)
+			if node.Parent.Type != kong.CommandNode && len(links) != 2 {
+				t.Errorf("%s has no guide tag", name)
+			}
+			for _, link := range links {
+				if !strings.Contains(node.Detail, docsURL+link) {
+					t.Errorf("%s --help doesn't link %s", name, link)
+				}
+				page, anchor, _ := strings.Cut(link, "#")
+				b, readErr := os.ReadFile(filepath.Join(content, filepath.FromSlash(page)+".mdx"))
+				if readErr != nil {
+					t.Errorf("%s links %s: %v", name, link, readErr)
+					continue
+				}
+				if anchor != "" && !regexp.MustCompile(`(?m)^#+ `+regexp.QuoteMeta(anchor)+`$`).Match(b) {
+					t.Errorf("%s links %s, which has no %q heading", name, link, anchor)
+				}
+			}
+		}
+	}
+}

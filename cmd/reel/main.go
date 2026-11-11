@@ -28,21 +28,22 @@ var (
 	date    string
 )
 
-// Flags are reel's commands.
+// Flags are reel's commands. Each one's guide tag is the docs page that
+// explains it, which its --help links (see withDocsLinks).
 type Flags struct {
-	Run     RunCmd     `cmd:"" help:"Run VHS tapes and write their outputs."`
-	Test    TestCmd    `cmd:"" help:"Run tapes as tests: a failed Wait or Snapshot fails the tape."`
-	Rec     RecCmd     `cmd:"" help:"Record a command, or your shell, in this terminal."`
-	Session SessionCmd `cmd:"" aliases:"s" help:"Drive a program in a detached, recorded terminal, one command at a time."`
-	Export  ExportCmd  `cmd:"" help:"Render an asciicast file through reel's renderer and effects."`
-	Still   StillCmd   `cmd:"" help:"Render one moment of an asciicast file."`
-	Cut     CutCmd     `cmd:"" help:"Cut an asciicast file down to the window between two marks."`
-	Convert ConvertCmd `cmd:"" help:"Convert an asciicast file between versions 2 and 3."`
-	Attach  AttachCmd  `cmd:"" help:"Render a script(1) typescript."`
-	Play    PlayCmd    `cmd:"" help:"Replay an asciicast file in this terminal."`
-	Info    InfoCmd    `cmd:"" help:"Describe an asciicast file."`
-	Fonts   FontsCmd   `cmd:"" help:"List the font families reel can draw with."`
-	Themes  ThemesCmd  `cmd:"" help:"List the named themes."`
+	Run     RunCmd     `cmd:"" guide:"/cli/tapes" help:"Run VHS tapes and write their outputs."`
+	Test    TestCmd    `cmd:"" guide:"/cli/test" help:"Run tapes as tests: a failed Wait or Snapshot fails the tape."`
+	Rec     RecCmd     `cmd:"" guide:"/cli/record" help:"Record a command, or your shell, in this terminal."`
+	Session SessionCmd `cmd:"" guide:"/cli/sessions" aliases:"s" help:"Drive a program in a detached, recorded terminal, one command at a time."`
+	Export  ExportCmd  `cmd:"" guide:"/cli/edit-recordings" help:"Render an asciicast file through reel's renderer and effects."`
+	Still   StillCmd   `cmd:"" guide:"/cli/edit-recordings" help:"Render one moment of an asciicast file."`
+	Cut     CutCmd     `cmd:"" guide:"/cli/edit-recordings" help:"Cut an asciicast file down to the window between two marks."`
+	Convert ConvertCmd `cmd:"" guide:"/cli/edit-recordings" help:"Convert an asciicast file between versions 2 and 3."`
+	Attach  AttachCmd  `cmd:"" guide:"/cli/record" help:"Render a script(1) typescript."`
+	Play    PlayCmd    `cmd:"" guide:"/cli/edit-recordings" help:"Replay an asciicast file in this terminal."`
+	Info    InfoCmd    `cmd:"" guide:"/cli/edit-recordings" help:"Describe an asciicast file."`
+	Fonts   FontsCmd   `cmd:"" guide:"/cli/appearance" help:"List the font families reel can draw with."`
+	Themes  ThemesCmd  `cmd:"" guide:"/cli/appearance" help:"List the named themes."`
 }
 
 func main() {
@@ -61,7 +62,7 @@ func main() {
 		}),
 		clix.WithVersionPlugin[Flags](),
 		clix.WithMarkdownPlugin[Flags](),
-		clix.WithKongOptions[Flags](kong.Vars{"spec": specHelp}),
+		clix.WithKongOptions[Flags](kong.Vars{"spec": specHelp}, withDocsLinks()),
 	)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	cli.Context.BindTo(ctx, (*context.Context)(nil))
