@@ -19,10 +19,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/internal/testutil"
-	"github.com/lrstanley/steep/reel/render"
-	"github.com/lrstanley/steep/reel/sink"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/internal/testutil"
+	"getsteep.dev/steep/reel/render"
+	"getsteep.dev/steep/reel/sink"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // recordFrames is an [Effect] that appends every frame it sees to frames and

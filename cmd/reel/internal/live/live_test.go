@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel"
+	"getsteep.dev/steep/reel"
 )
 
 // serve starts a session of sh in a new directory, and returns the

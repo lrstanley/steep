@@ -19,8 +19,8 @@ import (
 	"testing/fstest"
 	"time"
 
-	syntax "github.com/lrstanley/steep/cmd/reel/internal/tape"
-	"github.com/lrstanley/steep/reel"
+	syntax "getsteep.dev/steep/cmd/reel/internal/tape"
+	"getsteep.dev/steep/reel"
 )
 
 // describe is a step as the tests compare it.

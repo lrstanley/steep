@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // InputOption configures one call to [Session.Type], [Session.Key],

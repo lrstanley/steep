@@ -11,8 +11,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/internal/testutil"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/internal/testutil"
 )
 
 // TestTypedMask checks the presses of typed text, as RedactInputs hides

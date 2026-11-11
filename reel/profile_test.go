@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/internal/testutil"
-	"github.com/lrstanley/steep/reel/render"
-	"github.com/lrstanley/steep/reel/sink"
+	"getsteep.dev/steep/reel/internal/testutil"
+	"getsteep.dev/steep/reel/render"
+	"getsteep.dev/steep/reel/sink"
 )
 
 func TestProfileMerge(t *testing.T) {

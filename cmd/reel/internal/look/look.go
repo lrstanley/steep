@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/steep/cmd/reel/internal/themes"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/effects"
-	"github.com/lrstanley/steep/reel/render"
-	"github.com/lrstanley/steep/reel/render/fonts"
+	"getsteep.dev/steep/cmd/reel/internal/themes"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/render"
+	"getsteep.dev/steep/reel/render/fonts"
 )
 
 // Look is how a recording looks. A nil field is unset, so that layers of

@@ -17,8 +17,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"getsteep.dev/steep/reel"
 	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/lrstanley/steep/reel"
 )
 
 // execTimeout is long enough for bash to start on a busy machine.

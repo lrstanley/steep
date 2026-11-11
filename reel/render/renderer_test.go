@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/render/fonts"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/render/fonts"
+	"getsteep.dev/steep/reel/vt"
 )
 
 func TestRendererCloseSemantics(t *testing.T) {

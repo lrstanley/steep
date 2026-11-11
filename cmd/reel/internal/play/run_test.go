@@ -19,10 +19,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/cmd/reel/internal/look"
-	syntax "github.com/lrstanley/steep/cmd/reel/internal/tape"
-	"github.com/lrstanley/steep/cmd/reel/internal/themes"
-	"github.com/lrstanley/steep/reel"
+	"getsteep.dev/steep/cmd/reel/internal/look"
+	syntax "getsteep.dev/steep/cmd/reel/internal/tape"
+	"getsteep.dev/steep/cmd/reel/internal/themes"
+	"getsteep.dev/steep/reel"
 )
 
 // echo is an in-process program with a "> " prompt that echoes what it

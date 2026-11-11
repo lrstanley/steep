@@ -7,7 +7,7 @@ package vt
 import (
 	"errors"
 
-	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
+	"getsteep.dev/steep/reel/vt/internal/wasmvt"
 )
 
 // ChecksumFlags selects the XTCHECKSUM variant DECRQCRA uses.

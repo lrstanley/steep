@@ -9,8 +9,8 @@ import (
 	"slices"
 	"testing"
 
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/reel/vt"
 )
 
 // TestDrawReverseColors checks that reverse video ([vt.State.ReverseColors])

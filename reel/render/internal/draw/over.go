@@ -9,7 +9,7 @@ import (
 	"image/color"
 	"image/draw"
 
-	icol "github.com/lrstanley/steep/reel/render/internal/color"
+	icol "getsteep.dev/steep/reel/render/internal/color"
 )
 
 // OverCoverage blends col over area of img. In every row of area, the pixel at

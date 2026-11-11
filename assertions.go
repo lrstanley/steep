@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"getsteep.dev/steep/internal/typeobserver"
+	"getsteep.dev/steep/internal/xansi"
+	"getsteep.dev/steep/reel"
 	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/lrstanley/steep/internal/typeobserver"
-	"github.com/lrstanley/steep/internal/xansi"
-	"github.com/lrstanley/steep/reel"
 )
 
 // Viewable returns the output the package-level assertions check, such as

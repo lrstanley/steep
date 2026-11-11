@@ -12,7 +12,7 @@ In this tutorial you'll write a test of a small program, run it, make it fail, a
 ```console
 mkdir brew && cd brew
 go mod init example.com/brew
-go get charm.land/bubbletea/v2 github.com/lrstanley/steep@latest
+go get charm.land/bubbletea/v2 getsteep.dev/steep@latest
 ```
 </Step>
 
@@ -93,7 +93,7 @@ package main
 import (
 	"testing"
 
-	"github.com/lrstanley/steep"
+	"getsteep.dev/steep"
 )
 
 func TestOrder(t *testing.T) {

@@ -9,10 +9,10 @@ import (
 	"image/color"
 	"image/draw"
 
-	icol "github.com/lrstanley/steep/reel/render/internal/color"
-	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
-	"github.com/lrstanley/steep/reel/render/internal/raster"
-	"github.com/lrstanley/steep/reel/vt"
+	icol "getsteep.dev/steep/reel/render/internal/color"
+	idraw "getsteep.dev/steep/reel/render/internal/draw"
+	"getsteep.dev/steep/reel/render/internal/raster"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // drawBackground paints the margin and the window. Equal rectangles or equal

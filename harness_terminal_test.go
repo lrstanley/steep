@@ -13,11 +13,11 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"getsteep.dev/steep/internal/typeobserver"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/vt"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/internal/typeobserver"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/vt"
 )
 
 // terminalProbe is a minimal model with a stable empty view.

@@ -8,10 +8,10 @@ import (
 	"image/color"
 	"testing"
 
+	icol "getsteep.dev/steep/reel/render/internal/color"
+	"getsteep.dev/steep/reel/render/types"
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
-	icol "github.com/lrstanley/steep/reel/render/internal/color"
-	"github.com/lrstanley/steep/reel/render/types"
-	"github.com/lrstanley/steep/reel/vt"
 )
 
 type testColorSource struct {

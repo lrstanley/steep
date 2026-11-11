@@ -10,7 +10,7 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/vt"
 )
 
 func TestRendererLinkUnderline(t *testing.T) {

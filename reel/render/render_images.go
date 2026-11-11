@@ -10,7 +10,7 @@ import (
 
 	xdraw "golang.org/x/image/draw"
 
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // imageLayer is one of the three Kitty graphics layers, drawn in order.

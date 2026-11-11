@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lrstanley/steep/reel"
+	"getsteep.dev/steep/reel"
 )
 
 // docsText returns the text of the documentation's pages under dir.

@@ -14,7 +14,7 @@ const summary =
 
 const noCgo = "No cgo required.";
 
-const install = "go get github.com/lrstanley/steep@latest";
+const install = "go get getsteep.dev/steep@latest";
 
 // The test in the hero, as its lines run, and the mark each leaves in the recording.
 const testLines = [
@@ -158,7 +158,7 @@ The [inspector](${INSPECTOR_URL}) is a web page for stepping through the \`.cast
 
 - [Export configurator](/steep/configurator)
 - [Source](https://github.com/lrstanley/steep)
-- [API reference](https://pkg.go.dev/github.com/lrstanley/steep)
+- [API reference](https://pkg.go.dev/getsteep.dev/steep)
 `;
     }
 
@@ -329,7 +329,7 @@ The [inspector](${INSPECTOR_URL}) is a web page for stepping through the \`.cast
                         <span>© Liam Stanley.</span>
                         <span className="flex flex-wrap gap-4">
                             <Out href="https://github.com/lrstanley/steep">GitHub</Out>
-                            <Out href="https://pkg.go.dev/github.com/lrstanley/steep">pkg.go.dev</Out>
+                            <Out href="https://pkg.go.dev/getsteep.dev/steep">pkg.go.dev</Out>
                             <Out href={INSPECTOR_URL}>Inspector</Out>
                         </span>
                         <LlmsLinks />

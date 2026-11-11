@@ -9,8 +9,8 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/lrstanley/steep/reel/render/internal/effects"
-	"github.com/lrstanley/steep/reel/render/units"
+	"getsteep.dev/steep/reel/render/internal/effects"
+	"getsteep.dev/steep/reel/render/units"
 )
 
 type focusWindowContext struct {

@@ -11,10 +11,10 @@ import (
 	"time"
 	"unicode"
 
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/render"
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/render"
-	"github.com/lrstanley/steep/reel/vt"
 )
 
 // RedactOption configures [Redact]: [Block], [Blur], or [Replace], and

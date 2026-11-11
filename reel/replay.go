@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // Replays use their own terminal pools so they never wait on running

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"testing/synctest"
 
-	"github.com/lrstanley/steep/reel/sink/internal/testutil"
+	"getsteep.dev/steep/reel/sink/internal/testutil"
 )
 
 // BenchmarkAdaptivePaletteCold palettizes a frame of antialiased ramps into a

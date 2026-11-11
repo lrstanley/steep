@@ -12,8 +12,8 @@ import (
 	"slices"
 	"strings"
 
+	"getsteep.dev/steep/reel/vt/internal/wasmvt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
 )
 
 // Redraw returns VT bytes that, written to a fresh terminal of the same size,

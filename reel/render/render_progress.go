@@ -12,10 +12,10 @@ import (
 	"slices"
 	"time"
 
-	icol "github.com/lrstanley/steep/reel/render/internal/color"
-	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
-	"github.com/lrstanley/steep/reel/render/units"
-	"github.com/lrstanley/steep/reel/vt"
+	icol "getsteep.dev/steep/reel/render/internal/color"
+	idraw "getsteep.dev/steep/reel/render/internal/draw"
+	"getsteep.dev/steep/reel/render/units"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // Progress bar colors when the palette does not set them.

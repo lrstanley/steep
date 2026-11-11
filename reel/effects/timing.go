@@ -10,7 +10,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/lrstanley/steep/reel"
+	"getsteep.dev/steep/reel"
 )
 
 // Timing is an option the effects that work on a [Region] take: [Between]

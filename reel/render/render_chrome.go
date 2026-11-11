@@ -13,15 +13,15 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"getsteep.dev/steep/reel/internal/plaintext"
+	icol "getsteep.dev/steep/reel/render/internal/color"
+	idraw "getsteep.dev/steep/reel/render/internal/draw"
+	"getsteep.dev/steep/reel/render/internal/fontset"
+	imetrics "getsteep.dev/steep/reel/render/internal/metrics"
+	"getsteep.dev/steep/reel/render/internal/raster"
+	"getsteep.dev/steep/reel/render/types"
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/reel/internal/plaintext"
-	icol "github.com/lrstanley/steep/reel/render/internal/color"
-	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
-	"github.com/lrstanley/steep/reel/render/internal/fontset"
-	imetrics "github.com/lrstanley/steep/reel/render/internal/metrics"
-	"github.com/lrstanley/steep/reel/render/internal/raster"
-	"github.com/lrstanley/steep/reel/render/types"
-	"github.com/lrstanley/steep/reel/vt"
 	xfont "golang.org/x/image/font"
 )
 

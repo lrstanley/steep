@@ -9,7 +9,7 @@ import (
 	"math"
 	"slices"
 
-	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
+	"getsteep.dev/steep/reel/vt/internal/wasmvt"
 )
 
 func (t *Terminal) modeLocked(mode Mode) (bool, error) {

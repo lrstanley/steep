@@ -10,7 +10,7 @@ import (
 	"image/color"
 	"unicode/utf8"
 
-	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
+	"getsteep.dev/steep/reel/vt/internal/wasmvt"
 )
 
 // asciiRunes holds interned one-byte strings for codepoints 1 through 127.

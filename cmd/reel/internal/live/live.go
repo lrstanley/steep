@@ -23,7 +23,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/lrstanley/steep/reel"
+	"getsteep.dev/steep/reel"
 )
 
 // Ops are what a [Request] asks of a session.

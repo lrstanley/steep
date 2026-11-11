@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/sink/internal/testutil"
+	"getsteep.dev/steep/reel/sink/internal/testutil"
 )
 
 // writeGIF writes imgs, each playing for delay, to a GIF at path encoded

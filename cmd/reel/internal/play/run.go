@@ -20,11 +20,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lrstanley/steep/cmd/reel/internal/look"
-	syntax "github.com/lrstanley/steep/cmd/reel/internal/tape"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/effects"
-	"github.com/lrstanley/steep/reel/render"
+	"getsteep.dev/steep/cmd/reel/internal/look"
+	syntax "getsteep.dev/steep/cmd/reel/internal/tape"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/render"
 )
 
 // Result is what [Tape.Run] recorded.

@@ -20,7 +20,7 @@ import (
 	"compress/gzip"
 	_ "embed"
 
-	"github.com/lrstanley/steep/reel"
+	"getsteep.dev/steep/reel"
 )
 
 //go:embed showcase.cast.gz

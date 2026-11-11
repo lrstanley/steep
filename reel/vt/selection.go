@@ -7,7 +7,7 @@ package vt
 import (
 	"fmt"
 
-	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
+	"getsteep.dev/steep/reel/vt/internal/wasmvt"
 )
 
 // PointTag says which coordinate space a [Point] uses.

@@ -7,14 +7,14 @@ export const SECTIONS = [
         title: "Steep",
         summary:
             "steep is a Go test harness for terminal programs. It runs a Bubble Tea model or component, or any command on a pseudo-terminal, in an emulated terminal, drives it with keys, text, mouse events, and resizes, and asserts on what it draws, with waits, text and JSON snapshots, and recordings of failures.",
-        api: "https://pkg.go.dev/github.com/lrstanley/steep",
+        api: "https://pkg.go.dev/getsteep.dev/steep",
     },
     {
         path: "reel",
         title: "Reel",
         summary:
             "reel is the Go library steep records through. It emulates a terminal, logs everything that happens to it in a timeline saved as asciicast, and exports timelines to GIF, MP4, WebM, WebP, PNG, screen text, and JSON, through a renderer and effects such as key overlays, zooms, highlights, and redaction.",
-        api: "https://pkg.go.dev/github.com/lrstanley/steep/reel",
+        api: "https://pkg.go.dev/getsteep.dev/steep/reel",
     },
     {
         path: "cli",
@@ -65,9 +65,9 @@ Choose by what you're doing, then read that section's llms.txt. Each section sta
 ## Install
 
 \`\`\`console
-go get github.com/lrstanley/steep@latest               # steep, which brings in reel
-go get github.com/lrstanley/steep/reel@latest          # reel alone
-go install github.com/lrstanley/steep/cmd/reel@latest  # the reel CLI
+go get getsteep.dev/steep@latest               # steep, which brings in reel
+go get getsteep.dev/steep/reel@latest          # reel alone
+go install getsteep.dev/steep/cmd/reel@latest  # the reel CLI
 \`\`\`
 
 On macOS or Linux, \`brew install lrstanley/tap/reel\` installs the \`reel\` CLI with [Homebrew](https://brew.sh). Prebuilt \`reel\` binaries for Linux, macOS, and Windows, on amd64 and arm64, are on [the releases page](https://github.com/lrstanley/steep/releases), with checksums in \`steep_checksums.txt\`.

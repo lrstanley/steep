@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/vt"
 )
 
 func TestProgressBounds(t *testing.T) {

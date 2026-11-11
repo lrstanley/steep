@@ -22,11 +22,11 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/render"
+	"getsteep.dev/steep/reel/sink"
 	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/effects"
-	"github.com/lrstanley/steep/reel/render"
-	"github.com/lrstanley/steep/reel/sink"
 )
 
 // withRender draws [Harness.Image] with opts.

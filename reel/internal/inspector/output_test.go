@@ -7,7 +7,7 @@ package main
 import (
 	"testing"
 
-	"github.com/lrstanley/steep/reel"
+	"getsteep.dev/steep/reel"
 )
 
 func TestOutputBoundaries(t *testing.T) {

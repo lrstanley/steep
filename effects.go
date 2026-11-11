@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"getsteep.dev/steep/internal/xansi"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/internal/xansi"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/effects"
-	"github.com/lrstanley/steep/reel/vt"
 	"github.com/rivo/uniseg"
 )
 

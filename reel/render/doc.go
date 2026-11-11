@@ -7,7 +7,7 @@
 // metrics, palette resolution, and terminal chrome (cursor, scrollbar, focus).
 //
 // Use [New] for standalone rendering. When exercising Bubble Tea models
-// through steep, prefer [github.com/lrstanley/steep.Harness.Image].
+// through steep, prefer [getsteep.dev/steep.Harness.Image].
 //
 //	d, err := render.New(
 //		render.WithScale(1.25),

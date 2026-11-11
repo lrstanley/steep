@@ -7,7 +7,7 @@ package effects
 import (
 	"image"
 
-	"github.com/lrstanley/steep/reel"
+	"getsteep.dev/steep/reel"
 	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/math/f64"
 )

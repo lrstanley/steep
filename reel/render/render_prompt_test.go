@@ -10,8 +10,8 @@ import (
 	"image/color"
 	"testing"
 
-	icol "github.com/lrstanley/steep/reel/render/internal/color"
-	"github.com/lrstanley/steep/reel/vt"
+	icol "getsteep.dev/steep/reel/render/internal/color"
+	"getsteep.dev/steep/reel/vt"
 )
 
 var (

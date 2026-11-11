@@ -8,7 +8,7 @@ import (
 	"image"
 	"slices"
 
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/vt"
 	"golang.org/x/image/vector"
 )
 

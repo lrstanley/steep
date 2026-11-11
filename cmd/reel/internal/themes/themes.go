@@ -16,8 +16,8 @@ import (
 	"slices"
 	"strings"
 
+	"getsteep.dev/steep/reel/render"
 	tint "github.com/lrstanley/bubbletint/v2"
-	"github.com/lrstanley/steep/reel/render"
 )
 
 // Resolve returns the palette of a theme: a tint's ID or display name, in

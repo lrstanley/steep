@@ -9,7 +9,7 @@ import (
 	"image"
 	"testing"
 
-	"github.com/lrstanley/steep/reel/render/internal/alpha"
+	"getsteep.dev/steep/reel/render/internal/alpha"
 )
 
 // legacySizes are odd cell sizes, where rounding of the splits matters.

@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/steep/reel/internal/asciicast"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/internal/asciicast"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // CastMediaType is the media type of asciicast files (extension ".cast").

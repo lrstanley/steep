@@ -12,9 +12,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/lrstanley/steep/cmd/reel/internal/play"
-	"github.com/lrstanley/steep/cmd/reel/internal/tape"
-	"github.com/lrstanley/steep/reel"
+	"getsteep.dev/steep/cmd/reel/internal/play"
+	"getsteep.dev/steep/cmd/reel/internal/tape"
+	"getsteep.dev/steep/reel"
 )
 
 // TapeFlags are how tapes are read.

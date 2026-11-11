@@ -11,8 +11,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/lrstanley/steep/reel/render"
-	"github.com/lrstanley/steep/reel/sink"
+	"getsteep.dev/steep/reel/render"
+	"getsteep.dev/steep/reel/sink"
 )
 
 // Profile configures how [Export] and [Record] turn a [Timeline] into files.

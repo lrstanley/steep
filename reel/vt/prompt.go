@@ -10,8 +10,8 @@ import (
 	"slices"
 	"strconv"
 
+	"getsteep.dev/steep/reel/vt/internal/wasmvt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
 )
 
 // maxPromptMarks is how many prompts a terminal keeps marks for. Each is a

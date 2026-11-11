@@ -20,9 +20,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lrstanley/steep/cmd/reel/internal/play"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/cmd/reel/internal/play"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // Config is how [Serve] starts a session.

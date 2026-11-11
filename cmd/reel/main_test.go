@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"getsteep.dev/steep/reel"
 	"github.com/alecthomas/kong"
-	"github.com/lrstanley/steep/reel"
 )
 
 // parse parses args as reel's command line, with clix's global flags.

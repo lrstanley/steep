@@ -19,8 +19,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"getsteep.dev/steep/reel"
 	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/lrstanley/steep/reel"
 )
 
 var _ MessageCollector = (*Harness)(nil)

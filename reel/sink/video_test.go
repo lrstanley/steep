@@ -23,8 +23,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/sink/internal/ffmpeg"
-	"github.com/lrstanley/steep/reel/sink/internal/testutil"
+	"getsteep.dev/steep/reel/sink/internal/ffmpeg"
+	"getsteep.dev/steep/reel/sink/internal/testutil"
 )
 
 // fakeFFmpegEnv makes the test binary act as an ffmpeg 4.4 build that has

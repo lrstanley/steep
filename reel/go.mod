@@ -1,4 +1,4 @@
-module github.com/lrstanley/steep/reel
+module getsteep.dev/steep/reel
 
 go 1.27.3
 

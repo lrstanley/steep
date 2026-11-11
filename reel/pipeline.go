@@ -9,7 +9,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/lrstanley/steep/reel/sink"
+	"getsteep.dev/steep/reel/sink"
 )
 
 // sweepStep is the minimum spacing of frames drawn to animate [Animator]

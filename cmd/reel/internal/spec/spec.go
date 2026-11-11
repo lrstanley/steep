@@ -35,9 +35,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/steep/cmd/reel/internal/themes"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/effects"
+	"getsteep.dev/steep/cmd/reel/internal/themes"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/effects"
 )
 
 // Kinds are the effects [Effect] parses, by name.

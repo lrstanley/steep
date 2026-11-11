@@ -10,7 +10,7 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // iconRow is a row of cells with the icon first, followed by text.

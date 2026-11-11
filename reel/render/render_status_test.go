@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/vt"
 )
 
 var statusMargin = color.NRGBA{R: 0x15, G: 0x16, B: 0x1c, A: 0xff}

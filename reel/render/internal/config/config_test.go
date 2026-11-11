@@ -8,8 +8,8 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/lrstanley/steep/reel/render/internal/config"
-	"github.com/lrstanley/steep/reel/render/units"
+	"getsteep.dev/steep/reel/render/internal/config"
+	"getsteep.dev/steep/reel/render/units"
 )
 
 func TestDefaultOptions(t *testing.T) {

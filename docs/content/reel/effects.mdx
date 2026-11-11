@@ -169,7 +169,7 @@ A duration of zero or less is no card, and `Profile.Speed` doesn't scale either.
 
 ### Lines
 
-A `Line` is text and a [`vt.Style`](https://pkg.go.dev/github.com/lrstanley/steep/reel/vt#Style). Text is drawn as is, so escape sequences aren't interpreted, and text that doesn't fit is cut off. Cards use the renderer's default colors, not ones the program set, so every card in a recording looks the same. On terminals larger than 80 by 24, the text is larger than the terminal's, so it stays readable when the recording is scaled down.
+A `Line` is text and a [`vt.Style`](https://pkg.go.dev/getsteep.dev/steep/reel/vt#Style). Text is drawn as is, so escape sequences aren't interpreted, and text that doesn't fit is cut off. Cards use the renderer's default colors, not ones the program set, so every card in a recording looks the same. On terminals larger than 80 by 24, the text is larger than the terminal's, so it stays readable when the recording is scaled down.
 
 ### Drawing your own cards
 

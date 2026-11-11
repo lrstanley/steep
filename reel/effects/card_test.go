@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/internal/testutil"
-	"github.com/lrstanley/steep/reel/render"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/internal/testutil"
+	"getsteep.dev/steep/reel/render"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // cardContext returns the context of a recording of an 80x24 timeline drawn

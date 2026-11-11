@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/internal/testutil"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/internal/testutil"
 )
 
 // shown is a frame as the hide tests compare it: the screen's text, without

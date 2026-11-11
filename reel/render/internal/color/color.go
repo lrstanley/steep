@@ -10,10 +10,10 @@ import (
 	"image/color"
 	"math"
 
+	"getsteep.dev/steep/reel/render/internal/config"
+	"getsteep.dev/steep/reel/render/units"
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/reel/render/internal/config"
-	"github.com/lrstanley/steep/reel/render/units"
-	"github.com/lrstanley/steep/reel/vt"
 )
 
 var (

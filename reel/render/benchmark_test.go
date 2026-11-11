@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/sink"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/sink"
+	"getsteep.dev/steep/reel/vt"
 )
 
 const (

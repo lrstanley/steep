@@ -10,7 +10,7 @@ import (
 	"image/draw"
 	"image/png"
 
-	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
+	"getsteep.dev/steep/reel/vt/internal/wasmvt"
 )
 
 // decodeKittyPixels converts raw pixels in a GhosttyKittyImageFormat to an

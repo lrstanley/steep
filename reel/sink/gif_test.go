@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/sink/internal/gifopt"
-	"github.com/lrstanley/steep/reel/sink/internal/palette"
-	"github.com/lrstanley/steep/reel/sink/internal/testutil"
+	"getsteep.dev/steep/reel/sink/internal/gifopt"
+	"getsteep.dev/steep/reel/sink/internal/palette"
+	"getsteep.dev/steep/reel/sink/internal/testutil"
 )
 
 func TestOptimizeDisposalsWithBackground(t *testing.T) {

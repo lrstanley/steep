@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
+	"getsteep.dev/steep"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/render"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/effects"
-	"github.com/lrstanley/steep/reel/render"
 )
 
 // record drives the shop through its whole tour, with marks to cut and time

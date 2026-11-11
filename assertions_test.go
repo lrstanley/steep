@@ -15,8 +15,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"getsteep.dev/steep/reel"
 	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/lrstanley/steep/reel"
 )
 
 func TestAssertStringWithStripANSI(t *testing.T) {

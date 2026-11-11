@@ -9,7 +9,7 @@ import (
 	"image"
 	"testing"
 
-	"github.com/lrstanley/steep/reel/render/internal/alpha"
+	"getsteep.dev/steep/reel/render/internal/alpha"
 )
 
 // brailleSizes are cell sizes from small to large, including odd ones.

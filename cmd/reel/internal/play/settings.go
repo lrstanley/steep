@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/steep/cmd/reel/internal/look"
-	syntax "github.com/lrstanley/steep/cmd/reel/internal/tape"
-	"github.com/lrstanley/steep/cmd/reel/internal/themes"
+	"getsteep.dev/steep/cmd/reel/internal/look"
+	syntax "getsteep.dev/steep/cmd/reel/internal/tape"
+	"getsteep.dev/steep/cmd/reel/internal/themes"
 )
 
 // VHS's defaults, which a tape that does not set them gets too, so its

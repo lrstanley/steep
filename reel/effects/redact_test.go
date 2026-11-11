@@ -18,10 +18,10 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/internal/testutil"
-	"github.com/lrstanley/steep/reel/render"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/internal/testutil"
+	"getsteep.dev/steep/reel/render"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // redactorFunc is an [reel.Effect] whose stage is fn, and that claims to

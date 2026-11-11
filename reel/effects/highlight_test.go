@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/internal/testutil"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/internal/testutil"
 )
 
 // highlightRast is the fake rasterizer of the highlight tests, with cells

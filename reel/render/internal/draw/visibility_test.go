@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
-	"github.com/lrstanley/steep/reel/render/types"
-	"github.com/lrstanley/steep/reel/vt"
+	idraw "getsteep.dev/steep/reel/render/internal/draw"
+	"getsteep.dev/steep/reel/render/types"
+	"getsteep.dev/steep/reel/vt"
 )
 
 type testFrameSource struct {

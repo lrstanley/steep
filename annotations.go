@@ -15,10 +15,10 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/vt"
+	"getsteep.dev/steep/snapshot"
 	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/vt"
-	"github.com/lrstanley/steep/snapshot"
 )
 
 // Kinds of the [reel.Annotation] events a harness records, as described by

@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"getsteep.dev/steep/internal/broker"
 	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/lrstanley/steep/internal/broker"
 )
 
 type observer struct {

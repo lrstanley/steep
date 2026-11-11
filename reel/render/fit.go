@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/lrstanley/steep/reel/render/internal/config"
+	"getsteep.dev/steep/reel/render/internal/config"
 )
 
 const (

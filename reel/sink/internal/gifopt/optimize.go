@@ -15,7 +15,7 @@ import (
 	"image/gif"
 	"time"
 
-	"github.com/lrstanley/steep/reel/sink/internal/palette"
+	"getsteep.dev/steep/reel/sink/internal/palette"
 )
 
 const (

@@ -9,7 +9,7 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/lrstanley/steep/reel/render/internal/alpha"
+	"getsteep.dev/steep/reel/render/internal/alpha"
 )
 
 func TestInkBounds(t *testing.T) {

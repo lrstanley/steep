@@ -22,11 +22,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/render"
+	"getsteep.dev/steep/reel/sink"
 	"github.com/lrstanley/clix/v2"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/effects"
-	"github.com/lrstanley/steep/reel/render"
-	"github.com/lrstanley/steep/reel/sink"
 )
 
 // Flags are the command's flags.

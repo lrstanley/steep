@@ -10,8 +10,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // regionRuntime opens the terminals the region tests draw on.

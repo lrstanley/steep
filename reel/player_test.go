@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/render"
+	"getsteep.dev/steep/reel/render"
 )
 
 func TestPlayerSeek(t *testing.T) {

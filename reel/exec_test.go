@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/internal/pty"
+	"getsteep.dev/steep/reel/internal/pty"
 )
 
 // bash returns a command running script with bash, skipping the test when

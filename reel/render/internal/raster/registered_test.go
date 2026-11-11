@@ -8,8 +8,8 @@ import (
 	"image"
 	"testing"
 
-	"github.com/lrstanley/steep/reel/render/internal/alpha"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/render/internal/alpha"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // registeredRect is a glyph whose outline is the rectangle x0,y0 to x1,y1,

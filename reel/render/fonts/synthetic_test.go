@@ -9,7 +9,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/lrstanley/steep/reel/render/internal/testutil"
+	"getsteep.dev/steep/reel/render/internal/testutil"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"

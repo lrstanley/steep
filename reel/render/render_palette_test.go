@@ -9,8 +9,8 @@ import (
 	"slices"
 	"testing"
 
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/reel/vt"
 )
 
 // TestDrawStatePalette checks that the indexed colors in [vt.State.Palette]

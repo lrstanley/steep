@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/vt"
 )
 
 // The names of the effects in their annotations.

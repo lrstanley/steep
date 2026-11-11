@@ -19,9 +19,9 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/term"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/vt"
 )
 
 // RecCmd records a command in this terminal.

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"image/color"
 
-	"github.com/lrstanley/steep/reel/render/units"
+	"getsteep.dev/steep/reel/render/units"
 )
 
 const (

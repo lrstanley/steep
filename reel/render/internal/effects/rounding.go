@@ -10,9 +10,9 @@ import (
 	"image/draw"
 	"math"
 
-	icol "github.com/lrstanley/steep/reel/render/internal/color"
-	"github.com/lrstanley/steep/reel/render/internal/config"
-	"github.com/lrstanley/steep/reel/render/units"
+	icol "getsteep.dev/steep/reel/render/internal/color"
+	"getsteep.dev/steep/reel/render/internal/config"
+	"getsteep.dev/steep/reel/render/units"
 )
 
 // ApplyRoundedMask clips the terminal window to a rounded rectangle.

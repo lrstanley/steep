@@ -8,7 +8,7 @@ import (
 	"image"
 	"testing"
 
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // fgRuns returns the [start, end) spans of fg pixels along a line of n pixels.

@@ -12,10 +12,10 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/lrstanley/steep"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/effects"
-	"github.com/lrstanley/steep/snapshot"
+	"getsteep.dev/steep"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/snapshot"
 )
 
 // These tests fail on purpose: each is a failure the site shows, with the

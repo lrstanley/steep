@@ -12,7 +12,7 @@ import (
 	"image"
 	"math"
 
-	"github.com/lrstanley/steep/reel/render/internal/alpha"
+	"getsteep.dev/steep/reel/render/internal/alpha"
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )

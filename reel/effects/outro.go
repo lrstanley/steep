@@ -7,7 +7,7 @@ package effects
 import (
 	"time"
 
-	"github.com/lrstanley/steep/reel"
+	"getsteep.dev/steep/reel"
 )
 
 // Outro returns an effect that shows a card of lines for d after the last

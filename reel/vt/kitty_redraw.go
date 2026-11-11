@@ -11,7 +11,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/lrstanley/steep/reel/internal/kittycmd"
+	"getsteep.dev/steep/reel/internal/kittycmd"
 )
 
 // redrawImagesLocked writes Kitty graphics commands that restore the active

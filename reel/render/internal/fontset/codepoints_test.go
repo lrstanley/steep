@@ -7,9 +7,9 @@ package fontset_test
 import (
 	"testing"
 
-	"github.com/lrstanley/steep/reel/render/fonts"
-	"github.com/lrstanley/steep/reel/render/internal/config"
-	"github.com/lrstanley/steep/reel/render/internal/fontset"
+	"getsteep.dev/steep/reel/render/fonts"
+	"getsteep.dev/steep/reel/render/internal/config"
+	"getsteep.dev/steep/reel/render/internal/fontset"
 )
 
 func TestBuildCodepointMapOverlap(t *testing.T) {

@@ -9,8 +9,8 @@ import (
 	"os"
 	"testing"
 
+	"getsteep.dev/steep/internal/xansi"
 	"github.com/aymanbagabas/go-udiff"
-	"github.com/lrstanley/steep/internal/xansi"
 )
 
 // writeBytes handles the i/o and writing of a []byte to a file.

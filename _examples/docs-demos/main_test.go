@@ -14,11 +14,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/lrstanley/steep"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/effects"
-	"github.com/lrstanley/steep/reel/render"
-	"github.com/lrstanley/steep/snapshot"
+	"getsteep.dev/steep"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/render"
+	"getsteep.dev/steep/snapshot"
 )
 
 // These tests run with the others, as tests of the tea shop. With exporting

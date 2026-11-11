@@ -15,7 +15,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/lrstanley/steep/reel"
+	"getsteep.dev/steep/reel"
 )
 
 const (

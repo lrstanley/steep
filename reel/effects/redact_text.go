@@ -13,8 +13,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // Matching is an option [Redact] and [RedactInputs] take, such as

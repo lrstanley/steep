@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lrstanley/steep/reel/sink"
+	"getsteep.dev/steep/reel/sink"
 )
 
 func TestParseFile(t *testing.T) {

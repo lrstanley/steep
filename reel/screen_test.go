@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/reel/vt"
 )
 
 func TestSessionScreen(t *testing.T) {

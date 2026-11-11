@@ -8,9 +8,9 @@ import (
 	"image"
 	"time"
 
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/effects"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // mouseLead and mouseSettle are how long before and after a mouse event

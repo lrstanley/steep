@@ -17,8 +17,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/lrstanley/steep/reel/sink/internal/gifopt"
-	"github.com/lrstanley/steep/reel/sink/internal/palette"
+	"getsteep.dev/steep/reel/sink/internal/gifopt"
+	"getsteep.dev/steep/reel/sink/internal/palette"
 )
 
 // GIFEncoder is a [Sink] that writes an animated GIF. It keeps the frames

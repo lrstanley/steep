@@ -28,11 +28,8 @@
     <img title="Code Coverage" src="https://img.shields.io/codecov/c/github/lrstanley/steep/master?style=flat-square">
   </a>
 
-  <a href="https://pkg.go.dev/github.com/lrstanley/steep">
-    <img title="Go Documentation" src="https://pkg.go.dev/badge/github.com/lrstanley/steep?style=flat-square">
-  </a>
-  <a href="https://goreportcard.com/report/github.com/lrstanley/steep">
-    <img title="Go Report Card" src="https://goreportcard.com/badge/github.com/lrstanley/steep?style=flat-square">
+  <a href="https://pkg.go.dev/getsteep.dev/steep">
+    <img title="Go Documentation" src="https://pkg.go.dev/badge/getsteep.dev/steep?style=flat-square">
   </a>
 </p>
 <p align="center">
@@ -114,7 +111,7 @@ Runnable examples are in [`_examples`](_examples).
 <!-- template:begin:goget -->
 <!-- do not edit anything in this "template" block, its auto-generated -->
 ```console
-go get -u github.com/lrstanley/steep@latest
+go get -u getsteep.dev/steep@latest
 ```
 <!-- template:end:goget -->
 
@@ -130,7 +127,7 @@ Or download it for Linux, macOS, or Windows (amd64 or arm64) from [the releases 
 with checksums in `steep_checksums.txt`, or build it with Go:
 
 ```console
-go install github.com/lrstanley/steep/cmd/reel@latest
+go install getsteep.dev/steep/cmd/reel@latest
 ```
 
 See [the CLI docs](https://getsteep.dev/cli#installation) for the steps.

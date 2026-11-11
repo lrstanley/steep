@@ -12,9 +12,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/render"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/render"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // Region selects cells of a terminal frame, for the effects that work on

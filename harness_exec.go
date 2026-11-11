@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/lrstanley/steep/reel"
+	"getsteep.dev/steep/reel"
 )
 
 // NewExecHarness starts cmd on a pseudo-terminal (see [reel.Exec]) and returns

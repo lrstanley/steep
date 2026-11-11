@@ -25,7 +25,7 @@ Every field but `Outputs` has a usable zero value. A profile holds no state, so 
 | `Render` | [How frames are drawn](/reel/rendering#window-look). A palette here replaces the timeline's. |
 | `Fit` | The largest size in pixels, chosen by scaling the font so text stays sharp. An error with `render.WithScale`. |
 | `Rasterizer` | Your own frame drawing, in place of `Render`. |
-| `Encode` | Options for every frame output, from the [`sink` package](https://pkg.go.dev/github.com/lrstanley/steep/reel/sink). |
+| `Encode` | Options for every frame output, from the [`sink` package](https://pkg.go.dev/getsteep.dev/steep/reel/sink). |
 | `Effects` | [Effects](/reel/effects), in any order. |
 | `FPS` | The delay grid: frames play whole steps of 10ms × max(1, 100/FPS). Zero means 20, and the most is 100. |
 | `Speed` | Playback speed. 2 plays twice as fast, and zero means 1. |

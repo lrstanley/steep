@@ -11,7 +11,7 @@ import (
 	"image/draw"
 	"sync"
 
-	icol "github.com/lrstanley/steep/reel/render/internal/color"
+	icol "getsteep.dev/steep/reel/render/internal/color"
 )
 
 var fillUniforms sync.Map // color.NRGBA -> *image.Uniform

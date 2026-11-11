@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/term"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/vt"
 )
 
 // PlayCmd replays an asciicast file in this terminal.

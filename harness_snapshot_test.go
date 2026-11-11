@@ -14,10 +14,10 @@ import (
 	"strings"
 	"testing"
 
+	"getsteep.dev/steep/reel/render"
+	"getsteep.dev/steep/reel/vt"
+	"getsteep.dev/steep/snapshot"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/reel/render"
-	"github.com/lrstanley/steep/reel/vt"
-	"github.com/lrstanley/steep/snapshot"
 )
 
 func TestHarnessAssertViewSnapshot(t *testing.T) {

@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lrstanley/steep/reel/internal/asciicast"
+	"getsteep.dev/steep/reel/internal/asciicast"
 )
 
 // header starts the line script(1) writes at the top of a typescript.

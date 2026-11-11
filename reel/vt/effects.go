@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
+	"getsteep.dev/steep/reel/vt/internal/wasmvt"
 )
 
 // Effects are the Ghostty terminal callbacks from

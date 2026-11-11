@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
+	idraw "getsteep.dev/steep/reel/render/internal/draw"
+	"getsteep.dev/steep/reel/render/internal/fontset"
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
-	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
-	"github.com/lrstanley/steep/reel/render/internal/fontset"
-	"github.com/lrstanley/steep/reel/vt"
 	"golang.org/x/image/font"
 )
 

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"getsteep.dev/steep/reel/vt/internal/wasmvt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
 )
 
 // paste is a decoded paste, as [decodeAll] returns it.

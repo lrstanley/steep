@@ -7,7 +7,7 @@ package main
 import (
 	"sort"
 
-	"github.com/lrstanley/steep/reel"
+	"getsteep.dev/steep/reel"
 )
 
 // tokenize splits all output, concatenated, into tokens, so a sequence

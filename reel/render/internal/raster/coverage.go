@@ -12,8 +12,8 @@ import (
 	"image/draw"
 	"slices"
 
-	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
-	"github.com/lrstanley/steep/reel/vt"
+	idraw "getsteep.dev/steep/reel/render/internal/draw"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // Coverage accumulates per-pixel glyph mask coverage before compositing.

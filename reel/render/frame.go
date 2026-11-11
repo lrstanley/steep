@@ -9,13 +9,13 @@ import (
 	"image/color"
 	"time"
 
-	icol "github.com/lrstanley/steep/reel/render/internal/color"
-	"github.com/lrstanley/steep/reel/render/internal/config"
-	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
-	"github.com/lrstanley/steep/reel/render/internal/pool"
-	"github.com/lrstanley/steep/reel/render/types"
-	"github.com/lrstanley/steep/reel/render/units"
-	"github.com/lrstanley/steep/reel/vt"
+	icol "getsteep.dev/steep/reel/render/internal/color"
+	"getsteep.dev/steep/reel/render/internal/config"
+	idraw "getsteep.dev/steep/reel/render/internal/draw"
+	"getsteep.dev/steep/reel/render/internal/pool"
+	"getsteep.dev/steep/reel/render/types"
+	"getsteep.dev/steep/reel/render/units"
+	"getsteep.dev/steep/reel/vt"
 	"golang.org/x/image/font"
 )
 

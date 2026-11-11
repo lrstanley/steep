@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
+	"getsteep.dev/steep/reel/vt/internal/wasmvt"
 )
 
 // Glyph Protocol registrations are libghostty-vt's own, read through

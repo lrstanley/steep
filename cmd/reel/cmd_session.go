@@ -21,10 +21,10 @@ import (
 	"strings"
 	"time"
 
+	"getsteep.dev/steep/cmd/reel/internal/live"
+	"getsteep.dev/steep/cmd/reel/internal/look"
+	"getsteep.dev/steep/reel"
 	"github.com/alecthomas/kong"
-	"github.com/lrstanley/steep/cmd/reel/internal/live"
-	"github.com/lrstanley/steep/cmd/reel/internal/look"
-	"github.com/lrstanley/steep/reel"
 )
 
 // SessionCmd drives programs in detached sessions.

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/sink/internal/testutil"
+	"getsteep.dev/steep/reel/sink/internal/testutil"
 )
 
 // replayGIF decodes r and rebuilds each frame as a full-canvas NRGBA image,

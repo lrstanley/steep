@@ -9,9 +9,9 @@ import (
 	"image/color"
 
 	tea "charm.land/bubbletea/v2"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/vt"
 )
 
 // View returns the screen's text, which the harness's waits, assertions,

@@ -1,11 +1,11 @@
-module github.com/lrstanley/steep/_examples
+module getsteep.dev/steep/_examples
 
 go 1.27.3
 
 // Examples build against the copies of steep and reel in this repository.
 replace (
-	github.com/lrstanley/steep => ../
-	github.com/lrstanley/steep/reel => ../reel
+	getsteep.dev/steep => ../
+	getsteep.dev/steep/reel => ../reel
 )
 
 require (
@@ -16,8 +16,8 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/lrstanley/clix/v2 v2.0.7
 	github.com/lrstanley/go-nf v0.0.0-20261103002006-052bb0b267f6
-	github.com/lrstanley/steep v0.0.0
-	github.com/lrstanley/steep/reel v0.0.0
+	getsteep.dev/steep v0.0.0
+	getsteep.dev/steep/reel v0.0.0
 )
 
 require (

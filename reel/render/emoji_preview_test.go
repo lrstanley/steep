@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/sink"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/sink"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // TestColorEmojiGIF writes an animation of the kinds of emoji drawn through the

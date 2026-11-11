@@ -7,10 +7,10 @@ package metrics_test
 import (
 	"testing"
 
-	"github.com/lrstanley/steep/reel/render/fonts"
-	"github.com/lrstanley/steep/reel/render/internal/config"
-	imetrics "github.com/lrstanley/steep/reel/render/internal/metrics"
-	"github.com/lrstanley/steep/reel/render/units"
+	"getsteep.dev/steep/reel/render/fonts"
+	"getsteep.dev/steep/reel/render/internal/config"
+	imetrics "getsteep.dev/steep/reel/render/internal/metrics"
+	"getsteep.dev/steep/reel/render/units"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 )

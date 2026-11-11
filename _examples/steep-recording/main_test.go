@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/render"
+	"getsteep.dev/steep"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/render"
 )
 
 // The recording is only written when exporting is turned on, as with:

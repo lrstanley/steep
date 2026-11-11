@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"getsteep.dev/steep/reel/render/fonts"
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/reel/render/fonts"
-	"github.com/lrstanley/steep/reel/vt"
 )
 
 func TestPowerlineIconRendering(t *testing.T) {

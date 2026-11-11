@@ -10,7 +10,7 @@ import (
 	"slices"
 	"unicode/utf8"
 
-	"github.com/lrstanley/steep/reel"
+	"getsteep.dev/steep/reel"
 )
 
 // typedRedactionKey is the [reel.Context] value key of the

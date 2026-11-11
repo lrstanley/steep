@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // bellAt is when the BEL in bellState arrives.

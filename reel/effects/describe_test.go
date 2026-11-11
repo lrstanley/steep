@@ -18,10 +18,10 @@ import (
 	"testing"
 	"time"
 
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/internal/testutil"
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/internal/testutil"
-	"github.com/lrstanley/steep/reel/vt"
 )
 
 // describeTimeline is a timeline with text, keys typed, and marks for the

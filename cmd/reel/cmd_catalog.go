@@ -12,10 +12,10 @@ import (
 	"slices"
 	"strings"
 
+	"getsteep.dev/steep/cmd/reel/internal/themes"
+	"getsteep.dev/steep/reel/render/fonts"
 	"github.com/charmbracelet/x/ansi"
 	tint "github.com/lrstanley/bubbletint/v2"
-	"github.com/lrstanley/steep/cmd/reel/internal/themes"
-	"github.com/lrstanley/steep/reel/render/fonts"
 )
 
 // FontsCmd lists font families.

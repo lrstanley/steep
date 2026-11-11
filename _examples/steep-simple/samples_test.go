@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep"
-	"github.com/lrstanley/steep/reel"
+	"getsteep.dev/steep"
+	"getsteep.dev/steep/reel"
 )
 
 // TestInspectorSamples records the sample casts reel's inspector

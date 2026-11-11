@@ -8,8 +8,8 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/render"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/render"
 )
 
 // display is which parts around and over the grid frames are drawn with:

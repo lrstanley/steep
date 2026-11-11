@@ -33,21 +33,21 @@ steep is built on reel, and so is the CLI. So the formats, effects, and look her
 
 | Package | What it does |
 | --- | --- |
-| [`reel`](https://pkg.go.dev/github.com/lrstanley/steep/reel) | Sessions, timelines, and exports |
-| [`reel/effects`](https://pkg.go.dev/github.com/lrstanley/steep/reel/effects) | Key overlays, cards, pauses, highlights, zooms, and redaction |
-| [`reel/render`](https://pkg.go.dev/github.com/lrstanley/steep/reel/render) | Rasterizes a screen into an image, with fonts, colors, and window chrome |
-| [`reel/sink`](https://pkg.go.dev/github.com/lrstanley/steep/reel/sink) | Encodes frames to PNG and GIF, and through ffmpeg to MP4, WebM, and WebP |
-| [`reel/vt`](https://pkg.go.dev/github.com/lrstanley/steep/reel/vt) | The terminal emulator, a checked-in build of libghostty-vt |
+| [`reel`](https://pkg.go.dev/getsteep.dev/steep/reel) | Sessions, timelines, and exports |
+| [`reel/effects`](https://pkg.go.dev/getsteep.dev/steep/reel/effects) | Key overlays, cards, pauses, highlights, zooms, and redaction |
+| [`reel/render`](https://pkg.go.dev/getsteep.dev/steep/reel/render) | Rasterizes a screen into an image, with fonts, colors, and window chrome |
+| [`reel/sink`](https://pkg.go.dev/getsteep.dev/steep/reel/sink) | Encodes frames to PNG and GIF, and through ffmpeg to MP4, WebM, and WebP |
+| [`reel/vt`](https://pkg.go.dev/getsteep.dev/steep/reel/vt) | The terminal emulator, a checked-in build of libghostty-vt |
 
 ## Installation
 
 ```console
-go get github.com/lrstanley/steep/reel@latest
+go get getsteep.dev/steep/reel@latest
 ```
 
 The terminal emulator and a default font are compiled in, so nothing else has to be installed for GIF, PNG, asciicast, or text outputs.
 
-MP4, WebM, and animated WebP go through [ffmpeg](https://ffmpeg.org), which has to be on your `PATH`. `reel.Export` checks every output before it draws anything, so a missing ffmpeg fails at once. To use a specific binary, pass [`sink.WithFFmpeg`](https://pkg.go.dev/github.com/lrstanley/steep/reel/sink#WithFFmpeg) in `Profile.Encode`.
+MP4, WebM, and animated WebP go through [ffmpeg](https://ffmpeg.org), which has to be on your `PATH`. `reel.Export` checks every output before it draws anything, so a missing ffmpeg fails at once. To use a specific binary, pass [`sink.WithFFmpeg`](https://pkg.go.dev/getsteep.dev/steep/reel/sink#WithFFmpeg) in `Profile.Encode`.
 
 ## Where to go next
 

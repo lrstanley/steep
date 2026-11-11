@@ -9,9 +9,9 @@ import (
 	"image/color"
 	"testing"
 
-	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
-	"github.com/lrstanley/steep/reel/render/internal/testutil"
-	"github.com/lrstanley/steep/reel/vt"
+	idraw "getsteep.dev/steep/reel/render/internal/draw"
+	"getsteep.dev/steep/reel/render/internal/testutil"
+	"getsteep.dev/steep/reel/vt"
 )
 
 var emojiRed = color.NRGBA{R: 255, A: 255}

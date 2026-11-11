@@ -17,7 +17,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/vt"
 )
 
 func openTest(t *testing.T, cols, rows int, opts ...SessionOption) *Session {

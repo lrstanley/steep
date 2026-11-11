@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // testView returns a view of the recording cast, drawn into out as on a

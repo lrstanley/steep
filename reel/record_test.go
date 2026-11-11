@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/internal/testutil"
+	"getsteep.dev/steep/reel/internal/testutil"
 )
 
 func openSession(t *testing.T, cols, rows int) *Session {

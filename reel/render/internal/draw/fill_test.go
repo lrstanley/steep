@@ -10,7 +10,7 @@ import (
 	"image/draw"
 	"testing"
 
-	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
+	idraw "getsteep.dev/steep/reel/render/internal/draw"
 )
 
 func TestFillAndOverlay(t *testing.T) {

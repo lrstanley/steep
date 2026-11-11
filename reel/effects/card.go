@@ -11,10 +11,10 @@ import (
 	"image/draw"
 	"slices"
 
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/render"
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/render"
-	"github.com/lrstanley/steep/reel/vt"
 )
 
 // cardCols and cardRows are the terminal size past which card text grows

@@ -8,7 +8,7 @@ import (
 	"image/color"
 	"slices"
 
-	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
+	"getsteep.dev/steep/reel/vt/internal/wasmvt"
 )
 
 // Cursor is the caret of a screen.

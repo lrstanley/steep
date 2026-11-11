@@ -9,9 +9,9 @@ import (
 	"image/color"
 	"time"
 
-	"github.com/lrstanley/steep/reel/render/types"
-	"github.com/lrstanley/steep/reel/render/units"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel/render/types"
+	"getsteep.dev/steep/reel/render/units"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // ColorSource supplies palette and opacity inputs for color resolution.

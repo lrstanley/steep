@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"image/color"
 
-	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
+	"getsteep.dev/steep/reel/vt/internal/wasmvt"
 )
 
 // Palette is a color for some of the 256 indexed colors. The zero value has

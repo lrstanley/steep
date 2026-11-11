@@ -11,7 +11,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/lrstanley/steep/reel/vt/internal/wasmvt"
+	"getsteep.dev/steep/reel/vt/internal/wasmvt"
 )
 
 // DefaultKittyStorage is how many bytes of decoded Kitty graphics a terminal

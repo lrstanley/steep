@@ -13,7 +13,7 @@ import (
 	"slices"
 	"testing"
 
-	idraw "github.com/lrstanley/steep/reel/render/internal/draw"
+	idraw "getsteep.dev/steep/reel/render/internal/draw"
 )
 
 // overReference is non-premultiplied source-over in floating point.

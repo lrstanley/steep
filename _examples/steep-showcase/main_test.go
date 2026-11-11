@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"github.com/lrstanley/steep"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/effects"
-	"github.com/lrstanley/steep/reel/render"
+	"getsteep.dev/steep"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/render"
 )
 
 // The recording is only written when exporting is turned on, as with:

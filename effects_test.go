@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/effects"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/effects"
 )
 
 // frameLog is an effect that keeps every frame it is given, and passes it

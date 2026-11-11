@@ -15,9 +15,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	"getsteep.dev/steep/reel"
 	"github.com/alecthomas/kong"
 	"github.com/lrstanley/clix/v2"
-	"github.com/lrstanley/steep/reel"
 )
 
 // Release builds set these with -ldflags. Left empty, as with go install, clix

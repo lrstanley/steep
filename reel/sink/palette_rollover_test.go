@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrstanley/steep/reel/sink/internal/palette"
-	"github.com/lrstanley/steep/reel/sink/internal/testutil"
+	"getsteep.dev/steep/reel/sink/internal/palette"
+	"getsteep.dev/steep/reel/sink/internal/testutil"
 )
 
 // farColors are at least 255 away in red from every color of

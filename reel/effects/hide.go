@@ -12,8 +12,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/vt"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // cutsKey is the [reel.Context] value [Hide] stores the []*cuts of every

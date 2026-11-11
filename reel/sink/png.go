@@ -13,7 +13,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/lrstanley/steep/reel/sink/internal/palette"
+	"getsteep.dev/steep/reel/sink/internal/palette"
 )
 
 // PNG writes img to path. By default it is full RGBA with alpha preserved;

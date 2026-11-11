@@ -14,9 +14,9 @@ import (
 	"math"
 	"time"
 
-	"github.com/lrstanley/steep/reel/render/fonts"
-	"github.com/lrstanley/steep/reel/render/types"
-	"github.com/lrstanley/steep/reel/render/units"
+	"getsteep.dev/steep/reel/render/fonts"
+	"getsteep.dev/steep/reel/render/types"
+	"getsteep.dev/steep/reel/render/units"
 )
 
 const (

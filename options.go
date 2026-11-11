@@ -16,9 +16,9 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/render"
 	"github.com/charmbracelet/colorprofile"
-	"github.com/lrstanley/steep/reel"
-	"github.com/lrstanley/steep/reel/render"
 )
 
 const (
