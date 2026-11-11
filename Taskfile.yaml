@@ -70,6 +70,16 @@ tasks:
       STEEP_EXPORT_MODE: "on"
     cmds:
       - go test -count 1 ./...
+  # run with --github-release and --highlights, as GoReleaser leaves the release notes to modrelease (see
+  # .github/ci-config.yml). first run the plan, and read the changelog it prints. then write the highlights file,
+  # outside the repo so it isn't committed:
+  #   - a short summary of the notable changes. modrelease adds the changelog itself, so don't repeat it.
+  #   - how to install the reel CLI, as modrelease only lists go get/go install:
+  #       brew install lrstanley/tap/reel  (macOS and Linux, through Homebrew)
+  #       prebuilt binaries for Linux, macOS, and Windows, on amd64 and arm64, are attached to the release.
+  # both the plan and --apply need a GH_TOKEN that can create releases. for example:
+  #   GH_TOKEN=$(gh auth token) task release -- minor --alpha --github-release --highlights /tmp/highlights.md
+  #   GH_TOKEN=$(gh auth token) task release -- minor --alpha --github-release --highlights /tmp/highlights.md --apply
   release:
     desc: release all modules at one version, printing the plan unless given --apply (task release -- <version> [--apply])
     preconditions:

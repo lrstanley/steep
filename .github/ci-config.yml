@@ -24,6 +24,14 @@ goreleaser:
         - windows_amd64
         - windows_arm64
   post:
+    # "task release" creates the GitHub release with modrelease's --github-release, which writes the notes, before the
+    # release workflow starts. so GoReleaser only uploads to it, leaving its notes alone. run.sh sets mode: replace
+    # before merging this, and post overrides it. if the release doesn't exist yet, GoReleaser creates one with only
+    # the shared header and footer.
+    release:
+      mode: keep-existing
+    changelog:
+      disable: true
     # a cask in lrstanley/homebrew-tap, built from the raw binaries rather than archives. lang-go-release.yml mints
     # HOMEBREW_TAP_TOKEN from the bot app on tag runs when homebrew-tap is set in release.yml.
     homebrew_casks:
