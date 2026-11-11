@@ -7,7 +7,6 @@ package steep
 import (
 	"context"
 	"fmt"
-	"io"
 	"iter"
 	"os"
 	"os/signal"
@@ -106,12 +105,6 @@ func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
 		env = cfg.color.env(env)
 		programOpts = append([]tea.ProgramOption{tea.WithColorProfile(cfg.color.teaProfile())}, programOpts...)
 	}
-	// With no terminal for input, Bubble Tea outside Windows writes LF
-	// expecting ONLCR to add the CR, as a PTY in cooked mode would.
-	var out io.Writer = h.session
-	if runtime.GOOS != "windows" {
-		out = reel.ONLCR(h.session)
-	}
 	h.program = tea.NewProgram(
 		h.observer,
 		append(
@@ -119,7 +112,7 @@ func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
 			tea.WithEnvironment(env),
 			tea.WithContext(cfg.ctx),
 			tea.WithInput(h.session),
-			tea.WithOutput(out),
+			tea.WithOutput(h.session),
 			tea.WithoutSignals(),
 			tea.WithWindowSize(cfg.width, cfg.height),
 		)...,
@@ -162,12 +155,18 @@ func newHarness(tb testing.TB, opts []Option) *Harness {
 	// Bubble Tea writes capability queries before its first paint, and leaves
 	// the alternate screen as it exits, so the recording starts and ends on
 	// its paints rather than on the blank terminal.
-	session, err := reel.Open(
-		tb.Context(), max(cfg.width, 1), max(cfg.height, 1),
+	sessionOpts := []reel.SessionOption{
 		reel.WithTitle(tb.Name()), reel.WithSkipPristine(),
 		reel.WithScrollOnInput(cfg.scrollOnInput), reel.WithTypingDelay(cfg.typingDelay),
 		reel.WithSource(cfg.source), reel.WithSourceSkip(sourceSkip...),
-	)
+	}
+	// Bubble Tea on Windows writes LF to mean only "down a row". Elsewhere,
+	// with no terminal for input, it expects LF to start a new line, as the
+	// session's default output does.
+	if runtime.GOOS == "windows" {
+		sessionOpts = append(sessionOpts, reel.WithoutONLCR())
+	}
+	session, err := reel.Open(tb.Context(), max(cfg.width, 1), max(cfg.height, 1), sessionOpts...)
 	if err != nil {
 		tb.Fatal(err)
 	}

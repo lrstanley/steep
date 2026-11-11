@@ -134,7 +134,7 @@ func (p *Process) run(ctx context.Context, s *Session, cmd *exec.Cmd, pt *pty.PT
 			n, err := pt.Read(buf)
 			if n > 0 {
 				reads.Add(1)
-				if _, werr := s.Write(buf[:n]); werr != nil {
+				if _, werr := s.writeRaw(buf[:n]); werr != nil {
 					// The session closed.
 					hangup()
 					return

@@ -82,7 +82,7 @@ func Attach(ctx context.Context, s *Session, r io.Reader, opts ...AttachOption) 
 		}
 		n, err := r.Read(buf)
 		if n > 0 {
-			if _, werr := s.Write(buf[:n]); werr != nil {
+			if _, werr := s.writeRaw(buf[:n]); werr != nil {
 				return werr
 			}
 		}
@@ -155,7 +155,7 @@ func (a *attacher) apply(e scriptlog.Entry) error {
 	switch e.Kind {
 	case 'O':
 		return a.copy(e.Count, func(p []byte) error {
-			_, err := a.s.Write(p)
+			_, err := a.s.writeRaw(p)
 			return err
 		})
 	case 'I':

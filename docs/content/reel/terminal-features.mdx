@@ -184,7 +184,7 @@ These use `CSI n h` and `CSI n l`, with no `?`. Read them with `Terminal.Mode` a
 
 | Sequence | Name | What reel does |
 | --- | --- | --- |
-| `CSI 20 h` | LNM, line feed new line | Executed by libghostty-vt. Off by default, so `LF` moves down and keeps the column, as in a terminal with `stty raw`. In cooked mode the kernel's `ONLCR` adds the carriage return. |
+| `CSI 20 h` | LNM, line feed new line | Executed by libghostty-vt. Off by default, so `LF` moves down and keeps the column, as in a terminal with `stty raw`. In cooked mode the kernel's `ONLCR` adds the carriage return, as `Session.Write` does unless the session is opened `WithoutONLCR`. |
 | `CSI 4 h` | IRM, insert | Executed by libghostty-vt |
 | `CSI 2 h` | KAM | Recognized by `Terminal.Mode` |
 | `CSI 12 h` | SRM | Recognized by `Terminal.Mode`. On by default. |

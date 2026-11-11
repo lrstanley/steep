@@ -70,16 +70,29 @@ func TestSessionOpen(t *testing.T) {
 	}
 }
 
-// TestONLCR checks that a write through [ONLCR] starts each line at the
-// left edge, and reports the bytes it was given.
-func TestONLCR(t *testing.T) {
+// TestSessionWriteLinefeed checks that [Session.Write] starts each line at
+// the left edge, and reports the bytes it was given, unless the session is
+// opened [WithoutONLCR].
+func TestSessionWriteLinefeed(t *testing.T) {
 	t.Parallel()
-	s := openTest(t, 8, 2)
-	if n, err := ONLCR(s).Write([]byte("ab\ncd")); n != 5 || err != nil {
-		t.Fatalf("Write = %d, %v, want 5, nil", n, err)
-	}
-	if got := s.Terminal().Text(); got != "ab      \ncd      " {
-		t.Fatalf("text = %q", got)
+	for _, tc := range []struct {
+		name string
+		opts []SessionOption
+		want string
+	}{
+		{"cooked", nil, "ab      \ncd      "},
+		{"raw", []SessionOption{WithoutONLCR()}, "ab      \n  cd    "},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := openTest(t, 8, 2, tc.opts...)
+			if n, err := s.Write([]byte("ab\ncd")); n != 5 || err != nil {
+				t.Fatalf("Write = %d, %v, want 5, nil", n, err)
+			}
+			if got := s.Terminal().Text(); got != tc.want {
+				t.Fatalf("text = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

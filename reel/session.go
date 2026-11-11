@@ -65,6 +65,8 @@ type Session struct {
 	scrollOnInput bool
 	// noQueries disables recording [QueryKind] annotations.
 	noQueries bool
+	// noONLCR is [WithoutONLCR].
+	noONLCR bool
 	// kittyFiles rewrites file transmissions; nil unless [WithKittyFiles].
 	kittyFiles *kittyFiles
 	// typingDelay is how long Type and Key pause after each key press.
@@ -85,6 +87,7 @@ type sessionConfig struct {
 	skipPristine  bool
 	scrollOnInput bool
 	noQueries     bool
+	noONLCR       bool
 	typingDelay   time.Duration
 	// cellW and cellH are [Header.CellWidth] and [Header.CellHeight].
 	cellW, cellH int
@@ -176,6 +179,16 @@ func WithoutQueries() SessionOption {
 	return func(cfg *sessionConfig) { cfg.noQueries = true }
 }
 
+// WithoutONLCR makes [Session.Write] pass output to the terminal as is, as
+// a terminal does after stty raw (OPOST off), so LF only moves down a row.
+// Use it to forward output that already went through a pseudo-terminal's
+// line discipline, such as an SSH session's, or for a program that writes
+// LF to mean only "down a row", such as Bubble Tea on Windows. [Exec] and
+// [Attach] always write their output as is.
+func WithoutONLCR() SessionOption {
+	return func(cfg *sessionConfig) { cfg.noONLCR = true }
+}
+
 // WithTypingDelay makes [Session.Type] and [Session.Key] pause for d after
 // each key press, so a recording shows text being typed. Zero or less (the
 // default) sends keys with no pause. [Delay] overrides it for one call.
@@ -247,7 +260,7 @@ func Open(ctx context.Context, cols, rows int, opts ...SessionOption) (*Session,
 	timeline = newTimeline(h)
 	s := &Session{
 		term: term, timeline: timeline, done: make(chan struct{}),
-		scrollOnInput: cfg.scrollOnInput, noQueries: cfg.noQueries,
+		scrollOnInput: cfg.scrollOnInput, noQueries: cfg.noQueries, noONLCR: cfg.noONLCR,
 		typingDelay: cfg.typingDelay,
 		source:      cfg.source, sourceSkip: cfg.sourceSkip,
 	}
@@ -281,39 +294,32 @@ func (s *Session) State() vt.State {
 // appends a [QueryKind] annotation for each query it holds. It never
 // returns a short write.
 //
-// [WithKittyFiles] rewrites the Kitty graphics p sends by file first, so
-// the event and the terminal see the image itself.
-func (s *Session) Write(p []byte) (int, error) {
+// A session is the output side of a terminal in its default, cooked mode:
+// each LF in p is written as CR LF, as the ONLCR output flag does, so a
+// program writing to the session directly starts a new line with LF. Open
+// the session [WithoutONLCR] to write p as is. [WithKittyFiles] then
+// rewrites the Kitty graphics p sends by file, so the event and the
+// terminal see the image itself.
+func (s *Session) Write(p []byte) (int, error) { return s.write(p, !s.noONLCR) }
+
+// writeRaw is [Session.Write] without the LF mapping, for output that
+// already went through a pseudo-terminal's line discipline.
+func (s *Session) writeRaw(p []byte) (int, error) { return s.write(p, false) }
+
+func (s *Session) write(p []byte, onlcr bool) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed.Load() {
 		return 0, ErrClosed
 	}
 	out := p
+	if onlcr && bytes.IndexByte(p, '\n') >= 0 {
+		out = bytes.ReplaceAll(p, []byte("\n"), []byte("\r\n"))
+	}
 	if s.kittyFiles != nil {
-		out = s.kittyFiles.rewrite(p)
+		out = s.kittyFiles.rewrite(out)
 	}
 	if err := s.writeLocked(out); err != nil {
-		return 0, err
-	}
-	return len(p), nil
-}
-
-// ONLCR returns a writer that writes to s with each LF mapped to CR LF, as a
-// terminal's ONLCR output flag does. A session has no line discipline, so
-// LF only moves down a row. Write through ONLCR for a program that writes to
-// the session directly and expects LF to start a new line, as Bubble Tea
-// does outside Windows when its input is not a terminal. Like
-// [Session.Write], it never returns a short write.
-func ONLCR(s *Session) io.Writer { return onlcr{s} }
-
-type onlcr struct{ s *Session }
-
-func (o onlcr) Write(p []byte) (int, error) {
-	if bytes.IndexByte(p, '\n') < 0 {
-		return o.s.Write(p)
-	}
-	if _, err := o.s.Write(bytes.ReplaceAll(p, []byte("\n"), []byte("\r\n"))); err != nil {
 		return 0, err
 	}
 	return len(p), nil

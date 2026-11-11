@@ -33,7 +33,11 @@ When the end isn't bare, such as when the program leaves its title set, mark the
 
 ## Lines don't start at the left edge
 
-A session has no line discipline, so `LF` moves down a row and keeps the column. A program that writes to the session directly and expects `LF` to start a new line, such as [Bubble Tea in your process](/reel/sessions#bubble-tea-in-your-process), draws each line where the last one ended. Write through `reel.ONLCR(s)`, which adds the carriage return a pseudo-terminal would. A steep harness does this for you.
+With `reel.WithoutONLCR()`, `LF` moves down a row and keeps the column. A program that writes to the session directly and expects `LF` to start a new line then draws each line where the last one ended. Drop the option, so `Session.Write` adds the carriage return as a pseudo-terminal would.
+
+## Borders and dividers land at the left edge
+
+`Session.Write` writes each `LF` as `CR LF` by default. A program that writes `LF` to mean only "down a row" draws a vertical run of cells at the left edge instead, such as [Bubble Tea in your process](/reel/sessions#bubble-tea-in-your-process) on Windows, or a raw-mode program whose output you forward from a pseudo-terminal, such as over SSH. Open the session with `reel.WithoutONLCR()`. A steep harness does this for you on Windows.
 
 ## Glyphs are boxes
 
