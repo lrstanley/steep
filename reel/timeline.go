@@ -122,8 +122,8 @@ type Header struct {
 	// sets.
 	Title string
 	// SkipPristine makes a replay draw no frame while the terminal looks as
-	// it did when opened (blank screen, same title, colors, cursor,
-	// progress, and status), before the program's first paint or after its
+	// it did when opened (blank screen, same title, colors, cursor
+	// position and visibility, progress, and status), before the program's first paint or after its
 	// last. A recording then starts on the first paint rather than the bare
 	// terminal, and ends on the last paint rather than the bare terminal a
 	// program leaves as it exits, such as by leaving the alternate screen.

@@ -251,7 +251,8 @@ func (r *replay) commit(at time.Duration, inWindow bool) error {
 }
 
 // isPristine reports whether st and the screen look like the fresh
-// terminal.
+// terminal. The cursor's blink and shape are ignored, as a program may
+// leave its caret style set as it exits, as Bubble Tea does.
 func (r *replay) isPristine(st vt.State) bool {
 	p := r.pristine
 	return st.Title == p.Title &&
@@ -262,7 +263,8 @@ func (r *replay) isPristine(st vt.State) bool {
 		st.Background == p.Background &&
 		st.ReverseColors == p.ReverseColors &&
 		len(st.PromptMarks) == len(p.PromptMarks) &&
-		st.Cursor == p.Cursor &&
+		st.Cursor.X == p.Cursor.X && st.Cursor.Y == p.Cursor.Y &&
+		st.Cursor.Visible == p.Cursor.Visible &&
 		len(r.term.Images()) == 0 &&
 		strings.TrimSpace(r.term.Text()) == ""
 }

@@ -140,10 +140,11 @@ func TestExportPristine(t *testing.T) {
 
 // TestExportPristineAfter checks that a program leaving the terminal bare
 // as it exits, as Bubble Tea does leaving the alternate screen, is skipped
-// at the end of a recording but not before later output.
+// at the end of a recording but not before later output. Like Bubble Tea,
+// the program leaves its caret style set, which does not count.
 func TestExportPristineAfter(t *testing.T) {
 	t.Parallel()
-	const enter, leave = "\x1b[?1049h\x1b[?25l", "\x1b[?1049l\x1b[?25h"
+	const enter, leave = "\x1b[?1049h\x1b[?25l\x1b[5 q", "\x1b[?1049l\x1b[?25h"
 	h := Header{Cols: 4, Rows: 1, SkipPristine: true}
 	exited := []Event{outAt(0, enter+"app"), outAt(100, leave), Exit{event: at(300)}}
 	assertFrames(t, exportFrames(t, buildTimeline(h, exited...), Profile{FPS: 100}),
