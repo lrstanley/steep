@@ -22,7 +22,11 @@ func TestGIFRejectsLoopCount(t *testing.T) {
 func TestDefaultOptimizeAll(t *testing.T) {
 	t.Parallel()
 
-	if got := collectOptions(nil).optimize; got != OptimizeAll {
-		t.Fatalf("default optimize = %#x, want OptimizeAll (%#x)", got, OptimizeAll)
+	cfg, err := gifOptions(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.optimize; got != OptimizeAll {
+		t.Fatalf("default GIF optimize = %#x, want OptimizeAll (%#x)", got, OptimizeAll)
 	}
 }

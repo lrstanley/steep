@@ -46,7 +46,7 @@ const (
 	// frames use, and encodes PNG as an indexed paletted image.
 	OptimizeColorQuantization
 
-	// OptimizeAll enables every optimization, and is the default.
+	// OptimizeAll enables every optimization, and is the default for GIF.
 	OptimizeAll = OptimizeFrames | OptimizeDirtyRects | OptimizeColorQuantization
 )
 
@@ -75,10 +75,11 @@ type options struct {
 	ffmpeg string
 }
 
-// collectOptions applies opts without validating them: each output checks
-// only the options it reads ([gifOptions], [videoOptions]).
-func collectOptions(opts []Option) options {
-	cfg := options{optimize: OptimizeAll}
+// collectOptions applies opts over the default optimize flags without
+// validating them: each output checks only the options it reads
+// ([gifOptions], [videoOptions]).
+func collectOptions(optimize OptimizeFlags, opts []Option) options {
+	cfg := options{optimize: optimize}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&cfg)
@@ -89,14 +90,14 @@ func collectOptions(opts []Option) options {
 
 // gifOptions collects opts for a [GIFEncoder].
 func gifOptions(opts []Option) (options, error) {
-	cfg := collectOptions(opts)
+	cfg := collectOptions(OptimizeAll, opts)
 	err := cfg.validateLoopCount()
 	return cfg, err
 }
 
 // videoOptions collects opts for a [VideoEncoder].
 func videoOptions(opts []Option) (options, error) {
-	cfg := collectOptions(opts)
+	cfg := collectOptions(OptimizeAll, opts)
 	if cfg.qualitySet && cfg.quality != units.Clamp(cfg.quality, 0, MaxQuality) {
 		return cfg, fmt.Errorf("sink: WithQuality %d out of range [0, %d]", cfg.quality, MaxQuality)
 	}
@@ -112,8 +113,8 @@ func (o options) validateLoopCount() error {
 }
 
 // WithOptimize sets the optimization flags, replacing any earlier
-// [WithOptimize]. The default is [OptimizeAll]; [OptimizeNone] disables all
-// optimizations, which for PNG means full RGBA with alpha preserved.
+// [WithOptimize]. The default is [OptimizeAll] for GIF, and [OptimizeNone]
+// for PNG, which is full RGBA with alpha preserved.
 func WithOptimize(flags OptimizeFlags) Option {
 	return func(cfg *options) {
 		cfg.optimize = flags

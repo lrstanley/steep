@@ -16,20 +16,21 @@ import (
 	"github.com/lrstanley/steep/reel/sink/internal/palette"
 )
 
-// PNG writes img to path. By default it is an indexed paletted PNG; pass
-// [WithOptimize]([OptimizeNone]) for full RGBA with alpha preserved.
+// PNG writes img to path. By default it is full RGBA with alpha preserved;
+// pass [WithOptimize]([OptimizeColorQuantization]) for an indexed paletted
+// PNG.
 func PNG(img image.Image, path string, opts ...Option) error {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	return encodePNG(img, f, collectOptions(opts))
+	return encodePNG(img, f, collectOptions(OptimizeNone, opts))
 }
 
 // WritePNG encodes img to w like [PNG].
 func WritePNG(img image.Image, w io.Writer, opts ...Option) error {
-	return encodePNG(img, w, collectOptions(opts))
+	return encodePNG(img, w, collectOptions(OptimizeNone, opts))
 }
 
 // MustPNG is like [PNG] but panics on error.
@@ -64,11 +65,11 @@ func createPNGSink(path string, opts []Option) (*pngSink, error) {
 	if err != nil {
 		return nil, fmt.Errorf("sink: creating png output: %w", err)
 	}
-	return &pngSink{opts: collectOptions(opts), w: file.f, file: file}, nil
+	return &pngSink{opts: collectOptions(OptimizeNone, opts), w: file.f, file: file}, nil
 }
 
 func newPNGSink(w io.Writer, opts []Option) *pngSink {
-	return &pngSink{opts: collectOptions(opts), w: w}
+	return &pngSink{opts: collectOptions(OptimizeNone, opts), w: w}
 }
 
 func (s *pngSink) WriteFrame(f Frame) error {

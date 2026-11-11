@@ -27,7 +27,7 @@ Each parameter only applies to some formats. An unknown or repeated one is an er
 | `loop` | `.gif`, `.webp` | `forever`, `once`, or a number of repeats from `1` | How the animation repeats |
 | `max-bytes` | `.gif` | A size, such as `5MB` or `1.5MiB` | Drops the oldest frames to stay under it |
 | `max-frames` | `.gif` | A number | Keeps only the last frames |
-| `optimize` | `.gif`, `.png` | `none`, `all`, `frames`, `dirty`, `quantize` | The encoder's optimizations. The default is `all`. |
+| `optimize` | `.gif`, `.png` | `none`, `all`, `frames`, `dirty`, `quantize` | The encoder's optimizations. The default is `all` for GIF, and `none` for PNG. |
 | `full-chroma` | `.mp4`, `.webm` | A boolean | 4:4:4, which keeps thin colored text sharp. Many browsers and phones don't play it in H.264. |
 | `background` | `.gif`, `.mp4`, `.webm`, `.webp` | `#rgb` or `#rrggbb` | A solid background |
 | `version` | `.cast` | `2` or `3` | The asciicast version. The default is 2. |

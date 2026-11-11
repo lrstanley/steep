@@ -68,12 +68,29 @@ func TestPNGIgnoresGIFOptions(t *testing.T) {
 	}
 }
 
-func TestPNGDefaultIndexed(t *testing.T) {
+func TestPNGDefaultRGBA(t *testing.T) {
 	t.Parallel()
 
 	src := solidNRGBA(8, 8, color.NRGBA{R: 0xff, G: 0x00, B: 0x80, A: 0xff})
 	path := t.TempDir() + "/default.png"
 	if err := PNG(src, path); err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := readPNG(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := decoded.(*image.Paletted); ok {
+		t.Fatal("default PNG is indexed, want full RGBA")
+	}
+}
+
+func TestPNGQuantizeIndexed(t *testing.T) {
+	t.Parallel()
+
+	src := solidNRGBA(8, 8, color.NRGBA{R: 0xff, G: 0x00, B: 0x80, A: 0xff})
+	path := t.TempDir() + "/quantized.png"
+	if err := PNG(src, path, WithOptimize(OptimizeColorQuantization)); err != nil {
 		t.Fatal(err)
 	}
 

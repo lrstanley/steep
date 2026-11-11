@@ -46,9 +46,10 @@
 // [WithMaxFrames] and [WithMaxBytes] keep only the most recent frames, dropping
 // older frames and their delays.
 //
-// [WithOptimize] defaults to [OptimizeAll]: frame dedup, sub-rect disposal,
-// and palette compaction for GIF, and an indexed palette for PNG. Pass
-// [OptimizeNone] for unoptimized GIF or full RGBA PNG with alpha preserved.
+// For GIF, [WithOptimize] defaults to [OptimizeAll]: frame dedup, sub-rect
+// disposal, and palette compaction. Pass [OptimizeNone] for unoptimized GIF.
+// PNG defaults to [OptimizeNone], full RGBA with alpha preserved; pass
+// [OptimizeColorQuantization] for an indexed palette.
 //
 // # Palette
 //
