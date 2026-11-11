@@ -299,6 +299,26 @@ func (s *Session) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// ONLCR returns a writer that writes to s with each LF mapped to CR LF, as a
+// terminal's ONLCR output flag does. A session has no line discipline, so
+// LF only moves down a row. Write through ONLCR for a program that writes to
+// the session directly and expects LF to start a new line, as Bubble Tea
+// does outside Windows when its input is not a terminal. Like
+// [Session.Write], it never returns a short write.
+func ONLCR(s *Session) io.Writer { return onlcr{s} }
+
+type onlcr struct{ s *Session }
+
+func (o onlcr) Write(p []byte) (int, error) {
+	if bytes.IndexByte(p, '\n') < 0 {
+		return o.s.Write(p)
+	}
+	if _, err := o.s.Write(bytes.ReplaceAll(p, []byte("\n"), []byte("\r\n"))); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
 // writeLocked is [Session.Write] of p, as the terminal should get it.
 func (s *Session) writeLocked(p []byte) error {
 	if len(p) == 0 {

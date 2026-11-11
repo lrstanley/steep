@@ -70,6 +70,19 @@ func TestSessionOpen(t *testing.T) {
 	}
 }
 
+// TestONLCR checks that a write through [ONLCR] starts each line at the
+// left edge, and reports the bytes it was given.
+func TestONLCR(t *testing.T) {
+	t.Parallel()
+	s := openTest(t, 8, 2)
+	if n, err := ONLCR(s).Write([]byte("ab\ncd")); n != 5 || err != nil {
+		t.Fatalf("Write = %d, %v, want 5, nil", n, err)
+	}
+	if got := s.Terminal().Text(); got != "ab      \ncd      " {
+		t.Fatalf("text = %q", got)
+	}
+}
+
 func TestSessionRecordsWithTimestamps(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {

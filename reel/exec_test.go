@@ -111,6 +111,38 @@ func TestExecRecordsFrames(t *testing.T) {
 	}
 }
 
+// TestExecLinefeed checks LF from a program on a pseudo-terminal: with the
+// output untranslated (stty raw) it keeps the column, and in cooked mode the
+// kernel's ONLCR adds the one carriage return.
+func TestExecLinefeed(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		script string
+		want   []string
+		x, y   int
+	}{
+		{"raw", `stty raw -echo; printf '\033[2J\033[1;10HA\nB\nC'`, []string{"         A", "          B", "           C"}, 12, 2},
+		{"cooked", `printf '\033[2J\033[1;10HA\nB\nC'`, []string{"         A", "B", "C"}, 1, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := openTest(t, 20, 4)
+			wait(t, execTest(t.Context(), t, s, bash(t, tc.script)), 0)
+			lines := strings.Split(s.Terminal().Text(), "\n")[:len(tc.want)]
+			for i := range lines {
+				lines[i] = strings.TrimRight(lines[i], " ")
+			}
+			if !slices.Equal(lines, tc.want) {
+				t.Errorf("lines = %q, want %q", lines, tc.want)
+			}
+			if cur := s.Terminal().Cursor(); cur.X != tc.x || cur.Y != tc.y {
+				t.Errorf("cursor = %d,%d, want %d,%d", cur.X, cur.Y, tc.x, tc.y)
+			}
+		})
+	}
+}
+
 // TestExecEmptyPrompt checks that a shell sitting on an empty prompt, which
 // draws nothing, is recorded from its first frame.
 func TestExecEmptyPrompt(t *testing.T) {

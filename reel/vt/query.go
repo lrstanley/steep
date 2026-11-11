@@ -39,24 +39,6 @@ func (t *Terminal) modeKnownLocked(mode Mode) (on, ok bool, err error) {
 	return t.mod.U8(t.scratch, wasmvt.TerminalModeConfigValueOff) != 0, true, nil
 }
 
-// setModeLocked sets TerminalOptionMode. Ghostty reads the
-// GhosttyTerminalModeConfig during the call, so the allocation can
-// be freed immediately after SetOption returns.
-func (t *Terminal) setModeLocked(mode Mode, on bool) error {
-	n := wasmvt.SizeTerminalModeConfig
-	ptr, err := t.mod.Alloc(n)
-	if err != nil {
-		return err
-	}
-	defer t.mod.Free(ptr, n)
-	t.mod.Zero(ptr, n)
-	t.mod.SetU16(ptr, 0, packMode(mode))
-	if on {
-		t.mod.SetU8(ptr, wasmvt.TerminalModeConfigValueOff, 1)
-	}
-	return t.mod.SetOption(t.term, wasmvt.TerminalOptionMode, ptr)
-}
-
 // packMode encodes a mode number the way GhosttyTerminalModeConfig
 // stores it. The high bit is the ANSI/DEC private marker. The low 15
 // bits are the mode number.

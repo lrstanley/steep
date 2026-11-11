@@ -139,8 +139,16 @@ To record a `tea.Program` without building a binary, connect it to the session d
 ```go
 s, err := reel.Open(ctx, 80, 24, reel.WithSkipPristine())
 // ...
-p := tea.NewProgram(model, tea.WithInput(s), tea.WithOutput(s), tea.WithWindowSize(80, 24))
+// With no terminal for input, Bubble Tea outside Windows writes LF expecting
+// the terminal to add the CR.
+var out io.Writer = s
+if runtime.GOOS != "windows" {
+	out = reel.ONLCR(s)
+}
+p := tea.NewProgram(model, tea.WithInput(s), tea.WithOutput(out), tea.WithWindowSize(80, 24))
 ```
+
+A session is a terminal with no line discipline, so `LF` moves down a row and keeps the column, as with `stty raw`. `reel.ONLCR` adds the carriage return that a pseudo-terminal in cooked mode would.
 
 `WithSkipPristine` leaves out the blank terminal before the first paint, since Bubble Tea writes capability queries first, and the one it leaves after leaving the alternate screen. A blank terminal between two paints, such as a program exiting before the next command runs, is kept.
 

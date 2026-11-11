@@ -22,12 +22,12 @@ import (
 func TestWriteTextAndLinefeed(t *testing.T) {
 	t.Parallel()
 	term := openTest(t, 8, 3)
-	if _, err := term.Write([]byte("A\nB")); err != nil {
+	if _, err := term.Write([]byte("A\r\nB")); err != nil {
 		t.Fatal(err)
 	}
 	cur := term.Cursor()
 	if cur.X != 1 || cur.Y != 1 {
-		t.Fatalf("cursor after LF = %d,%d, want 1,1", cur.X, cur.Y)
+		t.Fatalf("cursor after CR LF = %d,%d, want 1,1", cur.X, cur.Y)
 	}
 	text := term.Text()
 	if !strings.HasPrefix(text, "A") {
@@ -36,6 +36,43 @@ func TestWriteTextAndLinefeed(t *testing.T) {
 	line, _, _ := strings.Cut(text, "\n")
 	if len(line) != 8 {
 		t.Fatalf("line width = %d, text %q", len(line), text)
+	}
+}
+
+// TestLinefeed checks that LF, VT, and FF move down a row and keep the
+// column, as a terminal does when nothing translates the output (stty raw),
+// and return the carriage too only while a program has set LNM (mode 20).
+func TestLinefeed(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		in   string
+		want []string
+		x, y int
+	}{
+		{"LF keeps the column", "\x1b[1;3HA\nB\nC", []string{"  A", "   B", "    C"}, 5, 2},
+		{"VT and FF", "A\vB\fC", []string{"A", " B", "  C"}, 3, 2},
+		{"BS after LF", "\x1b[1;3HA\n\bB", []string{"  A", "  B"}, 3, 1},
+		{"LNM", "\x1b[20hA\nB", []string{"A", "B"}, 1, 1},
+		{"LNM cleared by a reset", "\x1b[20h\x1bcA\nB", []string{"A", " B"}, 2, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			term := openTest(t, 8, 3)
+			if _, err := term.Write([]byte(tc.in)); err != nil {
+				t.Fatal(err)
+			}
+			lines := strings.Split(term.Text(), "\n")[:len(tc.want)]
+			for i := range lines {
+				lines[i] = strings.TrimRight(lines[i], " ")
+			}
+			if !slices.Equal(lines, tc.want) {
+				t.Errorf("lines = %q, want %q", lines, tc.want)
+			}
+			if cur := term.Cursor(); cur.X != tc.x || cur.Y != tc.y {
+				t.Errorf("cursor = %d,%d, want %d,%d", cur.X, cur.Y, tc.x, tc.y)
+			}
+		})
 	}
 }
 

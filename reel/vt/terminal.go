@@ -313,8 +313,7 @@ func (t *Terminal) Close() error {
 	return err
 }
 
-// Reset performs a full terminal reset and restores the forced linefeed
-// mode and scrollback cap.
+// Reset performs a full terminal reset and restores the scrollback cap.
 func (t *Terminal) Reset() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -807,8 +806,8 @@ func (t *Terminal) ClearScrollback() error {
 // come from [wasmvt.Module.Ctor], which uses ghostty_wasm_alloc_opaque
 // and the matching ghostty_*_new export. feed, scratch, and the ENQ
 // and XTVERSION reply bytes stay allocated for the life of the module.
-// Callbacks are installed once. Scrollback and the forced linefeed
-// mode are applied after the handles exist.
+// Callbacks are installed once. Scrollback is applied after the handles
+// exist.
 func (t *Terminal) prepare(cols, rows, scrollback int) error {
 	var err error
 	t.replies = newReplyBuf()
@@ -908,8 +907,7 @@ func (t *Terminal) prepare(cols, rows, scrollback int) error {
 }
 
 // reapplyLocked restores options that [Terminal.Reset] and checkout
-// clear. Scrollback, the checksum host options, and mode 20 (the
-// linefeed new-line mode this host forces on) are applied again.
+// clear. Scrollback and the checksum host options are applied again.
 func (t *Terminal) reapplyLocked() error {
 	if err := t.applyScrollbackLocked(); err != nil {
 		return err
@@ -918,9 +916,6 @@ func (t *Terminal) reapplyLocked() error {
 		return err
 	}
 	if err := t.mod.SetU8Option(t.term, wasmvt.TerminalOptionXtChecksumExtension, byte(t.checksumFlags)); err != nil {
-		return err
-	}
-	if err := t.setModeLocked(Mode{Number: 20, ANSI: true}, true); err != nil {
 		return err
 	}
 	return t.mod.SetU64Option(t.term, wasmvt.TerminalOptionKittyImageStorageLimit, t.kitty.limit)

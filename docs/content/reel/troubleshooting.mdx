@@ -31,6 +31,10 @@ A program that clears the screen as it exits leaves a blank end, and a `.png` ou
 
 When the end isn't bare, such as when the program leaves its title set, mark the end before it quits and cut there with `tl.Between("", "end")`.
 
+## Lines don't start at the left edge
+
+A session has no line discipline, so `LF` moves down a row and keeps the column. A program that writes to the session directly and expects `LF` to start a new line, such as [Bubble Tea in your process](/reel/sessions#bubble-tea-in-your-process), draws each line where the last one ended. Write through `reel.ONLCR(s)`, which adds the carriage return a pseudo-terminal would. A steep harness does this for you.
+
 ## Glyphs are boxes
 
 The bundled fonts don't cover every glyph. See [Fonts](/reel/rendering#fonts). `WithFontFamilyName` fails with the directories it searched, if a family can't be found.

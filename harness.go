@@ -7,10 +7,12 @@ package steep
 import (
 	"context"
 	"fmt"
+	"io"
 	"iter"
 	"os"
 	"os/signal"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -104,6 +106,12 @@ func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
 		env = cfg.color.env(env)
 		programOpts = append([]tea.ProgramOption{tea.WithColorProfile(cfg.color.teaProfile())}, programOpts...)
 	}
+	// With no terminal for input, Bubble Tea outside Windows writes LF
+	// expecting ONLCR to add the CR, as a PTY in cooked mode would.
+	var out io.Writer = h.session
+	if runtime.GOOS != "windows" {
+		out = reel.ONLCR(h.session)
+	}
 	h.program = tea.NewProgram(
 		h.observer,
 		append(
@@ -111,7 +119,7 @@ func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
 			tea.WithEnvironment(env),
 			tea.WithContext(cfg.ctx),
 			tea.WithInput(h.session),
-			tea.WithOutput(h.session),
+			tea.WithOutput(out),
 			tea.WithoutSignals(),
 			tea.WithWindowSize(cfg.width, cfg.height),
 		)...,
