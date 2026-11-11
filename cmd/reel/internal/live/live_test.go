@@ -9,6 +9,7 @@ package live
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
@@ -95,6 +96,18 @@ func TestSession(t *testing.T) {
 	}
 	if _, err = Call(t.Context(), dir, "sh", Request{Op: OpInfo}); !errors.Is(err, ErrNoSession) {
 		t.Errorf("after stop: %v, want no session", err)
+	}
+}
+
+// TestResponseText checks that a blank screen's response still has "text",
+// so its JSON has the same keys as any other.
+func TestResponseText(t *testing.T) {
+	b, err := json.Marshal(Response{Screen: &reel.Screen{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(b, []byte(`"text":""`)) {
+		t.Errorf("JSON = %s, want an empty text", b)
 	}
 }
 

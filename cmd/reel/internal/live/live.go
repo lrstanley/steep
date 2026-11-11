@@ -86,9 +86,11 @@ const (
 
 // Response is a session's answer to a [Request].
 type Response struct {
-	Error  string       `json:"error,omitempty"`
-	Code   string       `json:"code,omitempty"`
-	Text   string       `json:"text,omitempty"`
+	Error string `json:"error,omitempty"`
+	Code  string `json:"code,omitempty"`
+	// Text is the screen's text for [OpScreen] and [OpWait]. It is always
+	// in the JSON, empty when the screen is blank.
+	Text   string       `json:"text"`
 	Screen *reel.Screen `json:"screen,omitempty"`
 	Cast   []byte       `json:"cast,omitempty"`
 	Info   *Info        `json:"info,omitempty"`
