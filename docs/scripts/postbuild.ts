@@ -6,10 +6,12 @@
 //     (/<page>.md, /index.md for the root), per https://llmstxt.org, so agents stay on markdown. Links to
 //     anything else get the absolute site URL.
 //  2. Validate every internal link, #fragment, and image in the generated HTML.
+//  3. Check that every page, the 404 page included, has the go-import and go-source meta tags in its <head>, since
+//     those are what resolve the getsteep.dev/steep Go import paths.
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { SECTIONS } from "../src/lib/sections";
-import { SITE_URL } from "../src/lib/site";
+import { GO_IMPORT, GO_SOURCE, SITE_URL } from "../src/lib/site";
 
 const SITE = SITE_URL.replace(/\/$/, "");
 const OUT = join(import.meta.dirname, "..", "dist", "public");
@@ -76,9 +78,27 @@ const idsOf = (file: string) => {
     return set;
 };
 
+if (!existsSync(join(OUT, "404.html"))) errors.push("no 404.html, which go get needs for paths with no page");
+
+/** The content of the <head> meta tag with the given name, or undefined. go get reads no further than the <head>. */
+const headMeta = (html: string, name: string) => {
+    const head = html.split(/<\/head>|<body[\s>]/i)[0] ?? "";
+    for (const [tag] of head.matchAll(/<meta\s[^>]*>/gi)) {
+        if (new RegExp(`\\sname="${name}"`).test(tag)) return /\scontent="([^"]*)"/.exec(tag)?.[1];
+    }
+    return undefined;
+};
+
 for (const file of htmlFiles) {
     const page = "/" + file.slice(OUT.length + 1).replace(/(^|\/)index\.html$/, "");
     const html = readFileSync(file, "utf8");
+    for (const [name, want] of [
+        ["go-import", GO_IMPORT],
+        ["go-source", GO_SOURCE],
+    ] as const) {
+        const got = headMeta(html, name)?.replace(/&amp;/g, "&");
+        if (got !== want) errors.push(`${page}: ${name} meta tag is ${got === undefined ? "missing" : `"${got}"`}, want "${want}"`);
+    }
     for (const [, src = ""] of html.matchAll(/<img\s[^>]*?src="(\/demos\/[^"]*)"/g)) {
         if (!existsSync(join(OUT, src))) errors.push(`${page}: no file for image ${src}`);
     }

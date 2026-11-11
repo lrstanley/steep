@@ -1,0 +1,6 @@
+# Go import paths a person might open in a browser, sent to the docs for them. "go get" follows these, and the page it
+# lands on carries the go-import meta tags, as every page does (see src/lib/site.ts).
+/steep/reel /reel 301
+/steep/reel/* /reel 301
+/steep/cmd/reel /cli 301
+/steep/cmd/reel/* /cli 301

@@ -15,7 +15,7 @@ import { Logo } from "./src/components/logo";
 import { getMdxComponents } from "./src/components/mdx";
 import { SearchDialog } from "./src/components/search-dialog.client";
 import { mainLlmsTxt, SECTIONS, sectionLlmsTxt } from "./src/lib/sections";
-import { INSPECTOR_URL, SITE_URL } from "./src/lib/site";
+import { GO_IMPORT, GO_SOURCE, INSPECTOR_URL, REPO_URL, SITE_URL } from "./src/lib/site";
 
 const docs = defineDocs({
     dir: "content",
@@ -64,7 +64,7 @@ const config = defineConfig({
         nav: {
             title: <Logo />,
         },
-        githubUrl: "https://github.com/lrstanley/steep",
+        githubUrl: REPO_URL,
         links: [
             { text: "Steep", url: "/steep", active: "nested-url" },
             { text: "Reel", url: "/reel", active: "nested-url" },
@@ -97,6 +97,8 @@ const config = defineConfig({
         root() {
             return (
                 <>
+                    <meta name="go-import" content={GO_IMPORT} />
+                    <meta name="go-source" content={GO_SOURCE} />
                     <meta name="author" content="Liam Stanley" />
                     <meta name="copyright" content="© Liam Stanley" />
                     <meta name="theme-color" content="#070c09" />
