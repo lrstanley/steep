@@ -499,8 +499,9 @@ func opaqueNRGBA(c color.Color) color.NRGBA {
 	return color.NRGBA{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8), A: 0xff} //nolint:gosec // RGBA contract.
 }
 
-// compositeBackgroundNRGBA returns a copy of src with fully transparent pixels
-// replaced by bg.
+// compositeBackgroundNRGBA returns a copy of src composited onto the opaque
+// bg, so fully transparent pixels become bg and translucent ones blend into
+// it.
 func compositeBackgroundNRGBA(src *image.NRGBA, bg color.Color) *image.NRGBA {
 	b := src.Bounds()
 	dst := image.NewNRGBA(b)
@@ -509,22 +510,7 @@ func compositeBackgroundNRGBA(src *image.NRGBA, bg color.Color) *image.NRGBA {
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		si := (y-src.Rect.Min.Y)*src.Stride + (b.Min.X-src.Rect.Min.X)*4
 		di := (y-dst.Rect.Min.Y)*dst.Stride + (b.Min.X-dst.Rect.Min.X)*4
-		srcRow := src.Pix[si : si+width*4]
-		dstRow := dst.Pix[di : di+width*4]
-		for x := range width {
-			sx := x * 4
-			if srcRow[sx+3] == 0 {
-				dstRow[sx] = c.R
-				dstRow[sx+1] = c.G
-				dstRow[sx+2] = c.B
-				dstRow[sx+3] = 0xff
-				continue
-			}
-			dstRow[sx] = srcRow[sx]
-			dstRow[sx+1] = srcRow[sx+1]
-			dstRow[sx+2] = srcRow[sx+2]
-			dstRow[sx+3] = srcRow[sx+3]
-		}
+		compositeRow(dst.Pix[di:di+width*4], src.Pix[si:si+width*4], c)
 	}
 	return dst
 }

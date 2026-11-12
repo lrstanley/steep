@@ -120,6 +120,10 @@
 //	PromptMarks <bool>    [render.WithPromptMarks]
 //	LinkUnderline <bool>  [render.WithLinkUnderline]
 //	Bell <bool>           [render.WithBell]
+//	Shadow <shadow>       [render.WithShadow], in the margin: "X Y [BLUR]
+//	                      [#RRGGBB[AA]]" as CSS box-shadow, such as
+//	                      "0 8 24 #00000080", or "none" (see
+//	                      [look.ParseShadow])
 //	KeyOverlay <bool>     the keys pressed, as [effects.Keys] shows them
 //	Toasts <bool>         notifications and clipboard writes, as
 //	                      [effects.Toasts] shows them

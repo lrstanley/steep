@@ -5,6 +5,7 @@
 package main
 
 import (
+	"image/color"
 	"os"
 	"testing"
 	"time"
@@ -33,7 +34,8 @@ var showcaseProfile = reel.Profile{
 		render.WithProgramStatus(true),
 		render.WithProgressBar(true),
 		render.WithPadding(14),
-		render.WithMargin(36, lipgloss.Color("#1d212c")),
+		render.WithMarginGradient(48, 160, lipgloss.Color("#343c4b"), lipgloss.Color("#161a22")),
+		render.WithShadow(0, 14, 40, color.NRGBA{R: 0x05, G: 0x07, B: 0x0a, A: 0xd9}),
 		render.WithBorderRadius(12),
 	},
 	Effects: []reel.Effect{

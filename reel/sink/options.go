@@ -122,10 +122,11 @@ func WithOptimize(flags OptimizeFlags) Option {
 }
 
 // WithBackground sets an opaque background color, ignoring c's alpha.
-// [GIFEncoder] fills fully transparent pixels with it. [VideoEncoder]
-// composites every frame onto it and pads with it; without it, MP4 and WebM
-// use black and WebP keeps transparency. A nil c leaves it unset. PNG ignores
-// it.
+// [GIFEncoder] composites every frame onto it, so the translucent pixels of
+// a frame, such as a soft shadow over a transparent margin, keep their blend
+// rather than turning opaque. [VideoEncoder] composites every frame onto it
+// and pads with it; without it, MP4 and WebM use black and WebP keeps
+// transparency. A nil c leaves it unset. PNG ignores it.
 func WithBackground(c color.Color) Option {
 	return func(cfg *options) {
 		cfg.background = c

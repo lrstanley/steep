@@ -17,28 +17,34 @@ import (
 
 // drawBackground paints the margin and the window. Equal rectangles or equal
 // stored colors are one fill; a margin frame whose color differs is painted
-// first, then the window; a margin gradient only around the window. The
-// returned color is what windowBounds holds.
+// first, then the window; a backdrop, of a margin gradient or a shadow, is
+// copied only around the window. The returned color is what windowBounds
+// holds.
 func (d *Renderer) drawBackground(dst *image.NRGBA, f *renderFrame) color.NRGBA {
 	margin := icol.NRGBA(f.MarginColor())
 	window := f.windowBackgroundNRGBA()
-	if f.imageBounds.Eq(f.windowBounds) || margin == window && f.margin.ramp == nil {
+	if f.imageBounds.Eq(f.windowBounds) || margin == window && f.backdrop == nil {
 		idraw.Fill(dst, f.imageBounds, window)
 		return window
 	}
-	if f.margin.ramp == nil {
+	if f.backdrop == nil {
 		idraw.Fill(dst, f.imageBounds, margin)
 	} else {
-		img, win := f.imageBounds.Intersect(dst.Rect), f.windowBounds
-		for y := img.Min.Y; y < img.Max.Y; y++ {
-			for x := img.Min.X; x < img.Max.X; x++ {
-				if x == win.Min.X && y >= win.Min.Y && y < win.Max.Y {
-					x = win.Max.X // The window is filled below.
-				}
-				if x < img.Max.X {
-					dst.SetNRGBA(x, y, f.margin.at(x, y))
-				}
+		img, win, at := f.imageBounds.Intersect(dst.Rect), f.windowBounds, f.imageBounds.Min
+		span := func(y, x0, x1 int) {
+			if x0 = max(x0, img.Min.X); x0 < min(x1, img.Max.X) {
+				x1 = min(x1, img.Max.X)
+				copy(dst.Pix[dst.PixOffset(x0, y):dst.PixOffset(x1, y)],
+					f.backdrop.Pix[f.backdrop.PixOffset(x0-at.X, y-at.Y):])
 			}
+		}
+		for y := img.Min.Y; y < img.Max.Y; y++ {
+			if y < win.Min.Y || y >= win.Max.Y {
+				span(y, img.Min.X, img.Max.X)
+				continue
+			}
+			span(y, img.Min.X, win.Min.X) // The window is filled below.
+			span(y, win.Max.X, img.Max.X)
 		}
 	}
 	idraw.Fill(dst, f.windowBounds, window)

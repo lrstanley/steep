@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"image"
+	"image/color"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -76,9 +77,13 @@ func TestTour(t *testing.T) {
 		"look-plain.png":  {Render: []render.Option{render.WithScale(demoScale)}},
 		"look-chrome.png": {Render: []render.Option{render.WithScale(demoScale), render.WithWindowChrome(true)}},
 		"look-framed.png": {Render: look()},
+		// The house look but for the margin, so the difference shows.
 		"look-gradient.png": {Render: append(look(), render.WithMarginGradient(
-			32, 135, lipgloss.Color("#0b150f"), lipgloss.Color("#2d6a4f"), lipgloss.Color("#95d5b2"),
-		))},
+			56, 160, lipgloss.Color("#9a6d3c"), lipgloss.Color("#3f2a18"),
+		), render.WithShadow(0, 18, 48, color.NRGBA{R: 0x14, G: 0x0b, B: 0x04, A: 0xd9}))},
+		"look-shadow.png": {Render: append(look(),
+			render.WithMargin(56, lipgloss.Color("#dfe8d6")), render.WithShadow(0, 18, 48, color.NRGBA{R: 0x17, G: 0x30, B: 0x1f, A: 0x80}),
+		)},
 		"look-scale.png": {Render: []render.Option{render.WithWindowChrome(true), render.WithScale(1)}},
 
 		// One effect each.

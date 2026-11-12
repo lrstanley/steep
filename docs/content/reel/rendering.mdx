@@ -10,16 +10,17 @@ Frames are drawn by `reel/render`. By default you get just the cells, so screens
 <DemoGrid>
   <Demo src="look-plain.png" alt="Only the terminal's cells" caption="The default: just the cells." />
   <Demo src="look-chrome.png" alt="The same with a title bar" caption="WithWindowChrome(true)" />
-  <Demo src="look-framed.png" alt="The same with padding, a margin, and rounded corners" caption="With padding, a margin, and a radius." />
-  <Demo src="look-scale.png" alt="The same at half the resolution, so it's softer at this width" caption="WithScale(1), the default. The others use WithScale(2)." />
+  <Demo src="look-framed.png" alt="The same with padding, rounded corners, and a shadow on a green gradient margin" caption="With padding, a margin gradient, a shadow, and a radius." />
+  <Demo src="look-scale.png" alt="The same at two thirds the resolution, so it's softer at this width" caption="WithScale(1), the default. The others use WithScale(1.5)." />
 </DemoGrid>
 
 ```go
 Render: []render.Option{
-	render.WithScale(2),
+	render.WithScale(1.5),
 	render.WithWindowChrome(true),
 	render.WithPadding(20),
-	render.WithMargin(32, lipgloss.Color("#0b150f")),
+	render.WithMarginGradient(56, 160, lipgloss.Color("#3b6a46"), lipgloss.Color("#183222")),
+	render.WithShadow(0, 18, 48, color.NRGBA{R: 0x04, G: 0x08, B: 0x05, A: 0xe6}),
 	render.WithBorderRadius(20),
 },
 ```
@@ -30,6 +31,7 @@ Render: []render.Option{
 | `WithPadding(px)` | Adds space around the terminal, inside the window |
 | `WithMargin(px, fill)` | Adds space around the window, in that color |
 | `WithMarginGradient(px, angle, colors...)` | Adds space around the window, filled with a [gradient](#margin-gradients) |
+| `WithShadow(x, y, blur, color)` | Draws a [drop shadow](#drop-shadow) behind the window, into the margin |
 | `WithBorderRadius(px)` | Rounds the window's corners |
 | `WithFocusDimming(factor)` | Dims the window while unfocused, 0.16 by default |
 | `WithBackgroundOpacity(opacity)` | Makes the background translucent |
@@ -38,15 +40,30 @@ Render: []render.Option{
 
 `WithMarginGradient` fills the margin with a linear gradient instead of one color. It takes the place of `WithMargin`, and whichever comes last wins.
 
-<Demo src="look-gradient.png" alt="The tea shop's window on a gradient from dark green to light green" />
+<Demo src="look-gradient.png" alt="The tea shop's window on a gradient from light brown to dark brown" />
 
 ```go
-render.WithMarginGradient(32, 135, lipgloss.Color("#0b150f"), lipgloss.Color("#2d6a4f"), lipgloss.Color("#95d5b2")),
+render.WithMarginGradient(56, 160, lipgloss.Color("#9a6d3c"), lipgloss.Color("#3f2a18")),
 ```
 
 The angle works like the angle in CSS `linear-gradient`: degrees clockwise from up, so 90 runs left to right, 180 top to bottom, and 135 from the top-left corner to the bottom-right. The colors are spaced evenly from one corner of the image to the opposite one, and the gradient shows behind the window's rounded corners too. Colors blend in the Oklab color space, as CSS gradients do by default, so lightness changes evenly and a color keeps its hue on the way to white or black instead of drifting (blue to white doesn't turn purple).
 
 A GIF can only use 256 colors, and a gradient takes up more of them than a solid margin.
+
+### Drop shadow
+
+`WithShadow` draws a shadow behind the window, as CSS `box-shadow` draws one: the window's shape, rounded as `WithBorderRadius` rounds it, moved `x` pixels right and `y` down, and blurred by `blur` pixels. A `nil` color is `render.DefaultShadowColor`, black at half opacity.
+
+<Demo src="look-shadow.png" alt="The tea shop's window on a pale green margin, with a soft shadow beneath it" />
+
+```go
+render.WithMargin(56, lipgloss.Color("#dfe8d6")),
+render.WithShadow(0, 18, 48, color.NRGBA{R: 0x17, G: 0x30, B: 0x1f, A: 0x80}),
+```
+
+The shadow is drawn into the margin, over its color or gradient, and shows past the window's rounded corners too. It isn't drawn under the window, so a window made translucent with `WithBackgroundOpacity` doesn't darken. The margin should be at least as wide as the blur and the offset together, or the edge of the image cuts the shadow off. The renderer draws the margin and shadow once for each image size and copies them into every frame, so a shadow costs no more per frame than a solid margin.
+
+Over a transparent margin, as `WithMargin(px, nil)` gives without a palette margin color, the shadow is translucent. PNG and WebP keep that. A GIF has no translucency, only one fully transparent color, so its translucent pixels turn opaque, and the soft edge becomes a hard dark one. Give the GIF a [`background`](/reel/formats#parameters), such as `out.gif?background=%23ffffff` (or `sink.WithBackground`), to composite each frame onto that color, or give the margin a color.
 
 ### Size
 

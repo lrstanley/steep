@@ -852,3 +852,22 @@ func BenchmarkEncodeAll(b *testing.B) {
 		encodeSyntheticGIF(b, 8)
 	}
 }
+
+func TestCompositeBackgroundBlendsTranslucent(t *testing.T) {
+	t.Parallel()
+
+	src := image.NewNRGBA(image.Rect(0, 0, 3, 1))
+	src.SetNRGBA(0, 0, color.NRGBA{})                            // transparent
+	src.SetNRGBA(1, 0, color.NRGBA{A: 0x80})                     // half black
+	src.SetNRGBA(2, 0, color.NRGBA{R: 10, G: 20, B: 30, A: 255}) // opaque
+	got := compositeBackgroundNRGBA(src, color.White)
+	for x, want := range []color.NRGBA{
+		{R: 255, G: 255, B: 255, A: 255},
+		{R: 127, G: 127, B: 127, A: 255},
+		{R: 10, G: 20, B: 30, A: 255},
+	} {
+		if px := got.NRGBAAt(x, 0); px != want {
+			t.Errorf("pixel %d = %v, want %v", x, px, want)
+		}
+	}
+}

@@ -54,6 +54,9 @@ type Renderer struct {
 	progressRow []uint8
 	// marginRamp is the margin gradient of [WithMarginGradient], mixed.
 	marginRamp []color.NRGBA
+	// backdrop is the margin, with its gradient and shadow, of the image
+	// size drawn last (see [Renderer.backdropFor]).
+	backdrop *image.NRGBA
 
 	fgPass raster.Pass
 	// prev holds the cells d.frame shows, row-major, for drawIncremental.
@@ -222,5 +225,6 @@ func (d *Renderer) buildRenderer() error {
 	d.palette = config.ClonePalette(d.opts.Palette)
 	d.boxThicknessOverride = d.opts.BoxThicknessOverride()
 	d.marginRamp = gradientRamp(d.opts.MarginFill)
+	d.backdrop = nil
 	return nil
 }

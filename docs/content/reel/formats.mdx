@@ -29,7 +29,7 @@ Each parameter only applies to some formats. An unknown or repeated one is an er
 | `max-frames` | `.gif` | A number | Keeps only the last frames |
 | `optimize` | `.gif`, `.png` | `none`, `all`, `frames`, `dirty`, `quantize` | The encoder's optimizations. The default is `all` for GIF, and `none` for PNG. |
 | `full-chroma` | `.mp4`, `.webm` | A boolean | 4:4:4, which keeps thin colored text sharp. Many browsers and phones don't play it in H.264. |
-| `background` | `.gif`, `.mp4`, `.webm`, `.webp` | `#rgb` or `#rrggbb` | A solid background |
+| `background` | `.gif`, `.mp4`, `.webm`, `.webp` | `#rgb` or `#rrggbb` | A solid background, which translucent pixels, such as a [drop shadow](/reel/rendering#drop-shadow)'s over a transparent margin, blend into |
 | `version` | `.cast` | `2` or `3` | The asciicast version. The default is 2. |
 | `marks` | All but `.cast` | A mark's label | A still at that mark. The path must hold `{mark}`. |
 | `match` | All but `.cast` | A pattern, such as `input:*` | A still at each matching mark. The path must hold `{mark}`. |

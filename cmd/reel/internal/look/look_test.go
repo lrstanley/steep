@@ -32,6 +32,8 @@ func TestValidate(t *testing.T) {
 		{MarginFill: new("#fff")}:            "",
 		{MarginFill: new("45deg #fff #000")}: "",
 		{MarginFill: new("45 #fff")}:         "margin fill",
+		{Shadow: new("0 8 24 #00000080")}:    "",
+		{Shadow: new("8")}:                   "shadow",
 	} {
 		err := l.Validate()
 		if want == "" && err != nil || want != "" && (err == nil || !strings.Contains(err.Error(), want)) {
@@ -62,6 +64,39 @@ func TestParseMarginFill(t *testing.T) {
 		angle, colors, err := ParseMarginFill(in)
 		if got := fmt.Sprint(angle, " ", len(colors), " ", err); got != want {
 			t.Errorf("ParseMarginFill(%q) = %s, want %s", in, got, want)
+		}
+	}
+}
+
+func TestParseShadow(t *testing.T) {
+	for in, want := range map[string]string{
+		"none":             "<nil> <nil>",
+		"0 8":              "&{0 8 0 <nil>} <nil>",
+		"-2 8 24":          "&{-2 8 24 <nil>} <nil>",
+		"0 8 24 #000":      "&{0 8 24 {0 0 0 255}} <nil>",
+		"0 8 24 #10203080": "&{0 8 24 {16 32 48 128}} <nil>",
+		"8":                `<nil> "8" is not X Y [BLUR] [#RRGGBB[AA]], or none`,
+		"1 2 3 4":          `<nil> "1 2 3 4" is not X Y [BLUR] [#RRGGBB[AA]], or none`,
+		"0 8px":            `<nil> "8px" is not a whole number of pixels`,
+		"0 8 -1":           "<nil> blur must not be negative, got -1",
+		"0 8 #nothex00":    `<nil> "#nothex00" is not a #rrggbb or #rrggbbaa color`,
+		"0 8 #12":          `<nil> "#12" is not a #rrggbb color`,
+	} {
+		sh, err := ParseShadow(in)
+		if got := fmt.Sprint(sh, " ", err); got != want {
+			t.Errorf("ParseShadow(%q) = %s, want %s", in, got, want)
+		}
+	}
+}
+
+func TestRenderShadow(t *testing.T) {
+	for l, want := range map[*Look]int{
+		{Shadow: new("0 8 24"), Margin: new(32)}: 0,
+		{Shadow: new("0 8 24")}:                  1,
+		{Shadow: new("none")}:                    0,
+	} {
+		if _, warnings, err := l.Render(0); err != nil || len(warnings) != want {
+			t.Errorf("Render(shadow %q) = warnings %q, %v; want %d warnings", *l.Shadow, warnings, err, want)
 		}
 	}
 }

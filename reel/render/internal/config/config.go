@@ -9,6 +9,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"image"
 	"image/color"
 	"maps"
 	"math"
@@ -78,6 +79,7 @@ type Options struct {
 	Margin                 units.Px
 	MarginFill             []color.Color // one color, a gradient's from start to end, or none or nil for the palette's
 	MarginAngle            float64       // of a MarginFill gradient, in degrees clockwise from up
+	Shadow                 Shadow
 	Padding                units.Px
 	BackgroundOpacity      float64
 	BackgroundOpacityCells bool
@@ -86,6 +88,13 @@ type Options struct {
 	CursorBlinkSpeed       time.Duration
 	LinkUnderline          bool
 	PromptMarks            bool
+}
+
+// Shadow is the drop shadow behind the window. A zero Color draws none.
+type Shadow struct {
+	Offset image.Point
+	Blur   units.Px
+	Color  color.NRGBA
 }
 
 // DefaultOptions returns baseline renderer options.

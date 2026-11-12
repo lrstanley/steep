@@ -390,6 +390,7 @@ Set Theme { "background": "#000", "foreground": "#ffffff", "purple": "#aa7ff0", 
 Set Padding 0
 Set Margin 10
 Set MarginFill "#674EFF"
+Set Shadow "0 8 24 #00000080"
 Set BorderRadius 8
 Set WindowBar Rings
 Set WindowBarSize 40
@@ -412,11 +413,11 @@ Set FontSize 40
 		t.Fatal(err)
 	}
 	s := tp.settings
-	got := fmt.Sprintf("%s %dx%d %dx%d %v %q %v %v %v %d %d %d %v %d %v %v %v %v %q %v %v %v %v %v %v %v",
+	got := fmt.Sprintf("%s %dx%d %dx%d %v %q %v %v %v %d %d %d %v %d %v %v %v %v %q %q %v %v %v %v %v %v %v",
 		s.shell, s.cols, s.rows, s.width, s.height, *s.FontSize, *s.FontFamily, *s.LetterSpacing, *s.LineHeight,
 		s.typingSpeed, *s.Padding, *s.Margin, *s.BorderRadius, *s.WindowBar, *s.FPS, *s.Speed, s.waitTimeout,
-		s.waitPattern, *s.MarginFill, *s.Title, *s.Scrollbar, *s.PromptMarks, *s.LinkUnderline, *s.Bell, *s.KeyOverlay, *s.Toasts, s.cursorBlink)
-	want := `zsh 100x30 800x400 18 "Fira Code, JetBrains Mono" 1.5 1.2 20ms 0 10 8 true 30 2 3s \$ $ #674EFF "demo" true true true true true true false`
+		s.waitPattern, *s.MarginFill, *s.Shadow, *s.Title, *s.Scrollbar, *s.PromptMarks, *s.LinkUnderline, *s.Bell, *s.KeyOverlay, *s.Toasts, s.cursorBlink)
+	want := `zsh 100x30 800x400 18 "Fira Code, JetBrains Mono" 1.5 1.2 20ms 0 10 8 true 30 2 3s \$ $ #674EFF "0 8 24 #00000080" "demo" true true true true true true false`
 	if got != want {
 		t.Errorf("settings:\n got %s\nwant %s", got, want)
 	}
@@ -437,9 +438,9 @@ Set FontSize 40
 	}
 	warnings := strings.Join(tp.warnings, "\n")
 	for _, want := range []string{
-		"17:5: WindowBar Rings is drawn as Colorful",
-		"18:5: WindowBarSize is ignored",
-		"32:5: Set FontSize after the first command is ignored",
+		"18:5: WindowBar Rings is drawn as Colorful",
+		"19:5: WindowBarSize is ignored",
+		"33:5: Set FontSize after the first command is ignored",
 	} {
 		if !strings.Contains(warnings, want) {
 			t.Errorf("warnings %q lack %q", warnings, want)
@@ -467,6 +468,7 @@ Set FontSize 40
 		"Set MarginFill bg.png":      "reel does not fill the margin with an image",
 		`Set MarginFill "9deg"`:      "has no colors",
 		`Set MarginFill "#000 red"`:  `"red" is not a #rrggbb color`,
+		`Set Shadow "8"`:             `invalid Shadow: "8" is not X Y [BLUR] [#RRGGBB[AA]], or none`,
 		`Set Theme { "red": "red" }`: `invalid theme color red: "red" is not a #rrggbb color`,
 		"Set Theme { bad }":          "1:11: invalid theme JSON",
 		"Set WindowBar Fancy":        `unknown WindowBar "Fancy"`,

@@ -25,10 +25,22 @@ reel export in.cast -o out.png --chrome --padding 24 --margin 24 --margin-fill "
 `--margin-fill` also takes a gradient: two or more colors, after an optional angle in degrees clockwise from up, as in CSS. Without an angle, it runs top to bottom.
 
 ```console
-reel export in.cast -o out.png --chrome --padding 24 --margin 24 --margin-fill "135deg #0b150f #2d6a4f #95d5b2" --radius 12
+reel export in.cast -o out.png --chrome --padding 24 --margin 24 --margin-fill "160deg #4b5a63 #1f272c" --radius 12
 ```
 
-<Demo src="cli-gradient.png" alt="The tea shop in a window on a gradient from dark green to light green" />
+<Demo src="cli-gradient.png" alt="The tea shop in a window on a gradient from slate gray to near black" />
+
+## Drop shadow
+
+`--shadow` draws a shadow behind the window, into the margin. It takes the order of CSS `box-shadow`: the x and y offsets in pixels, then an optional blur in pixels, then an optional `#RRGGBB` or `#RRGGBBAA` color, which is black at half opacity by default. `none` turns off a shadow a tape sets.
+
+```console
+reel export in.cast -o out.png --chrome --padding 24 --margin 64 --margin-fill "#dfe8d6" --radius 12 --shadow "0 18 48 #17301f80"
+```
+
+<Demo src="cli-shadow.png" alt="The tea shop in a window on a pale green margin, with a soft shadow beneath it" />
+
+The shadow only shows in the margin, so give it one at least as wide as the blur and the offset together, or the image's edge cuts it off.
 
 ## Keys
 

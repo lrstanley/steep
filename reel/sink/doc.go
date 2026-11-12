@@ -65,6 +65,6 @@
 // the others as local color tables.
 //
 // Only fully transparent source pixels (alpha 0) stay transparent in GIF and
-// indexed PNG, unless [WithBackground] fills them in GIF. Translucent pixels
-// become their opaque color.
+// indexed PNG. Translucent pixels become their opaque color, unless
+// [WithBackground] is set for GIF, which composites every frame onto it.
 package sink

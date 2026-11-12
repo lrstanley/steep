@@ -36,6 +36,7 @@ type Look struct {
 	Padding       *int     `name:"padding" env:"REEL_PADDING" placeholder:"PX" help:"Padding around the terminal, in pixels (tape: Padding)."`
 	Margin        *int     `name:"margin" env:"REEL_MARGIN" placeholder:"PX" help:"Margin around the window, in pixels (tape: Margin)."`
 	MarginFill    *string  `name:"margin-fill" env:"REEL_MARGIN_FILL" placeholder:"#RRGGBB" help:"Margin color, or a gradient of colors after an optional angle, as \"135deg #674EFF #FF6B9D\"; defaults to the theme's background (tape: MarginFill)."`
+	Shadow        *string  `name:"shadow" env:"REEL_SHADOW" placeholder:"X Y [BLUR] [#RRGGBB[AA]]" help:"Drop shadow behind the window, in the margin, as CSS box-shadow: offsets, an optional blur and color, as \"0 8 24 #00000080\"; \"none\" for none (tape: Shadow)."`
 	BorderRadius  *int     `name:"radius" env:"REEL_RADIUS" placeholder:"PX" help:"Window corner radius, in pixels (tape: BorderRadius)."`
 	WindowBar     *bool    `name:"chrome" env:"REEL_CHROME" negatable:"" help:"Draw a window bar (tape: WindowBar)."`
 	Scrollbar     *bool    `name:"scrollbar" negatable:"" help:"Draw a scrollbar (tape: Scrollbar)."`
@@ -59,6 +60,7 @@ func (l Look) Merge(o Look) Look {
 	l.Padding = cmp.Or(o.Padding, l.Padding)
 	l.Margin = cmp.Or(o.Margin, l.Margin)
 	l.MarginFill = cmp.Or(o.MarginFill, l.MarginFill)
+	l.Shadow = cmp.Or(o.Shadow, l.Shadow)
 	l.BorderRadius = cmp.Or(o.BorderRadius, l.BorderRadius)
 	l.WindowBar = cmp.Or(o.WindowBar, l.WindowBar)
 	l.Scrollbar = cmp.Or(o.Scrollbar, l.Scrollbar)
@@ -74,7 +76,7 @@ func (l Look) Merge(o Look) Look {
 }
 
 // Validate reports a set field with a value no recording can have, and a
-// theme or margin fill that does not resolve.
+// theme, margin fill, or shadow that does not resolve.
 func (l Look) Validate() error {
 	if l.Theme != nil {
 		if _, err := themes.Resolve(*l.Theme); err != nil {
@@ -84,6 +86,11 @@ func (l Look) Validate() error {
 	if l.MarginFill != nil {
 		if _, _, err := ParseMarginFill(*l.MarginFill); err != nil {
 			return fmt.Errorf("margin fill: %w", err)
+		}
+	}
+	if l.Shadow != nil {
+		if _, err := ParseShadow(*l.Shadow); err != nil {
+			return fmt.Errorf("shadow: %w", err)
 		}
 	}
 	switch {
@@ -144,6 +151,18 @@ func (l Look) Render(fontSize float64) (opts []render.Option, warnings []string,
 			margin = render.WithMarginGradient(*l.Margin, angle, colors...)
 		}
 		opts = append(opts, margin)
+	}
+	if l.Shadow != nil {
+		sh, shadowErr := ParseShadow(*l.Shadow)
+		if shadowErr != nil {
+			return nil, nil, fmt.Errorf("shadow: %w", shadowErr)
+		}
+		if sh != nil {
+			opts = append(opts, render.WithShadow(sh.X, sh.Y, sh.Blur, sh.Color))
+			if l.Margin == nil || *l.Margin == 0 {
+				warnings = append(warnings, "the shadow shows only in the margin, and there is none; set a margin")
+			}
+		}
 	}
 	if l.LineHeight != nil {
 		opts = append(opts, render.WithCellHeight(*l.LineHeight-1))
@@ -240,4 +259,58 @@ func ParseMarginFill(s string) (angle float64, colors []color.Color, err error) 
 		}
 	}
 	return angle, colors, nil
+}
+
+// Shadow is a drop shadow, as [render.WithShadow] takes it.
+type Shadow struct {
+	X, Y, Blur int
+	Color      color.Color // nil for [render.DefaultShadowColor]
+}
+
+// ParseShadow parses a drop shadow in the order of CSS box-shadow: the x and
+// y offsets in pixels, then an optional blur in pixels, then an optional
+// #rrggbb or #rrggbbaa color, as in "0 8 24 #00000080". "none" is no shadow,
+// and returns nil.
+func ParseShadow(s string) (*Shadow, error) {
+	fields := strings.Fields(s)
+	if len(fields) == 1 && fields[0] == "none" {
+		return nil, nil //nolint:nilnil // None is no shadow, and no error.
+	}
+	var sh Shadow
+	if n := len(fields); n > 0 && strings.HasPrefix(fields[n-1], "#") {
+		c, err := parseAlphaColor(fields[n-1])
+		if err != nil {
+			return nil, err
+		}
+		sh.Color, fields = c, fields[:n-1]
+	}
+	if len(fields) < 2 || len(fields) > 3 {
+		return nil, fmt.Errorf("%q is not X Y [BLUR] [#RRGGBB[AA]], or none", s)
+	}
+	for i, p := range []*int{&sh.X, &sh.Y, &sh.Blur}[:len(fields)] {
+		v, err := strconv.Atoi(fields[i])
+		if err != nil {
+			return nil, fmt.Errorf("%q is not a whole number of pixels", fields[i])
+		}
+		*p = v
+	}
+	if sh.Blur < 0 {
+		return nil, fmt.Errorf("blur must not be negative, got %d", sh.Blur)
+	}
+	return &sh, nil
+}
+
+// parseAlphaColor parses a #rrggbb color, as [themes.ParseColor] does, or a
+// #rrggbbaa one.
+func parseAlphaColor(s string) (color.Color, error) {
+	if len(s) != len("#rrggbbaa") {
+		return themes.ParseColor(s)
+	}
+	c, err := themes.ParseColor(s[:len("#rrggbb")])
+	a, aErr := strconv.ParseUint(s[len("#rrggbb"):], 16, 8)
+	if err != nil || aErr != nil {
+		return nil, fmt.Errorf("%q is not a #rrggbb or #rrggbbaa color", s)
+	}
+	r, g, b, _ := c.RGBA()
+	return color.NRGBA{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8), A: uint8(a)}, nil //nolint:gosec // RGBA contract.
 }

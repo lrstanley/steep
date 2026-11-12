@@ -49,7 +49,7 @@ func ApplyRoundedMask(ctx config.WindowSource, img draw.Image) {
 
 		coverage := 0.0
 		if inRoundedRect(wf, hf, rf, px, py) {
-			coverage = roundedCoverage(window, radius, x, y)
+			coverage = RoundedCoverage(window, radius, x, y)
 			if coverage >= 1 {
 				return
 			}
@@ -79,7 +79,12 @@ func inRoundedRectCross(lx, ly, width, height, radius int) bool {
 	return (lx >= radius && lx < width-radius) || (ly >= radius && ly < height-radius)
 }
 
-func roundedCoverage(rect image.Rectangle, radius, x, y int) float64 {
+// RoundedCoverage is how much of the pixel at x, y, which is within rect, a
+// rectangle with corners of radius covers, from 4x4 samples in the corners.
+func RoundedCoverage(rect image.Rectangle, radius, x, y int) float64 {
+	if inRoundedRectCross(x-rect.Min.X, y-rect.Min.Y, rect.Dx(), rect.Dy(), radius) {
+		return 1
+	}
 	const samples = 4
 
 	var covered int

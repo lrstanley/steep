@@ -20,7 +20,7 @@ cd "$bin"
 
 # Twice the default size of 14.67px, and the frame, as the Go demos draw theirs.
 size=(--font-size 29.33)
-frame=("${size[@]}" --chrome --padding 20 --margin 32 --margin-fill "#0b150f" --radius 20)
+frame=("${size[@]}" --chrome --padding 20 --margin 56 --margin-fill "160deg #3b6a46 #183222" --shadow "0 18 48 #040805e6" --radius 20)
 
 cast="$docs/public/casts/cli-tour.cast"
 reel run "$docs/tapes/tour.tape" -o "$cast" -o "$demos/cli-tape.webp" "${frame[@]}"
@@ -49,7 +49,8 @@ export_demo() {
 export_demo cli-chrome-on.png --chrome
 export_demo cli-chrome-off.png --no-chrome
 export_demo cli-padding.png --chrome --padding 48 --margin 48 --margin-fill "#0b150f" --radius 24
-export_demo cli-gradient.png --chrome --padding 48 --margin 48 --margin-fill "135deg #0b150f #2d6a4f #95d5b2" --radius 24
+export_demo cli-shadow.png --chrome --padding 48 --margin 64 --margin-fill "#dfe8d6" --radius 24 --shadow "0 18 48 #17301f80"
+export_demo cli-gradient.png --chrome --padding 48 --margin 48 --margin-fill "160deg #4b5a63 #1f272c" --radius 24
 
 export_demo cli-keys-off.webp --no-keys "${frame[@]}"
 export_demo cli-keys-on.webp --keys "${frame[@]}"

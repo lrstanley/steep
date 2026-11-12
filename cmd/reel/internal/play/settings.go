@@ -194,6 +194,15 @@ func (c *compiler) setOther(s *settings, name syntax.Token) (string, error) {
 			return "", fmt.Errorf("invalid MarginFill: %w (reel does not fill the margin with an image)", err)
 		}
 		*fresh(&s.MarginFill) = v
+	case "Shadow":
+		v, err := c.stringArg(name)
+		if err != nil {
+			return "", err
+		}
+		if _, err = look.ParseShadow(v); err != nil {
+			return "", fmt.Errorf("invalid Shadow: %w", err)
+		}
+		*fresh(&s.Shadow) = v
 	case "WindowBar":
 		v, err := c.stringArg(name)
 		if err != nil {

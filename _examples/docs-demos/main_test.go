@@ -5,6 +5,7 @@
 package main
 
 import (
+	"image/color"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,13 +40,15 @@ const (
 // exporting reports whether this run writes the site's files.
 func exporting() bool { return os.Getenv("STEEP_EXPORT_MODE") == "on" }
 
-// look is how the site's recordings are drawn.
+// look is how the site's recordings are drawn: in a window on a moss green
+// gradient, with a shadow. docs/scripts/cli-demos.sh draws the CLI's the same.
 func look() []render.Option {
 	return []render.Option{
 		render.WithScale(demoScale),
 		render.WithWindowChrome(true),
 		render.WithPadding(20),
-		render.WithMargin(32, lipgloss.Color("#0b150f")),
+		render.WithMarginGradient(56, 160, lipgloss.Color("#3b6a46"), lipgloss.Color("#183222")),
+		render.WithShadow(0, 18, 48, color.NRGBA{R: 0x04, G: 0x08, B: 0x05, A: 0xe6}),
 		render.WithBorderRadius(20),
 	}
 }
