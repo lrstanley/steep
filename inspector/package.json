@@ -9,7 +9,7 @@
     "assets": "bun run wasm && bun run samples",
     "dev": "bun run assets && nuxt dev",
     "build": "bun run assets && nuxt generate",
-    "preview": "vite preview --outDir .output/public --base \"${NUXT_APP_BASE_URL:-/}\" --port 3000",
+    "preview": "vite preview --outDir .output/public --base \"${NUXT_APP_BASE_URL:-/}\" --host 0.0.0.0 --port 3000",
     "typecheck": "nuxt typecheck && tsc -p tsconfig.worker.json",
     "test": "bun test tests/",
     "postinstall": "nuxt prepare"

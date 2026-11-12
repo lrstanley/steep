@@ -7,6 +7,7 @@ export default defineNuxtConfig({
   ssr: false,
   compatibilityDate: '2025-01-01',
   devtools: { enabled: false },
+  devServer: { host: '0.0.0.0' },
   // Only static files, which wrangler.jsonc deploys as an assets-only Worker.
   nitro: { preset: 'static' },
   css: ['~/assets/css/tailwind.css'],
