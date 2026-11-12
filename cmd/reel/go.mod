@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	charm.land/lipgloss/v2 v2.0.6
-	getsteep.dev/steep/reel v0.0.0-alpha.10
+	getsteep.dev/steep/reel v0.0.0-alpha.11
 	github.com/alecthomas/kong v1.17.0
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/charmbracelet/x/term v0.2.2
