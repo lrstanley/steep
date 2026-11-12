@@ -7,6 +7,7 @@ package render
 import (
 	"errors"
 	"image"
+	"image/color"
 	"sync"
 	"time"
 
@@ -51,6 +52,8 @@ type Renderer struct {
 	status rendererStatus
 	// progressRow is the progress bar coverage of one row of its strip.
 	progressRow []uint8
+	// marginRamp is the margin gradient of [WithMarginGradient], mixed.
+	marginRamp []color.NRGBA
 
 	fgPass raster.Pass
 	// prev holds the cells d.frame shows, row-major, for drawIncremental.
@@ -218,5 +221,6 @@ func (d *Renderer) buildRenderer() error {
 	}
 	d.palette = config.ClonePalette(d.opts.Palette)
 	d.boxThicknessOverride = d.opts.BoxThicknessOverride()
+	d.marginRamp = gradientRamp(d.opts.MarginFill)
 	return nil
 }

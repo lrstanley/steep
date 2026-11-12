@@ -409,7 +409,10 @@ func WithBorderRadius(px int) Option {
 	}
 }
 
-// WithMargin sets the margin in pixels, using the given fill color for the background.
+// WithMargin sets the margin in pixels, using the given fill color for the
+// background. A nil fill is the palette's margin color, or transparent. See
+// [WithMarginGradient] to fill it with a gradient instead; the last of the
+// two wins.
 func WithMargin(px int, fill color.Color) Option {
 	return func(d *Renderer) error {
 		v, err := config.ParsePositivePx(px, "margin")
@@ -417,7 +420,7 @@ func WithMargin(px int, fill color.Color) Option {
 			return err
 		}
 		d.opts.Margin = v
-		d.opts.MarginFill = fill
+		d.opts.MarginFill = []color.Color{fill}
 		return nil
 	}
 }

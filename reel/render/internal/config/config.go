@@ -76,7 +76,8 @@ type Options struct {
 	BellDuration           time.Duration
 	BorderRadius           units.Px
 	Margin                 units.Px
-	MarginFill             color.Color
+	MarginFill             []color.Color // one color, a gradient's from start to end, or none or nil for the palette's
+	MarginAngle            float64       // of a MarginFill gradient, in degrees clockwise from up
 	Padding                units.Px
 	BackgroundOpacity      float64
 	BackgroundOpacityCells bool

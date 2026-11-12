@@ -97,7 +97,9 @@
 //	                      terminal's default colors
 //	Padding <px>          60
 //	Margin <px>           with MarginFill's color, or the theme background
-//	MarginFill <#rrggbb>  an image file is an error
+//	MarginFill <fill>     #rrggbb, or a gradient: colors after an optional
+//	                      angle, as "135deg #674EFF #FF6B9D" (see
+//	                      [look.ParseMarginFill]); an image file is an error
 //	BorderRadius <px>
 //	WindowBar <style>     reel's window chrome; styles other than Colorful
 //	                      are drawn as Colorful, with a warning

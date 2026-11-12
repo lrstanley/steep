@@ -50,6 +50,7 @@ type renderFrame struct {
 	// [vt.Buffer].
 	images    []vt.Placement
 	imageCell image.Point
+	margin    gradient // of [WithMarginGradient], with a nil ramp without one
 }
 
 // frameStatus is the OSC 7501 program status a frame draws.
@@ -137,6 +138,7 @@ func (d *Renderer) populateRenderFrame(f *renderFrame, origin image.Point, scr v
 	f.palette = d.palette
 	f.boxThicknessOverride = d.boxThicknessOverride
 	f.opts = d.opts
+	f.margin = newGradient(d.marginRamp, d.opts.MarginAngle, f.imageBounds)
 }
 
 func (f *renderFrame) cellBounds(x, y int) image.Rectangle {
@@ -267,11 +269,20 @@ func (f *renderFrame) cursorTextColorNRGBA() color.NRGBA {
 // MarginColor is the fill outside the window: the fill of [WithMargin], else the
 // palette's margin color, else transparent.
 func (f *renderFrame) MarginColor() color.Color {
-	if f.opts.MarginFill != nil {
-		return f.opts.MarginFill
+	if len(f.opts.MarginFill) > 0 && f.opts.MarginFill[0] != nil {
+		return f.opts.MarginFill[0]
 	}
 	if f.palette.Margin != nil {
 		return f.palette.Margin
 	}
 	return color.NRGBA{}
+}
+
+// MarginAt is the color of the margin at pixel x, y: its gradient there, or
+// its one color.
+func (f *renderFrame) MarginAt(x, y int) color.NRGBA {
+	if f.margin.ramp != nil {
+		return f.margin.at(x, y)
+	}
+	return icol.NRGBA(f.MarginColor())
 }

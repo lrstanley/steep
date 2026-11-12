@@ -100,6 +100,14 @@ func TestDrawIncrementalMatchesFull(t *testing.T) {
 		{"chrome-status-inset", []Option{WithWindowChrome(true), WithBorderRadius(12), WithBackgroundOpacity(0.5), WithFocusDimming(0.35)}, vt.State{Title: "agent", ProgramStatuses: diffStatuses[2], Cursor: vt.Cursor{Visible: true}}, 30},
 		{"link-underline", []Option{WithLinkUnderline(true)}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
 		{"big-font", []Option{WithScale(scaleFor(26)), WithPadding(3)}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
+		{"gradient", []Option{
+			WithMarginGradient(9, 135, color.NRGBA{R: 0x67, G: 0x4e, B: 0xff, A: 255}, color.NRGBA{R: 0xff, G: 0x6b, B: 0x9d, A: 255}),
+			WithPadding(3), WithBorderRadius(10),
+		}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
+		{"gradient-chrome-status", []Option{
+			WithWindowChrome(true), WithBorderRadius(8), WithBackgroundOpacity(0.5),
+			WithMarginGradient(8, 90, color.Black, color.NRGBA{G: 200, A: 120}, color.White),
+		}, vt.State{Title: "agent", ProgramStatuses: diffStatuses[1], Progress: vt.Progress{State: vt.ProgressIndeterminate, Percent: -1}, Cursor: vt.Cursor{Visible: true}}, 30},
 		{"everything", []Option{
 			WithMargin(6, color.NRGBA{R: 30, G: 60, B: 90, A: 200}), WithPadding(4), WithBorderRadius(12),
 			WithScrollbar(true), WithBackgroundOpacity(0.5), WithFocusDimming(0.35), WithFaintFactor(0.4),

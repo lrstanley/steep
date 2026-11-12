@@ -17,15 +17,30 @@ import (
 
 // drawBackground paints the margin and the window. Equal rectangles or equal
 // stored colors are one fill; a margin frame whose color differs is painted
-// first, then the window. The returned color is what windowBounds holds.
-func (d *Renderer) drawBackground(dst draw.Image, f *renderFrame) color.NRGBA {
+// first, then the window; a margin gradient only around the window. The
+// returned color is what windowBounds holds.
+func (d *Renderer) drawBackground(dst *image.NRGBA, f *renderFrame) color.NRGBA {
 	margin := icol.NRGBA(f.MarginColor())
 	window := f.windowBackgroundNRGBA()
-	if f.imageBounds.Eq(f.windowBounds) || margin == window {
+	if f.imageBounds.Eq(f.windowBounds) || margin == window && f.margin.ramp == nil {
 		idraw.Fill(dst, f.imageBounds, window)
 		return window
 	}
-	idraw.Fill(dst, f.imageBounds, margin)
+	if f.margin.ramp == nil {
+		idraw.Fill(dst, f.imageBounds, margin)
+	} else {
+		img, win := f.imageBounds.Intersect(dst.Rect), f.windowBounds
+		for y := img.Min.Y; y < img.Max.Y; y++ {
+			for x := img.Min.X; x < img.Max.X; x++ {
+				if x == win.Min.X && y >= win.Min.Y && y < win.Max.Y {
+					x = win.Max.X // The window is filled below.
+				}
+				if x < img.Max.X {
+					dst.SetNRGBA(x, y, f.margin.at(x, y))
+				}
+			}
+		}
+	}
 	idraw.Fill(dst, f.windowBounds, window)
 	return window
 }

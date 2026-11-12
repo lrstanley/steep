@@ -465,6 +465,8 @@ Set FontSize 40
 		"Set Columns 0":              "1:13: Columns must be at least 1, got 0",
 		"Set CursorBlink maybe":      `CursorBlink: "maybe" is not true or false`,
 		"Set MarginFill bg.png":      "reel does not fill the margin with an image",
+		`Set MarginFill "9deg"`:      "has no colors",
+		`Set MarginFill "#000 red"`:  `"red" is not a #rrggbb color`,
 		`Set Theme { "red": "red" }`: `invalid theme color red: "red" is not a #rrggbb color`,
 		"Set Theme { bad }":          "1:11: invalid theme JSON",
 		"Set WindowBar Fancy":        `unknown WindowBar "Fancy"`,

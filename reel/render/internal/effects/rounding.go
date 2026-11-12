@@ -30,7 +30,6 @@ func ApplyRoundedMask(ctx config.WindowSource, img draw.Image) {
 		return
 	}
 
-	outside := icol.NRGBA(ctx.MarginColor())
 	nrgba, _ := img.(*image.NRGBA)
 
 	wf := float64(width)
@@ -56,6 +55,7 @@ func ApplyRoundedMask(ctx config.WindowSource, img draw.Image) {
 			}
 		}
 
+		outside := ctx.MarginAt(x, y)
 		if nrgba != nil {
 			nrgba.SetNRGBA(x, y, compositeCovered(nrgba.NRGBAAt(x, y), outside, coverage))
 			return

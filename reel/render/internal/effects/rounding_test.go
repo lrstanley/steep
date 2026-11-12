@@ -26,7 +26,7 @@ type roundingWindowContext struct {
 }
 
 func (m roundingWindowContext) WindowBounds() image.Rectangle { return m.window }
-func (m roundingWindowContext) MarginColor() color.Color      { return m.margin }
+func (m roundingWindowContext) MarginAt(int, int) color.NRGBA { return icol.NRGBA(m.margin) }
 func (m roundingWindowContext) FocusDimming() float64         { return 0 }
 func (m roundingWindowContext) BorderRadius() units.Px        { return m.borderRadius }
 
@@ -64,7 +64,7 @@ func referenceRoundedMask(ctx roundingWindowContext, img draw.Image) {
 	if radius <= 0 {
 		return
 	}
-	outside := icol.NRGBA(ctx.MarginColor())
+	outside := ctx.MarginAt(0, 0)
 	wf, hf, rf := float64(width), float64(height), float64(radius)
 	in := func(x, y float64) bool {
 		cx := units.Clamp(x, rf, wf-rf)

@@ -22,6 +22,14 @@ reel export in.cast -o out.png --chrome --padding 24 --margin 24 --margin-fill "
 
 <Demo src="cli-padding.png" alt="The tea shop in a window with padding, a margin, and rounded corners" />
 
+`--margin-fill` also takes a gradient: two or more colors, after an optional angle in degrees clockwise from up, as in CSS. Without an angle, it runs top to bottom.
+
+```console
+reel export in.cast -o out.png --chrome --padding 24 --margin 24 --margin-fill "135deg #0b150f #2d6a4f #95d5b2" --radius 12
+```
+
+<Demo src="cli-gradient.png" alt="The tea shop in a window on a gradient from dark green to light green" />
+
 ## Keys
 
 `--keys` overlays the keys pressed.

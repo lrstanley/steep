@@ -29,9 +29,24 @@ Render: []render.Option{
 | `WithWindowChrome(enabled)` | Draws a title bar with window buttons, the title, and the working directory |
 | `WithPadding(px)` | Adds space around the terminal, inside the window |
 | `WithMargin(px, fill)` | Adds space around the window, in that color |
+| `WithMarginGradient(px, angle, colors...)` | Adds space around the window, filled with a [gradient](#margin-gradients) |
 | `WithBorderRadius(px)` | Rounds the window's corners |
 | `WithFocusDimming(factor)` | Dims the window while unfocused, 0.16 by default |
 | `WithBackgroundOpacity(opacity)` | Makes the background translucent |
+
+### Margin gradients
+
+`WithMarginGradient` fills the margin with a linear gradient instead of one color. It takes the place of `WithMargin`, and whichever comes last wins.
+
+<Demo src="look-gradient.png" alt="The tea shop's window on a gradient from dark green to light green" />
+
+```go
+render.WithMarginGradient(32, 135, lipgloss.Color("#0b150f"), lipgloss.Color("#2d6a4f"), lipgloss.Color("#95d5b2")),
+```
+
+The angle works like the angle in CSS `linear-gradient`: degrees clockwise from up, so 90 runs left to right, 180 top to bottom, and 135 from the top-left corner to the bottom-right. The colors are spaced evenly from one corner of the image to the opposite one, and the gradient shows behind the window's rounded corners too. Colors blend in the Oklab color space, as CSS gradients do by default, so lightness changes evenly and a color keeps its hue on the way to white or black instead of drifting (blue to white doesn't turn purple).
+
+A GIF can only use 256 colors, and a gradient takes up more of them than a solid margin.
 
 ### Size
 

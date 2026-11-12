@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/lipgloss/v2"
 	"getsteep.dev/steep"
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/effects"
@@ -75,7 +76,10 @@ func TestTour(t *testing.T) {
 		"look-plain.png":  {Render: []render.Option{render.WithScale(demoScale)}},
 		"look-chrome.png": {Render: []render.Option{render.WithScale(demoScale), render.WithWindowChrome(true)}},
 		"look-framed.png": {Render: look()},
-		"look-scale.png":  {Render: []render.Option{render.WithWindowChrome(true), render.WithScale(1)}},
+		"look-gradient.png": {Render: append(look(), render.WithMarginGradient(
+			32, 135, lipgloss.Color("#0b150f"), lipgloss.Color("#2d6a4f"), lipgloss.Color("#95d5b2"),
+		))},
+		"look-scale.png": {Render: []render.Option{render.WithWindowChrome(true), render.WithScale(1)}},
 
 		// One effect each.
 		"effect-keys.webp":   {Effects: []reel.Effect{effects.Keys(time.Second)}},

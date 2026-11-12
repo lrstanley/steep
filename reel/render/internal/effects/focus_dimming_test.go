@@ -19,7 +19,7 @@ type focusWindowContext struct {
 }
 
 func (m focusWindowContext) WindowBounds() image.Rectangle { return m.window }
-func (m focusWindowContext) MarginColor() color.Color      { return color.Black }
+func (m focusWindowContext) MarginAt(int, int) color.NRGBA { return color.NRGBA{A: 255} }
 func (m focusWindowContext) FocusDimming() float64         { return m.focusDimming }
 func (m focusWindowContext) BorderRadius() units.Px        { return 0 }
 

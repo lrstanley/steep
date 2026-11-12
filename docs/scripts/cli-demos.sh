@@ -49,6 +49,7 @@ export_demo() {
 export_demo cli-chrome-on.png --chrome
 export_demo cli-chrome-off.png --no-chrome
 export_demo cli-padding.png --chrome --padding 48 --margin 48 --margin-fill "#0b150f" --radius 24
+export_demo cli-gradient.png --chrome --padding 48 --margin 48 --margin-fill "135deg #0b150f #2d6a4f #95d5b2" --radius 24
 
 export_demo cli-keys-off.webp --no-keys "${frame[@]}"
 export_demo cli-keys-on.webp --keys "${frame[@]}"

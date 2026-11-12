@@ -9,6 +9,8 @@ package look
 import (
 	"cmp"
 	"fmt"
+	"image/color"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,7 +35,7 @@ type Look struct {
 	LineHeight    *float64 `name:"line-height" placeholder:"X" help:"Line height, as a multiple of the font's (tape: LineHeight)."`
 	Padding       *int     `name:"padding" env:"REEL_PADDING" placeholder:"PX" help:"Padding around the terminal, in pixels (tape: Padding)."`
 	Margin        *int     `name:"margin" env:"REEL_MARGIN" placeholder:"PX" help:"Margin around the window, in pixels (tape: Margin)."`
-	MarginFill    *string  `name:"margin-fill" env:"REEL_MARGIN_FILL" placeholder:"#RRGGBB" help:"Margin color; defaults to the theme's background (tape: MarginFill)."`
+	MarginFill    *string  `name:"margin-fill" env:"REEL_MARGIN_FILL" placeholder:"#RRGGBB" help:"Margin color, or a gradient of colors after an optional angle, as \"135deg #674EFF #FF6B9D\"; defaults to the theme's background (tape: MarginFill)."`
 	BorderRadius  *int     `name:"radius" env:"REEL_RADIUS" placeholder:"PX" help:"Window corner radius, in pixels (tape: BorderRadius)."`
 	WindowBar     *bool    `name:"chrome" env:"REEL_CHROME" negatable:"" help:"Draw a window bar (tape: WindowBar)."`
 	Scrollbar     *bool    `name:"scrollbar" negatable:"" help:"Draw a scrollbar (tape: Scrollbar)."`
@@ -80,7 +82,7 @@ func (l Look) Validate() error {
 		}
 	}
 	if l.MarginFill != nil {
-		if _, err := themes.ParseColor(*l.MarginFill); err != nil {
+		if _, _, err := ParseMarginFill(*l.MarginFill); err != nil {
 			return fmt.Errorf("margin fill: %w", err)
 		}
 	}
@@ -133,13 +135,15 @@ func (l Look) Render(fontSize float64) (opts []render.Option, warnings []string,
 		opts = append(opts, render.WithPadding(*l.Padding))
 	}
 	if l.Margin != nil && *l.Margin > 0 {
-		fill := pal.DefaultBackground
+		margin := render.WithMargin(*l.Margin, pal.DefaultBackground)
 		if l.MarginFill != nil {
-			if fill, err = themes.ParseColor(*l.MarginFill); err != nil {
-				return nil, nil, fmt.Errorf("margin fill: %w", err)
+			angle, colors, fillErr := ParseMarginFill(*l.MarginFill)
+			if fillErr != nil {
+				return nil, nil, fmt.Errorf("margin fill: %w", fillErr)
 			}
+			margin = render.WithMarginGradient(*l.Margin, angle, colors...)
 		}
-		opts = append(opts, render.WithMargin(*l.Margin, fill))
+		opts = append(opts, margin)
 	}
 	if l.LineHeight != nil {
 		opts = append(opts, render.WithCellHeight(*l.LineHeight-1))
@@ -213,4 +217,27 @@ func firstFamily(list string) (fonts.FontFamily, bool) {
 		}
 	}
 	return fonts.FontFamily{}, false
+}
+
+// ParseMarginFill parses a margin fill: one #rrggbb color, or a gradient of
+// several after an optional angle in degrees clockwise from up (180, top to
+// bottom, without one), as in "135deg #674EFF #FF6B9D".
+func ParseMarginFill(s string) (angle float64, colors []color.Color, err error) {
+	angle, fields := 180, strings.Fields(s)
+	if len(fields) > 0 && strings.HasSuffix(fields[0], "deg") {
+		if angle, err = strconv.ParseFloat(strings.TrimSuffix(fields[0], "deg"), 64); err != nil {
+			return 0, nil, fmt.Errorf("%q is not an angle like 135deg", fields[0])
+		}
+		fields = fields[1:]
+	}
+	if len(fields) == 0 {
+		return 0, nil, fmt.Errorf("%q has no colors", s)
+	}
+	colors = make([]color.Color, len(fields))
+	for i, f := range fields {
+		if colors[i], err = themes.ParseColor(f); err != nil {
+			return 0, nil, err
+		}
+	}
+	return angle, colors, nil
 }

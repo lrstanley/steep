@@ -190,7 +190,7 @@ func (c *compiler) setOther(s *settings, name syntax.Token) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if _, err = themes.ParseColor(v); err != nil {
+		if _, _, err = look.ParseMarginFill(v); err != nil {
 			return "", fmt.Errorf("invalid MarginFill: %w (reel does not fill the margin with an image)", err)
 		}
 		*fresh(&s.MarginFill) = v
