@@ -323,3 +323,40 @@ func TestIsolatedPaletteCompactsToPowerOfTwo(t *testing.T) {
 		t.Fatal("isolated frame used the global color table")
 	}
 }
+
+// TestIsolatedRunRollsOver checks that a run of isolated frames whose colors
+// change, such as a dimmed recording that keeps drawing, keeps them: the
+// run's palette starts over when it fills, rather than mapping new colors
+// to the nearest old ones.
+func TestIsolatedRunRollsOver(t *testing.T) {
+	t.Parallel()
+
+	// 255 dark colors fill the run's palette, and 255 bright ones follow,
+	// as when a dimmed frame is followed by a brighter one.
+	first := solidColorsFrame(cubeColors(255, 0), 8)
+	second := solidColorsFrame(cubeColors(255, 160), 8)
+	frames := []Frame{
+		{Image: first, Delay: 40 * time.Millisecond, Isolated: true},
+		{Image: second, Delay: 40 * time.Millisecond, Isolated: true},
+	}
+	_, raw := encodeFrames(t, frames)
+	replayed, err := replayGIF(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertReplayClose(t, []image.Image{first, second}, replayed)
+}
+
+// cubeColors returns n colors 4 apart on each channel, from base up.
+func cubeColors(n int, base uint8) []color.NRGBA {
+	out := make([]color.NRGBA, n)
+	for i := range out {
+		out[i] = color.NRGBA{
+			R: base + uint8(i%7*4),   //nolint:gosec // bounded.
+			G: base + uint8(i/7%7*4), //nolint:gosec // bounded.
+			B: base + uint8(i/49*4),  //nolint:gosec // bounded.
+			A: 0xff,
+		}
+	}
+	return out
+}

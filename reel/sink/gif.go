@@ -232,7 +232,10 @@ func (rec *gifRecording) activePalette() color.Palette {
 }
 
 // capturePalette returns the palette builder for the next frame. A run of
-// isolated frames shares one builder, with no reserve.
+// isolated frames shares one builder, with no reserve, which starts over
+// when a frame maps poorly onto it once full, as the shared one does: the
+// frames of a run, such as those a highlight dims, may keep drawing new
+// colors.
 func (rec *gifRecording) capturePalette(isolated bool) *palette.Adaptive {
 	if !isolated {
 		rec.isolated = nil
@@ -242,7 +245,7 @@ func (rec *gifRecording) capturePalette(isolated bool) *palette.Adaptive {
 		return rec.adaptive
 	}
 	if rec.isolated == nil {
-		rec.isolated = palette.NewAdaptive(false, false)
+		rec.isolated = palette.NewAdaptive(false, true)
 	}
 	return rec.isolated
 }
