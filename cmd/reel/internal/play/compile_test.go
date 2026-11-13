@@ -21,7 +21,17 @@ import (
 
 	syntax "getsteep.dev/steep/cmd/reel/internal/tape"
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/effects"
 )
+
+// describeNote is the step that places an annotation, as the tests compare
+// it.
+func describeNote(a reel.Annotation, err error) string {
+	if err != nil {
+		panic(err)
+	}
+	return describe(annotateStep{a})
+}
 
 // describe is a step as the tests compare it.
 func describe(s step) string {
@@ -111,6 +121,24 @@ func TestParseCommands(t *testing.T) {
 		{src: `Copy "a" "b"` + "\nPaste", want: []string{describe(copyStep{text: "a b"}), describe(pasteStep{})}},
 		{src: `Mark "step:1"`, want: []string{describe(markStep{label: "step:1"})}},
 		{src: `Mark "tape:end"`, err: `1:1: mark label "tape:end" is empty or starts with "tape:"`},
+		{src: `Caption "hi"`, want: []string{describeNote(effects.NewCaption("hi"))}},
+		{src: `Caption "hi" "pause=auto;for=2s;side=top;until=done"`, want: []string{describeNote(effects.NewCaption("hi",
+			effects.CaptionPause(effects.AutoPause), effects.CaptionFor(2*time.Second), effects.CaptionSide(effects.SideTop),
+			effects.CaptionUntil("done")))}},
+		{src: `Callout "text=foo;spotlight;pause=1s;side=left" "look"`, want: []string{describeNote(effects.NewCallout(effects.Text("foo"), "look",
+			effects.Spotlight(), effects.CaptionPause(time.Second), effects.CaptionSide(effects.SideLeft)))}},
+		{src: "EndCaption\nEndCallout", want: []string{
+			describeNote(effects.EndCaption(), nil),
+			describeNote(effects.EndCallout(), nil),
+		}},
+		{src: `Caption ""`, err: "1:1: Caption: effects: caption: no text"},
+		{src: `Caption "x" "side=left"`, err: "1:1: Caption: effects: caption: side left"},
+		{src: `Caption "x" "for=6m"`, err: "1:1: Caption: effects: caption: for: 360000ms is longer than effects.MaxDuration, 5m0s"},
+		{src: `Set CaptionPause 6m`, err: "1:18: CaptionPause: pause 6m0s is longer than 5m0s"},
+		{src: `Set CaptionPause soon`, err: `1:18: CaptionPause: pause "soon" is not a duration or auto`},
+		{src: `Caption "x" "wobble=1"`, err: `1:13: Caption: unknown option "wobble"`},
+		{src: `Callout "x" "y"`, err: `1:1: Callout: callout "x": region "x" is not KIND=VALUE`},
+		{src: `Callout "text=x"`, err: "1:1: Callout expects a string"},
 		{src: `Screenshot shot.png`, want: []string{describe(markStep{label: "shot"})}},
 		{src: `Screenshot shot.jpg`, err: `1:1: screenshot "shot.jpg" is not a .png file`},
 		{src: `Screenshot "{name}.png"`, err: `contains "{"`},
@@ -435,6 +463,14 @@ Set FontSize 40
 	}
 	if fmt.Sprint(pal.DefaultBackground) != "{0 0 0 255}" {
 		t.Errorf("background = %v, want #000 as black", pal.DefaultBackground)
+	}
+	for src, want := range map[string]string{"2s": "2s", "1.5": "1.5s", "auto": "auto", `"none"`: "none"} {
+		pt, perr := parseString("Set CaptionPause " + src)
+		if perr != nil {
+			t.Errorf("Set CaptionPause %s: %v", src, perr)
+		} else if got := pt.settings.CaptionPause; got == nil || *got != want {
+			t.Errorf("Set CaptionPause %s = %v, want %q", src, got, want)
+		}
 	}
 	warnings := strings.Join(tp.warnings, "\n")
 	for _, want := range []string{

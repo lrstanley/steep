@@ -24,13 +24,25 @@
 //	zoom       ease=DUR scale=FACTOR anchor=X,Y
 //	redact     style=blur|block|replace:CHAR
 //
+// Captions and callouts take options in the same form, a callout after its
+// anchor's region:
+//
+//	pause=DUR|auto   pause playback as it starts, for a reading time with auto
+//	for=DUR          end it this long into the recording after it starts
+//	until=MARK       end it at the first mark labeled MARK
+//	side=SIDE        top or bottom of the terminal for a caption; top,
+//	                 bottom, left, or right of its anchor for a callout
+//	spotlight        darken all but a callout's anchor while it shows
+//
 // Values cannot hold ";", so neither can a region's text or pattern.
 package spec
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -58,19 +70,9 @@ func Effect(kind, spec string) (reel.Effect, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s %q: %w", kind, spec, err)
 	}
-	opts := map[string]string{}
-	for kv := range strings.SplitSeq(rest, ";") {
-		if kv == "" {
-			continue
-		}
-		k, v, isKV := strings.Cut(kv, "=")
-		if !isKV {
-			return nil, fmt.Errorf("%s %q: option %q is not KEY=VALUE", kind, spec, kv)
-		}
-		if _, dup := opts[k]; dup {
-			return nil, fmt.Errorf("%s %q: option %q is repeated", kind, spec, k)
-		}
-		opts[k] = v
+	opts, err := keyValues(rest)
+	if err != nil {
+		return nil, fmt.Errorf("%s %q: %w", kind, spec, err)
 	}
 	e, err := build(region, opts)
 	if err != nil {
@@ -116,6 +118,102 @@ func Region(s string) (effects.Region, error) {
 		return effects.Env(v), nil
 	}
 	return nil, fmt.Errorf("unknown region %q, want row, rows, cells, text, re, or env", kind)
+}
+
+// keyValues reads options separated by ";", each KEY=VALUE, or a bare KEY
+// in flags, which reads as KEY=true.
+func keyValues(s string, flags ...string) (map[string]string, error) {
+	opts := map[string]string{}
+	for kv := range strings.SplitSeq(s, ";") {
+		if kv == "" {
+			continue
+		}
+		k, v, isKV := strings.Cut(kv, "=")
+		if !isKV {
+			if !slices.Contains(flags, k) {
+				return nil, fmt.Errorf("option %q is not KEY=VALUE", kv)
+			}
+			v = "true"
+		}
+		if _, dup := opts[k]; dup {
+			return nil, fmt.Errorf("option %q is repeated", k)
+		}
+		opts[k] = v
+	}
+	return opts, nil
+}
+
+// CaptionPause reads the pause of a caption: a duration of at most
+// [effects.MaxDuration], or auto for a reading time ([effects.AutoPause]).
+func CaptionPause(v string) (time.Duration, error) {
+	if v == "auto" {
+		return effects.AutoPause, nil
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return 0, fmt.Errorf("pause %q is not a duration or auto", v)
+	}
+	if d < 0 {
+		return 0, fmt.Errorf("pause %v below zero", d)
+	}
+	if d > effects.MaxDuration {
+		return 0, fmt.Errorf("pause %v is longer than %v", d, effects.MaxDuration)
+	}
+	return d, nil
+}
+
+// Caption reads the options of a caption or a callout (see the package
+// documentation).
+func Caption(s string) ([]effects.CaptionOption, error) {
+	opts, kvErr := keyValues(s, "spotlight")
+	if kvErr != nil {
+		return nil, kvErr
+	}
+	return options(opts, map[string]func(v string) (effects.CaptionOption, error){
+		"pause": func(v string) (effects.CaptionOption, error) {
+			d, err := CaptionPause(v)
+			return effects.CaptionPause(d), err
+		},
+		"for": func(v string) (effects.CaptionOption, error) {
+			d, err := time.ParseDuration(v)
+			return effects.CaptionFor(d), err
+		},
+		"until": func(v string) (effects.CaptionOption, error) {
+			if v == "" {
+				return nil, errors.New("no mark")
+			}
+			return effects.CaptionUntil(v), nil
+		},
+		"side": func(v string) (effects.CaptionOption, error) {
+			side, ok := map[string]effects.Side{"top": effects.SideTop, "bottom": effects.SideBottom, "left": effects.SideLeft, "right": effects.SideRight}[v]
+			if !ok {
+				return nil, fmt.Errorf("%q is not top, bottom, left, or right", v)
+			}
+			return effects.CaptionSide(side), nil
+		},
+		"spotlight": func(v string) (effects.CaptionOption, error) {
+			on, err := strconv.ParseBool(v)
+			if err != nil || !on {
+				return nil, err
+			}
+			return effects.Spotlight(), nil
+		},
+	})
+}
+
+// Callout reads REGION[;OPTION]..., the anchor of a callout and its
+// options (see the package documentation).
+func Callout(s string) (effects.Region, []effects.CaptionOption, error) {
+	regionSpec, rest, _ := strings.Cut(s, ";")
+	region, err := Region(regionSpec)
+	if err != nil {
+		return nil, nil, fmt.Errorf("callout %q: %w", s, err)
+	}
+	opts, err := Caption(rest)
+	if err != nil {
+		return nil, nil, fmt.Errorf("callout %q: %w", s, err)
+	}
+	return region, opts, nil
 }
 
 // ints parses n whole numbers separated by sep.

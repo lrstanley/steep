@@ -343,6 +343,11 @@ func (t *Tape) plan(st settings, cfg runConfig, warnings *[]string) (plan, error
 	}
 	st.Profile(&pl.profile)
 	pl.profile.Effects = slices.Concat(cfg.profile.Effects, t.effects, t.hideEffects(), st.Effects())
+	// Captions draw by default, by the profile's own Captions effect if it
+	// has one.
+	if captions, _ := st.Captions(); !effects.HasCaptions(pl.profile.Effects) {
+		pl.profile.Effects = append(pl.profile.Effects, captions)
+	}
 	return pl, nil
 }
 
@@ -526,6 +531,11 @@ func TrimScreen(text string) string {
 type markStep struct{ label string }
 
 func (c markStep) run(_ context.Context, r *runner) error { return r.s.Mark(c.label) }
+
+// annotateStep places an annotation, such as a caption.
+type annotateStep struct{ a reel.Annotation }
+
+func (c annotateStep) run(_ context.Context, r *runner) error { return r.s.Annotate(c.a) }
 
 type copyStep struct{ text string }
 

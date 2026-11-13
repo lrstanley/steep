@@ -1,6 +1,6 @@
 ---
 title: Effects
-description: Cards, pauses, cuts, highlights, zooms, and redaction, from flags.
+description: Cards, pauses, cuts, highlights, zooms, redaction, and captions, from flags and tapes.
 ---
 
 These flags add effects to `run`, `export`, `attach`, `rec`, and session exports.
@@ -97,6 +97,52 @@ These can't be combined with a `.cast` output, which would keep the secret. And 
 | `style=blur\|block\|replace:C` | Redact | How it hides |
 
 Values can't contain `;`, so neither can a region's text or pattern. Quote specs, since your shell cares about `;`.
+
+## Captions
+
+Captions are text for whoever watches: a **caption** is a pill at the top or bottom of the terminal, and a **callout** is a box with a caret pointing at cells of the screen. They're placed in the recording as it's made, from a tape or a [session](/cli/sessions), and every export draws them.
+
+<Demo src="captions-demo.webp" alt="The shop with captions at the top and callouts pointing at what to press" cast="captions-demo.cast" />
+
+In a tape, `Caption` shows a caption from that point, and `Callout` a callout, whose spec is a [region](#spec) and its options. Each shows until the next of its sort, or `EndCaption` or `EndCallout`:
+
+```tape
+Caption "The Tea Shop lists teas to filter and brew"
+Callout "text=/ filter" "Press / to filter the menu"
+Type "/"
+Type "green"
+EndCallout
+Caption "Only the green teas are left" "for=2s"
+Escape
+Callout "text=Oolong;spotlight;pause=2s" "Press enter to brew it"
+```
+
+In a session, they're `reel s caption`, `reel s callout`, and `reel s end-caption`:
+
+```console
+reel s caption "Building the project" --options "pause=auto"
+reel s callout "text=PASS;spotlight" "Every test passed"
+reel s end-caption --callout
+```
+
+Both take these options, after a callout's region:
+
+| Option | Does |
+| --- | --- |
+| `pause=DUR\|auto` | Pauses playback as it starts, for a reading time with `auto`. `pause=0s` is no pause, even with `--caption-pause`. |
+| `for=DUR` | Ends it this long into the recording after it starts. `for=0s` shows it only while its pause lasts. |
+| `until=MARK` | Ends it at the first mark labeled `MARK` |
+| `side=top\|bottom\|left\|right` | Where it goes: `top` or `bottom` of the terminal for a caption, a side of its anchor for a callout. The default covers the least text. |
+| `spotlight` | Darkens all but a callout's anchor while it shows |
+
+Captions don't pause unless they say to. For a demo, `--caption-pause auto` (tape: `Set CaptionPause auto`) pauses at each caption that sets no pause of its own, for a reading time, or for a duration such as `2s`. `--caption-pause none` leaves out every pause, so a recording made as a demo plays at its own pace:
+
+```console
+reel export demo.cast -o demo.webp --caption-pause auto
+reel export demo.cast -o fast.webp --caption-pause none
+```
+
+See [Captions](/reel/captions) for how they're laid out and timed.
 
 ## In a tape
 

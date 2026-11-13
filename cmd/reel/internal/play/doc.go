@@ -75,6 +75,16 @@
 //     (see package spec), such as Zoom "re=ERROR.*;scale=2;between=a,b",
 //     for the whole recording or the window of its between=, wherever the
 //     command is in the tape.
+//   - Caption <text> [<options>] (reel): a caption from here in the
+//     recording, a pill at the top or bottom of the terminal, until the
+//     next Caption or EndCaption (see [effects.NewCaption]). The options
+//     are package spec's, such as "pause=auto;for=3s".
+//   - Callout <region[;options]> <text> (reel): a callout from here in the
+//     recording, a box with a caret pointing at the first cells the region
+//     matches, until the next Callout or EndCallout (see
+//     [effects.NewCallout]), such as Callout "text=Save;spotlight" "Saves
+//     the file".
+//   - EndCaption, EndCallout (reel): end the caption or callout that shows.
 //
 // # Settings
 //
@@ -127,4 +137,7 @@
 //	KeyOverlay <bool>     the keys pressed, as [effects.Keys] shows them
 //	Toasts <bool>         notifications and clipboard writes, as
 //	                      [effects.Toasts] shows them
+//	CaptionPause <pause>  a pause at each caption that sets none of its
+//	                      own: a time, or auto for a reading time; none
+//	                      leaves out every pause (see [effects.Captions])
 package play

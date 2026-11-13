@@ -20,6 +20,7 @@ import (
 	"unicode"
 
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/effects"
 )
 
 // exportPolicy is when a harness exports its recording.
@@ -448,6 +449,11 @@ func (h *Harness) writeRecording(tl *reel.Timeline, failed, panicked bool) ([]st
 		result.Failures = append(result.Failures, "test panicked")
 	}
 	p.Meta = result
+	// Captions are drawn by default, by a profile's own Captions effect if
+	// it has one.
+	if hasCaptions(tl) && !effects.HasCaptions(p.Effects) {
+		p.Effects = append(slices.Clip(p.Effects), effects.Captions())
+	}
 
 	outputs := h.cfg.exportOutputs()
 	dir := h.cfg.artifacts

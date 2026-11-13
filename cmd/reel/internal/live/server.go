@@ -20,6 +20,9 @@ import (
 	"sync"
 	"time"
 
+	"getsteep.dev/steep/cmd/reel/internal/spec"
+	"getsteep.dev/steep/reel/effects"
+
 	"getsteep.dev/steep/cmd/reel/internal/play"
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/vt"
@@ -54,6 +57,22 @@ type server struct {
 	exited   chan struct{}
 	stop     context.CancelFunc
 	stopOnce sync.Once
+}
+
+// caption returns the annotation of the caption or callout req asks for.
+func caption(req Request) (reel.Annotation, error) {
+	if !req.Callout {
+		opts, err := spec.Caption(req.Spec)
+		if err != nil {
+			return reel.Annotation{}, err
+		}
+		return effects.NewCaption(req.Text, opts...)
+	}
+	region, opts, err := spec.Callout(req.Spec)
+	if err != nil {
+		return reel.Annotation{}, err
+	}
+	return effects.NewCallout(region, req.Text, opts...)
 }
 
 // Serve starts the program cfg names on a session, and serves requests
@@ -228,6 +247,18 @@ func (srv *server) handle(ctx context.Context, req Request) *Response {
 		err = s.Resize(req.Cols, req.Rows)
 	case OpMark:
 		err = s.Mark(req.Label)
+	case OpCaption:
+		a, capErr := caption(req)
+		if capErr != nil {
+			return &Response{Error: capErr.Error(), Code: CodeInvalid}
+		}
+		err = s.Annotate(a)
+	case OpEndCaption:
+		a := effects.EndCaption()
+		if req.Callout {
+			a = effects.EndCallout()
+		}
+		err = s.Annotate(a)
 	case OpWait:
 		return srv.wait(ctx, req.Wait)
 	case OpScreen:

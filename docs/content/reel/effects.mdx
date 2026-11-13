@@ -30,7 +30,7 @@ Effects sort themselves by priority, so you can list them in any order. Each see
 | 300 | `reel.PriorityZoom` | `Zoom` | It draws its zoomed cells over what ran before it, and `Mouse` draws the pointer through it. |
 | 400 | `reel.PriorityHighlight` | `Highlight` | The overlays after it aren't dimmed. |
 | 500 | `reel.PriorityPause` | `Pause`, `HoldLast` | Its badge is drawn over what ran before it. |
-| 600 | `reel.PriorityOverlay` | `Keys`, `Mouse`, `Toasts` | They show what they showed when a pause started. |
+| 600 | `reel.PriorityOverlay` | `Keys`, `Mouse`, `Toasts`, `Captions` | They show what they showed when a pause started. |
 | 700 | `reel.PriorityDefault` | An effect with no priority of its own | |
 | 800 | `reel.PriorityCard` | `Intro`, `Outro`, `steep.Logo`, `steep.Outro` | No other effect has to draw on a card. |
 
@@ -67,6 +67,8 @@ Without its `from` mark, an effect never comes on, and without its `to` mark, it
 ## Effects and `.cast`
 
 A `.cast` output skips the effects, since it's the raw recording. Most effects are recorded in it as annotations, so [an export of the file](/reel/exporting#re-exporting-from-cast) applies them again. `Hide`, `Redact`, and `RedactInputs` can't be combined with a `.cast` output at all, so write that in a separate run.
+
+A recording can come from someone else, so a duration read from one, such as a pause, how long a card or a toast shows, or an ease, is at most `effects.MaxDuration`, 5 minutes unless you raise it, and a longer one is an error. The same goes for [captions](/reel/captions).
 
 ## Keys
 
@@ -120,6 +122,18 @@ A toast is a rounded panel with the title in bold over the body, each cut to 40 
 Only the notifications in the timeline's window are shown, and a [`Hide`](/reel/effects#hide) leaves out those that arrive in what it cuts.
 
 The CLI's flag is [`--toasts`](/cli/appearance#toasts).
+
+## Captions
+
+`effects.Captions` draws the captions and callouts placed in the timeline: text for whoever watches, in a pill at the top or bottom of the terminal, or in a box pointing at cells of the screen. It can pause at each for a reading time.
+
+<Demo src="captions-demo.webp" alt="The shop with captions at the top and callouts pointing at what to press" cast="captions-demo.cast" />
+
+```go
+Effects: []reel.Effect{effects.Captions(effects.DefaultCaptionPause(effects.AutoPause))},
+```
+
+They have a page of their own: [Captions](/reel/captions), and from a test, [Captions and callouts](/steep/captions).
 
 ## Mouse
 

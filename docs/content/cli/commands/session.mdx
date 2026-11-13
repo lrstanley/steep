@@ -55,6 +55,18 @@ Starts a program in a new session, and prints its name. The name defaults to the
 
 `reel s mark <label>` marks this moment in the recording, by convention as `category:value`.
 
+## caption
+
+`reel s caption <text>` shows a caption from this moment in the recording, until the next caption or `end-caption`. `--options` takes its [options](/cli/effects#captions), such as `pause=auto;for=3s`.
+
+## callout
+
+`reel s callout <spec> <text>` shows a callout from this moment, pointing at the first cells its spec's region matches, such as `text=Save;spotlight`. See [Captions](/cli/effects#captions).
+
+## end-caption
+
+`reel s end-caption` ends the caption that shows, and with `--callout` the callout.
+
 ## wait
 
 `reel s wait` waits for the screen to show, or stop showing, something. It needs one of `--text`, `--regexp`, `--gone`, or `--idle`. See [Waiting](/cli/sessions#waiting).

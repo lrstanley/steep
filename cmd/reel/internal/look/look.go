@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"getsteep.dev/steep/cmd/reel/internal/spec"
 	"getsteep.dev/steep/cmd/reel/internal/themes"
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/effects"
@@ -48,6 +49,7 @@ type Look struct {
 	Title         *string  `name:"title" placeholder:"TEXT" help:"Recording title, for the window bar, intro card, and asciicast header (tape: Title)."`
 	KeyOverlay    *bool    `name:"keys" env:"REEL_KEYS" negatable:"" help:"Overlay the keys pressed (tape: KeyOverlay)."`
 	Toasts        *bool    `name:"toasts" env:"REEL_TOASTS" negatable:"" help:"Show notifications and clipboard writes as toasts (tape: Toasts)."`
+	CaptionPause  *string  `name:"caption-pause" env:"REEL_CAPTION_PAUSE" placeholder:"DUR|auto|none" help:"Pause at each caption that sets no pause of its own: for a duration, or a reading time with auto; none leaves out every caption's pause (tape: CaptionPause)."`
 }
 
 // Merge returns l with the fields o sets replacing l's.
@@ -72,6 +74,7 @@ func (l Look) Merge(o Look) Look {
 	l.Title = cmp.Or(o.Title, l.Title)
 	l.KeyOverlay = cmp.Or(o.KeyOverlay, l.KeyOverlay)
 	l.Toasts = cmp.Or(o.Toasts, l.Toasts)
+	l.CaptionPause = cmp.Or(o.CaptionPause, l.CaptionPause)
 	return l
 }
 
@@ -92,6 +95,9 @@ func (l Look) Validate() error {
 		if _, err := ParseShadow(*l.Shadow); err != nil {
 			return fmt.Errorf("shadow: %w", err)
 		}
+	}
+	if _, err := l.captionsOptions(); err != nil {
+		return err
 	}
 	switch {
 	case l.FontSize != nil && *l.FontSize <= 0:
@@ -224,6 +230,32 @@ func (l Look) Effects() []reel.Effect {
 		fx = append(fx, effects.Toasts(effects.WithClipboardToasts()))
 	}
 	return fx
+}
+
+// Captions returns the effect that draws the recording's captions, and
+// whether CaptionPause sets it up, so it should outrank one an asciicast file
+// records. Without CaptionPause, it pauses only where captions say to.
+func (l Look) Captions() (e reel.Effect, set bool) {
+	opts, err := l.captionsOptions()
+	if err != nil || l.CaptionPause == nil {
+		return effects.Captions(), false
+	}
+	return effects.Captions(opts...), true
+}
+
+// captionsOptions reads CaptionPause.
+func (l Look) captionsOptions() ([]effects.CaptionsOption, error) {
+	if l.CaptionPause == nil {
+		return nil, nil
+	}
+	if *l.CaptionPause == "none" {
+		return []effects.CaptionsOption{effects.WithoutCaptionPauses()}, nil
+	}
+	d, err := spec.CaptionPause(*l.CaptionPause)
+	if err != nil {
+		return nil, fmt.Errorf("caption %w, or none", err)
+	}
+	return []effects.CaptionsOption{effects.DefaultCaptionPause(d)}, nil
 }
 
 // firstFamily loads the first installed family of a comma-separated list,

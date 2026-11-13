@@ -127,6 +127,9 @@ reel adds these:
 | --- | --- |
 | `Mark LABEL` | Places a mark. Quote a label that holds a `:`. |
 | `Highlight "SPEC"`, `Zoom "SPEC"`, `Redact "SPEC"` | Applies an [effect](/cli/effects#spec) |
+| `Caption "TEXT" ["OPTIONS"]` | Shows a [caption](/cli/effects#captions) from here |
+| `Callout "REGION[;OPTIONS]" "TEXT"` | Shows a [callout](/cli/effects#captions), pointing at the region, from here |
+| `EndCaption`, `EndCallout` | Ends the caption or callout that shows |
 | `Snapshot NAME` | Compares the screen with `testdata/<tape>/NAME.snap`, in `reel test` only |
 
 ### Settings
@@ -174,6 +177,7 @@ And some are treated differently, each with a warning:
 | `Set Shadow "X Y [BLUR] [#RRGGBB[AA]]"` | A [drop shadow](/cli/appearance#drop-shadow) behind the window |
 | `Set Scrollbar`, `PromptMarks`, `LinkUnderline`, `Bell` | Terminal [indicators](/reel/rendering#terminal-indicators) |
 | `Set KeyOverlay`, `Toasts` | The [key overlay and toasts](/cli/appearance) |
+| `Caption`, `Callout`, `Set CaptionPause` | [Captions and callouts](/cli/effects#captions) for whoever watches |
 | `Mark LABEL` | A mark, for `between=`, `--pause-at`, `--hide`, or `?marks=` |
 | `Home` | The Home key |
 | `Wait "text"` | `Wait` for a string as is, as well as a `/regexp/` |

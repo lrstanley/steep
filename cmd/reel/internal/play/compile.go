@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"getsteep.dev/steep/reel/effects"
+
 	"getsteep.dev/steep/cmd/reel/internal/spec"
 	syntax "getsteep.dev/steep/cmd/reel/internal/tape"
 	"getsteep.dev/steep/reel"
@@ -320,6 +322,10 @@ func builtins() map[string]command {
 		"Highlight":  {setup: true, compile: (*compiler).effect},
 		"Zoom":       {setup: true, compile: (*compiler).effect},
 		"Redact":     {setup: true, compile: (*compiler).effect},
+		"Caption":    {compile: (*compiler).captionCmd},
+		"Callout":    {compile: (*compiler).calloutCmd},
+		"EndCaption": {compile: (*compiler).endCaption},
+		"EndCallout": {compile: (*compiler).endCaption},
 	}
 	for name := range keyNames {
 		cmds[name] = command{at: true, compile: (*compiler).key}
@@ -445,6 +451,62 @@ func (c *compiler) effect(cmd syntax.Command) error {
 		return err
 	}
 	c.tape.effects = append(c.tape.effects, e)
+	return nil
+}
+
+// captionCmd compiles Caption <text> [<options>], a caption from here in
+// the recording (see [effects.NewCaption] and package spec).
+func (c *compiler) captionCmd(cmd syntax.Command) error {
+	text, err := c.stringArg(cmd.Name)
+	if err != nil {
+		return err
+	}
+	var opts []effects.CaptionOption
+	if c.peek().IsString() {
+		t, _ := c.take()
+		if opts, err = spec.Caption(t.Text); err != nil {
+			return c.errorf(t.Pos, "%s: %w", cmd.Name.Text, err)
+		}
+	}
+	a, err := effects.NewCaption(text, opts...)
+	if err != nil {
+		return c.errorf(cmd.Name.Pos, "%s: %w", cmd.Name.Text, err)
+	}
+	c.add(cmd.Name.Pos, annotateStep{a})
+	return nil
+}
+
+// calloutCmd compiles Callout <region[;options]> <text>, a callout from
+// here in the recording (see [effects.NewCallout] and package spec).
+func (c *compiler) calloutCmd(cmd syntax.Command) error {
+	specText, err := c.stringArg(cmd.Name)
+	if err != nil {
+		return err
+	}
+	region, opts, err := spec.Callout(specText)
+	if err != nil {
+		return c.errorf(cmd.Name.Pos, "%s: %w", cmd.Name.Text, err)
+	}
+	text, err := c.stringArg(cmd.Name)
+	if err != nil {
+		return err
+	}
+	a, err := effects.NewCallout(region, text, opts...)
+	if err != nil {
+		return c.errorf(cmd.Name.Pos, "%s: %w", cmd.Name.Text, err)
+	}
+	c.add(cmd.Name.Pos, annotateStep{a})
+	return nil
+}
+
+// endCaption compiles EndCaption or EndCallout, which end the caption or
+// callout that shows, if one does.
+func (c *compiler) endCaption(cmd syntax.Command) error {
+	a := effects.EndCaption()
+	if cmd.Name.Text == "EndCallout" {
+		a = effects.EndCallout()
+	}
+	c.add(cmd.Name.Pos, annotateStep{a})
 	return nil
 }
 

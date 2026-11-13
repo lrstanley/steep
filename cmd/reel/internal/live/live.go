@@ -36,28 +36,36 @@ const (
 	OpScroll = "scroll" // Scroll the viewport Repeat rows up, or down when negative.
 	OpResize = "resize" // Resize to Cols by Rows.
 	OpMark   = "mark"   // Mark Label.
-	OpWait   = "wait"   // Wait for Wait; the Response has the screen's text.
-	OpScreen = "screen" // The screen's text, and with JSON its [reel.Screen].
-	OpCast   = "cast"   // The timeline so far, as an asciicast file.
-	OpDo     = "do"     // Run the commands of the tape Text.
-	OpStop   = "stop"   // End the program and the server.
+	// OpCaption places a caption of Text with the options Spec, or with
+	// Callout a callout of Text whose Spec is REGION[;OPTION]... (see
+	// package spec).
+	OpCaption = "caption"
+	// OpEndCaption ends the caption that shows, or with Callout the callout.
+	OpEndCaption = "end-caption"
+	OpWait       = "wait"   // Wait for Wait; the Response has the screen's text.
+	OpScreen     = "screen" // The screen's text, and with JSON its [reel.Screen].
+	OpCast       = "cast"   // The timeline so far, as an asciicast file.
+	OpDo         = "do"     // Run the commands of the tape Text.
+	OpStop       = "stop"   // End the program and the server.
 )
 
 // Request is one thing asked of a session.
 type Request struct {
-	Op     string        `json:"op"`
-	Text   string        `json:"text,omitempty"`
-	Keys   []string      `json:"keys,omitempty"`
-	Repeat int           `json:"repeat,omitempty"`
-	Delay  time.Duration `json:"delay,omitempty"`
-	Button string        `json:"button,omitempty"`
-	X      int           `json:"x,omitempty"`
-	Y      int           `json:"y,omitempty"`
-	Cols   int           `json:"cols,omitempty"`
-	Rows   int           `json:"rows,omitempty"`
-	Label  string        `json:"label,omitempty"`
-	Wait   *Wait         `json:"wait,omitempty"`
-	JSON   bool          `json:"json,omitempty"`
+	Op      string        `json:"op"`
+	Text    string        `json:"text,omitempty"`
+	Keys    []string      `json:"keys,omitempty"`
+	Repeat  int           `json:"repeat,omitempty"`
+	Delay   time.Duration `json:"delay,omitempty"`
+	Button  string        `json:"button,omitempty"`
+	X       int           `json:"x,omitempty"`
+	Y       int           `json:"y,omitempty"`
+	Cols    int           `json:"cols,omitempty"`
+	Rows    int           `json:"rows,omitempty"`
+	Label   string        `json:"label,omitempty"`
+	Spec    string        `json:"spec,omitempty"`
+	Callout bool          `json:"callout,omitempty"`
+	Wait    *Wait         `json:"wait,omitempty"`
+	JSON    bool          `json:"json,omitempty"`
 }
 
 // Wait is what an [OpWait] waits for: one of Text, Regexp, Gone, or Idle.

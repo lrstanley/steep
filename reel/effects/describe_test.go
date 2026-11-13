@@ -10,6 +10,7 @@ import (
 	"errors"
 	"image"
 	"image/color"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -75,6 +76,9 @@ func TestDescribeRoundTrip(t *testing.T) {
 		{name: "toasts", effect: Toasts(), want: `{"effect":"toasts"}`},
 		{name: "toasts full", effect: Toasts(WithToastDuration(4000*ms), WithToastCorner(BottomLeft), WithClipboardToasts()), want: `{"effect":"toasts","shown_ms":4000,"corner":"bottom_left","clipboard":true}`},
 		{name: "mouse", effect: Mouse(), want: `{"effect":"mouse"}`},
+		{name: "captions", effect: Captions(), want: `{"effect":"captions"}`},
+		{name: "captions pause", effect: Captions(DefaultCaptionPause(1500*ms), WithCaptionAccent(color.NRGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff})), want: `{"effect":"captions","pause_ms":1500,"accent":"#123456"}`},
+		{name: "captions auto", effect: Captions(DefaultCaptionPause(AutoPause), WithoutCaptionPauses()), want: `{"effect":"captions","pause_auto":true,"no_pauses":true}`},
 		{name: "mouse no parts", effect: Mouse(WithMouseParts(0)), want: `{"effect":"mouse","parts":[]}`},
 		{
 			name: "mouse full",
@@ -277,6 +281,7 @@ func TestDescribeInvalid(t *testing.T) {
 		"pause negative":   Pause(PauseAtMarks(-ms)),
 		"pause corner":     Pause(WithBadgeCorner(Corner(9))),
 		"toast corner":     Toasts(WithToastCorner(Corner(-1))),
+		"caption pause":    Captions(DefaultCaptionPause(-5 * ms)),
 		"badge size":       Pause(WithBadgeSize(4)),
 		"underline":        Intro(ms, Line{Text: "x", Style: vt.Style{Underline: 99}}),
 		"anchor":           Zoom(Text("x"), Anchor(2, 0)),
@@ -285,6 +290,41 @@ func TestDescribeInvalid(t *testing.T) {
 		if err == nil || errors.Is(err, errors.ErrUnsupported) {
 			t.Errorf("%s: Describe = %v, want an error", name, err)
 		}
+	}
+}
+
+// TestFromMillis checks that durations of annotation data are at most
+// MaxDuration, and those below -MaxDuration cannot overflow.
+func TestFromMillis(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[int64]time.Duration{
+		1500:          1500 * ms,
+		-1:            -ms,
+		300_000:       5 * time.Minute,
+		math.MinInt64: -5 * time.Minute,
+	} {
+		if got, err := fromMillis(in); err != nil || got != want {
+			t.Errorf("fromMillis(%d) = %v, %v, want %v", in, got, err, want)
+		}
+	}
+	for _, in := range []int64{300_001, math.MaxInt64} {
+		if got, err := fromMillis(in); err == nil || !strings.Contains(err.Error(), "MaxDuration") {
+			t.Errorf("fromMillis(%d) = %v, %v, want an error naming MaxDuration", in, got, err)
+		}
+	}
+}
+
+// TestMaxDuration checks that raising MaxDuration reads longer durations.
+// It changes MaxDuration, so it runs before the parallel tests resume.
+func TestMaxDuration(t *testing.T) { //nolint:paralleltest // It sets MaxDuration.
+	a := reel.Annotation{Kind: reel.EffectKind, Data: jsontext.Value(`{"effect":"pause","points":[{"at":"end","duration_ms":600000}]}`)}
+	if _, err := FromAnnotation(a); err == nil {
+		t.Fatal("a 10m pause read with the default MaxDuration")
+	}
+	defer func(d time.Duration) { MaxDuration = d }(MaxDuration)
+	MaxDuration = time.Hour
+	if _, err := FromAnnotation(a); err != nil {
+		t.Fatalf("a 10m pause with MaxDuration of an hour: %v", err)
 	}
 }
 
@@ -302,6 +342,9 @@ func TestFromAnnotationErrors(t *testing.T) {
 		"pattern":       {reel.EffectKind, `{"effect":"zoom","region":{"type":"regexp","pattern":"("}}`, "missing closing )"},
 		"pause pattern": {reel.EffectKind, `{"effect":"pause","points":[{"at":"match","duration_ms":1}]}`, "without a pattern"},
 		"pause at":      {reel.EffectKind, `{"effect":"pause","points":[{"at":"start","duration_ms":1}]}`, `unknown pause point "start"`},
+		"long pause":    {reel.EffectKind, `{"effect":"pause","points":[{"at":"end","duration_ms":300001}]}`, "MaxDuration"},
+		"long intro":    {reel.EffectKind, `{"effect":"intro","duration_ms":86400000,"lines":[]}`, "MaxDuration"},
+		"long ease":     {reel.EffectKind, `{"effect":"zoom","region":{"type":"text","text":"x"},"timing":{"ease_in_ms":9223372036854775807}}`, "MaxDuration"},
 		"corner":        {reel.EffectKind, `{"effect":"pause","badge_corner":"middle"}`, `badge: unknown corner "middle"`},
 		"toast corner":  {reel.EffectKind, `{"effect":"toasts","shown_ms":1,"corner":"middle"}`, `unknown corner "middle"`},
 		"color":         {reel.EffectKind, `{"effect":"pause","badge_color":"red"}`, `color "red"`},

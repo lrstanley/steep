@@ -1,0 +1,87 @@
+---
+title: Captions
+description: Captions and callouts on a reel recording, placed in its timeline and drawn by the Captions effect.
+---
+
+Captions are text for whoever watches a recording. A caption is a pill at the top or bottom of the terminal; a callout is a box with a caret pointing at cells of the screen. They live in the timeline, so you place them while recording, and the `Captions` effect draws them when you export.
+
+<Demo src="captions-demo.webp" alt="The shop with captions at the top, a callout pointing at the filter key's help, and a callout pointing at Oolong while the rest of the screen is dimmed" cast="captions-demo.cast" />
+
+[Captions and callouts](/steep/captions) walks through them from a steep test, which is the easiest way to use them. This page is the reel side: placing them on a session yourself, and how the effect draws them.
+
+## Placing them
+
+`effects.NewCaption` and `effects.NewCallout` return an [annotation](/reel/formats); [`Session.Annotate`](/reel/sessions) places it in the timeline where the session is now:
+
+```go
+a, err := effects.NewCaption("Building the project", effects.CaptionPause(effects.AutoPause))
+if err != nil {
+	return err
+}
+if err := s.Annotate(a); err != nil {
+	return err
+}
+
+// Later: a callout pointing at the first cells that show "PASS".
+a, err = effects.NewCallout(effects.Text("PASS"), "Every test passed", effects.Spotlight())
+```
+
+The anchor of a callout is one of the package's [regions](/reel/effects#regions). A region of your own, or `Any` of one, has no description to save in the timeline, so it's an error wrapping `errors.ErrUnsupported`.
+
+| Option | Does |
+| --- | --- |
+| `CaptionPause(d)` | Pauses playback for `d` as it starts, or for a reading time with `AutoPause`. Zero is no pause, even with a default. |
+| `CaptionFor(d)` | Ends it `d` into the recording after it starts. Time paused doesn't count, so zero shows it only while its pause lasts. |
+| `CaptionUntil(label)` | Ends it at the first mark labeled `label` at or after its start |
+| `CaptionSide(s)` | `SideTop` or `SideBottom` for a caption; also `SideLeft` or `SideRight` for a callout. The default, `SideAuto`, covers the least text, preferring the bottom. |
+| `Spotlight()` | Darkens all but a callout's anchor while it shows |
+
+`effects.EndCaption()` and `effects.EndCallout()` return the annotation that ends the caption, or the callout, that shows where you place it. Each ends only one placed before it, so an end and a new caption at the same moment leave the new one showing.
+
+## When they show
+
+A caption shows until the first of:
+
+- its own end: `CaptionFor` or `CaptionUntil`,
+- an `EndCaption`, or `EndCallout` for a callout,
+- the start of the next caption of its sort; a caption and a callout don't end each other,
+- the end of the recording.
+
+So at most one caption and one callout show at a time.
+
+A callout is laid out on the frame where it starts: its anchor is the first match in reading order then, and it stays there. Where the anchor matches nothing, it shows as a caption. A terminal resize lays it out again.
+
+A caption that starts before the timeline's [window](/reel/exporting), or in what a [`Hide`](/reel/effects#hide) cuts, shows from the first frame after, if it hasn't ended, without pausing. [Stills](/reel/formats) show the captions of their moment.
+
+## The effect
+
+```go
+reel.Profile{
+	Outputs: reel.MustFiles("demo.webp"),
+	Effects: []reel.Effect{
+		effects.Captions(effects.DefaultCaptionPause(effects.AutoPause)),
+	},
+}
+```
+
+Without `Captions` in the profile, an export leaves the captions out. steep, tapes, and the CLI add it for you.
+
+| Option | Does |
+| --- | --- |
+| `DefaultCaptionPause(d)` | Pauses at each caption that doesn't set its own pause, for `d` or a reading time with `AutoPause`. The default is no pause. |
+| `WithoutCaptionPauses()` | Leaves out every pause, the captions' own too, so a recording made as a demo plays at its own pace |
+| `WithCaptionAccent(c)` | The color of a callout's edge and caret, a caption's dot, and a spotlight's ring. The default is a soft violet. |
+
+`AutoPause` is 700ms and 260ms a word, at least 1.4s. A pause, and `CaptionFor`, are at most `effects.MaxDuration`, 5 minutes unless you raise it (see [Effects and `.cast`](/reel/effects#effects-and-cast)).
+
+A profile draws its captions once: a `Captions` effect after another in the same profile does nothing, and `effects.HasCaptions(fx)` reports whether a list has one, for code that adds a default.
+
+It runs with the overlays (see [Order](/reel/effects#order)). Its pauses hold the frame as it was when the caption started, with what the effects before it drew, and the overlays after it, such as `Keys`, show what they showed then.
+
+## Size
+
+Captions add few frames: one where each starts and ends, and one for each pause, which plays as a single long frame. A spotlight dims the whole frame where it starts and ends, so it costs about two full frames, and its frames get their own GIF palette.
+
+## In a `.cast`
+
+A caption is an annotation of kind `reel.caption`, and an end one of `reel.caption.end`. The [annotation schema](https://github.com/lrstanley/steep/blob/master/reel/annotation.schema.json) describes both, with the anchor in the same form as a highlight's region. An export records its `Captions` effect at the start of the file like any other effect, so `reel export` draws the captions again the same way.

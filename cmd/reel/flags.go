@@ -165,6 +165,15 @@ func (f RenderFlags) profile(base ...reel.Effect) (reel.Profile, error) {
 	}
 	p := reel.Profile{Outputs: outputs, Render: opts, Vars: f.Vars}
 	f.Profile(&p)
+	// Captions draw by default. One --caption-pause sets up replaces the
+	// file's own; without it, the file's own is kept.
+	captions, set := f.Captions()
+	if set {
+		base = slices.DeleteFunc(slices.Clone(base), func(e reel.Effect) bool { return effects.HasCaptions([]reel.Effect{e}) })
+	}
 	p.Effects = slices.Concat(base, fx, f.Effects())
+	if !effects.HasCaptions(p.Effects) {
+		p.Effects = append(p.Effects, captions)
+	}
 	return p, nil
 }

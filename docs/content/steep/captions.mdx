@@ -1,0 +1,158 @@
+---
+title: Captions and callouts
+description: Put text on a recording for whoever watches it, from a test, and pause for it in a demo.
+---
+
+A recording shows what your program does, not why. Captions say why: a line of text from a given point in the recording, for whoever watches it. A **caption** is a pill at the top or bottom of the terminal. A **callout** is a box with a caret that points at something on the screen.
+
+<Demo src="captions-demo.webp" alt="The shop with captions at the top, a callout pointing at the filter key's help, and a callout pointing at Oolong while the rest of the screen is dimmed" cast="captions-demo.cast" />
+
+You place them from the test, between the steps they're about. The export draws them.
+
+## A first caption
+
+```go
+h := steep.NewHarness(t, NewModel(), steep.WithExportAlways())
+h.Wait("Sencha").
+	Caption("The Tea Shop lists teas to filter and brew").
+	KeyDown().
+	Key("enter")
+```
+
+A caption starts where you place it. After an action, such as `Key`, the harness has already waited for the program to paint its response (see [`Mark`](/steep/recording#stills)), so a caption placed after it shows with the response, not before.
+
+It shows until the next caption, or until the recording ends. There's nothing to add to the [recording profile](/steep/recording#the-recording-profile): when a test places a caption, the export draws it with `effects.Captions` unless the profile has a `Captions` effect of its own.
+
+## Callouts
+
+A callout points at the first cells a [region](/reel/effects#regions) matches when it starts, such as the cells that show some text:
+
+```go
+h.Callout(effects.Text("/ filter"), "Press / to filter the menu").
+	Key("/").
+	Type("green")
+```
+
+The callout goes on the side of its anchor that covers the least text, below if there's a tie, and slides along that side to stay in the frame. Its caret keeps pointing at the anchor, leaning when the anchor is in a corner. Where the region matches nothing, the callout shows as a caption instead.
+
+A callout stays where it was placed. It doesn't follow the text if the text moves later.
+
+### Spotlight
+
+`effects.Spotlight()` darkens everything but the callout's anchor, and rings it, for exactly as long as the callout shows:
+
+```go
+h.Locate(reel.Contains("Oolong")).LeftClick().
+	Callout(effects.Text("Oolong"), "Click a tea, then press enter to brew it", effects.Spotlight()).
+	Key("enter")
+```
+
+## How long they show
+
+A caption and a callout can show at once, but only one of each. Each replaces the one before it of its own sort: a callout doesn't end a caption.
+
+| To end it | Use |
+| --- | --- |
+| When the next one of its sort starts | Nothing; it's the default |
+| At a point in the test | `h.EndCaption()` or `h.EndCallout()` |
+| A while into the recording after it starts | `effects.CaptionFor(2*time.Second)` |
+| At a mark | `effects.CaptionUntil("brew:done")` |
+| Only while its pause lasts | `effects.CaptionFor(0)` with a [pause](#pausing-for-a-demo) |
+
+`EndCaption` and `EndCallout` end the one of their sort that shows, and do nothing when none does. They read well around the steps a callout is about:
+
+```go
+h.Callout(effects.Text("Oolong"), "Brewing takes a while").
+	Key("enter").
+	Wait("Oolong is ready").
+	EndCallout().
+	Caption("Done")
+```
+
+Captions that come and go leave the recording playing on its own between them, which is the usual shape for a test.
+
+## Pausing for a demo
+
+A test moves fast: steps a few milliseconds apart leave no time to read anything. By default captions don't pause, so a test's recording plays at its own pace. For a demo, pause the recording, holding the frame still, while each caption is read:
+
+```go
+steep.WithRecording(reel.Profile{
+	Outputs: reel.MustFiles("demo.webp"),
+	Effects: []reel.Effect{
+		effects.Captions(effects.DefaultCaptionPause(effects.AutoPause)),
+		effects.Keys(time.Second),
+	},
+})
+```
+
+`AutoPause` is a reading time from the caption's words: 700ms and 260ms a word, at least 1.4s. `DefaultCaptionPause` also takes a fixed time. A pause is at most 5 minutes (`effects.MaxDuration`).
+
+A caption can set its own pause, which wins over the default:
+
+| Option | Pause |
+| --- | --- |
+| `effects.CaptionPause(1500*time.Millisecond)` | 1.5s |
+| `effects.CaptionPause(effects.AutoPause)` | A reading time |
+| `effects.CaptionPause(0)` | None, even with a default |
+
+Time paused doesn't count toward `CaptionFor`. A pause holds the frame as it was when the caption started, overlays such as [keys](/reel/effects#keys) included.
+
+The same test can make both recordings. This is the demo above, exported again with `effects.Captions(effects.WithoutCaptionPauses())`, which leaves out every pause, the captions' own included:
+
+<Demo src="captions-test.webp" alt="The same recording of the shop with its captions and callouts, playing at the test's own pace without pausing" />
+
+## Where they go
+
+A caption goes at the top or bottom of the terminal, whichever covers less text, preferring the bottom. A callout goes on a side of its anchor the same way. `effects.CaptionSide` picks one:
+
+```go
+h.Caption("Status", effects.CaptionSide(effects.SideTop))
+h.Callout(effects.Text("Oolong is ready"), "Ready to pour", effects.CaptionSide(effects.SideTop))
+```
+
+A caption takes `SideTop` or `SideBottom`. A callout also takes `SideLeft` and `SideRight`, and moves to another side where it doesn't fit on the one asked for.
+
+## The text
+
+Captions are plain text: escape sequences and control characters are dropped, a `\n` starts a new line, and long lines wrap at spaces. A caption is at most 70% of the terminal's width, and a callout half, so it fits beside things. Text past six lines is cut.
+
+Text that's empty once read this way, or options that conflict, such as a spotlight on a caption, are a test error, and nothing is placed.
+
+## The whole example
+
+The demo at the top of this page is this test, from [`_examples/docs-demos`](https://github.com/lrstanley/steep/blob/master/_examples/docs-demos/captions_test.go):
+
+```go
+h := steep.NewHarness(t, NewModel(), steep.WithRecording(reel.Profile{
+	Outputs: reel.MustFiles("captions-demo.webp"),
+	Effects: []reel.Effect{
+		effects.Captions(effects.DefaultCaptionPause(effects.AutoPause)),
+		effects.Keys(time.Second),
+		effects.Pause(),
+	},
+}), steep.WithExportAlways())
+h.Wait("Sencha").
+	Caption("The Tea Shop lists teas to filter and brew").
+	Callout(effects.Text("/ filter"), "Press / to filter the menu").
+	Key("/").
+	Type("green").
+	EndCallout().
+	Caption("Only the green teas are left").
+	KeyEsc().
+	WaitNot("Filter:").
+	EndCaption()
+h.Locate(reel.Contains("Oolong")).LeftClick().
+	Callout(effects.Text("Oolong"), "Click a tea, then press enter to brew it", effects.Spotlight()).
+	Key("enter").
+	Wait("█████").
+	EndCallout().
+	Caption("The status line shows how far along it is", effects.CaptionPause(0)).
+	Wait("Oolong is ready").
+	Callout(effects.Text("Oolong is ready"), "Ready to pour", effects.CaptionSide(effects.SideTop))
+```
+
+## Also good to know
+
+- **Stills show them.** A [still](/steep/recording#stills) shows the captions and callouts of its moment, without pausing, which makes a callout a quick way to annotate a docs screenshot.
+- **They're in the `.cast`.** Captions are [annotations](/reel/formats) in the timeline, so `reel export` draws them again from the file.
+- **Without steep**, a session places them with `effects.NewCaption` and `effects.NewCallout`; see [Captions](/reel/captions). Tapes and the CLI have [`Caption` and `Callout`](/cli/effects#captions).

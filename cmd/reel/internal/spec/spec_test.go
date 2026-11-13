@@ -7,6 +7,9 @@ package spec
 import (
 	"strings"
 	"testing"
+
+	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/effects"
 )
 
 func TestEffect(t *testing.T) {
@@ -47,5 +50,59 @@ func TestEffect(t *testing.T) {
 				t.Fatalf("error = %v, want one containing %q", err, tt.err)
 			}
 		})
+	}
+}
+
+func TestCaption(t *testing.T) {
+	t.Parallel()
+	note := func(a reel.Annotation, err error) string {
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(a.Data)
+	}
+	for _, tc := range []struct {
+		spec string
+		want string
+		err  string
+	}{
+		{spec: "", want: `{"text":"x"}`},
+		{spec: "pause=auto;for=1500ms;until=done;side=top", want: `{"text":"x","pause_auto":true,"for_ms":1500,"until":"done","side":"top"}`},
+		{spec: "pause=0s", want: `{"text":"x","pause_ms":0}`},
+		{spec: "spotlight=false", want: `{"text":"x"}`},
+		{spec: "pause=-1s", err: "pause -1s below zero"},
+		{spec: "pause=6m", err: "pause 6m0s is longer than 5m0s"},
+		{spec: "pause=soon", err: `pause "soon" is not a duration or auto`},
+		{spec: "side=diagonal", err: `"diagonal" is not top, bottom, left, or right`},
+		{spec: "until=", err: "no mark"},
+		{spec: "for=2s;for=3s", err: `option "for" is repeated`},
+		{spec: "wobble", err: `option "wobble" is not KEY=VALUE`},
+	} {
+		opts, err := Caption(tc.spec)
+		if tc.err != "" {
+			if err == nil || !strings.Contains(err.Error(), tc.err) {
+				t.Errorf("Caption(%q) = %v, want %q", tc.spec, err, tc.err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("Caption(%q): %v", tc.spec, err)
+			continue
+		}
+		if got := note(effects.NewCaption("x", opts...)); got != tc.want {
+			t.Errorf("Caption(%q) = %s, want %s", tc.spec, got, tc.want)
+		}
+	}
+
+	region, opts, err := Callout("text=Save;spotlight;side=right")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"text":"x","anchor":{"type":"text","text":"Save"},"side":"right","spotlight":true}`
+	if got := note(effects.NewCallout(region, "x", opts...)); got != want {
+		t.Errorf("Callout = %s, want %s", got, want)
+	}
+	if _, _, err = Callout("Save"); err == nil {
+		t.Error("Callout without a region: no error")
 	}
 }

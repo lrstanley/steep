@@ -88,7 +88,8 @@ func main() {
 const specHelp = "SPEC is REGION[;KEY=VALUE]..., with REGION one of row=Y, rows=Y0-Y1, cells=X0,Y0,X1,Y1, " +
 	"text=TEXT, re=PATTERN, or env=NAME; every effect takes between=FROM,TO (marks), and highlight takes " +
 	"ease=DUR dim=FACTOR outline=#RRGGBB[:PX] padding=PX, zoom ease=DUR scale=FACTOR anchor=X,Y, " +
-	"and redact style=blur|block|replace:CHAR."
+	"and redact style=blur|block|replace:CHAR. Captions and callouts take pause=DUR|auto for=DUR " +
+	"until=MARK side=top|bottom|left|right, and callouts spotlight."
 
 // Exit codes, beyond 1 for any other error and kong's 80 for usage.
 const (

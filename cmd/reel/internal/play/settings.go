@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"getsteep.dev/steep/cmd/reel/internal/look"
+	"getsteep.dev/steep/cmd/reel/internal/spec"
 	syntax "getsteep.dev/steep/cmd/reel/internal/tape"
 	"getsteep.dev/steep/cmd/reel/internal/themes"
 )
@@ -165,6 +166,8 @@ func (c *compiler) set(s *settings, name syntax.Token) (string, error) {
 // setOther applies the settings that each read their value their own way.
 func (c *compiler) setOther(s *settings, name syntax.Token) (string, error) {
 	switch name.Text {
+	case "CaptionPause":
+		return "", c.captionPause(s, name)
 	case "Shell":
 		v, err := c.stringArg(name)
 		if err != nil {
@@ -249,4 +252,28 @@ func (c *compiler) setOther(s *settings, name syntax.Token) (string, error) {
 func fresh[T any](p **T) *T {
 	*p = new(T)
 	return *p
+}
+
+// captionPause reads Set CaptionPause: a duration, such as 2s, auto, or
+// none.
+func (c *compiler) captionPause(s *settings, name syntax.Token) error {
+	tok, ok := c.take()
+	if !ok || tok.Kind != syntax.Number && !tok.IsString() {
+		return c.errorf(name.Pos, "CaptionPause expects a duration, auto, or none")
+	}
+	v := tok.Text
+	if tok.Kind == syntax.Number {
+		d, err := tok.Duration()
+		if err != nil {
+			return c.errorf(tok.Pos, "CaptionPause: %w", err)
+		}
+		v = d.String()
+	}
+	if v != "none" {
+		if _, err := spec.CaptionPause(v); err != nil {
+			return c.errorf(tok.Pos, "CaptionPause: %w", err)
+		}
+	}
+	*fresh(&s.CaptionPause) = v
+	return nil
 }

@@ -32,22 +32,25 @@ type SessionCmd struct {
 	Name string `name:"session" short:"s" env:"REEL_SESSION" placeholder:"NAME" help:"Session to drive; defaults to the only one running."`
 	JSON bool   `name:"json" help:"Print responses, and errors, as JSON."`
 
-	Start  SessionStartCmd  `cmd:"" help:"Start a program in a new session, and print its name."`
-	Serve  SessionServeCmd  `cmd:"" hidden:"" help:"Run a session's server (started by start)."`
-	List   SessionListCmd   `cmd:"" aliases:"ls" help:"List the running sessions."`
-	Type   SessionTypeCmd   `cmd:"" help:"Type text."`
-	Key    SessionKeyCmd    `cmd:"" help:"Press keys, such as enter, ctrl+c, shift+tab, f5, or a."`
-	Paste  SessionPasteCmd  `cmd:"" help:"Paste text."`
-	Click  SessionClickCmd  `cmd:"" help:"Click a cell."`
-	Scroll SessionScrollCmd `cmd:"" help:"Scroll the viewport through the scrollback."`
-	Resize SessionResizeCmd `cmd:"" help:"Resize the terminal."`
-	Mark   SessionMarkCmd   `cmd:"" help:"Mark this moment in the recording."`
-	Wait   SessionWaitCmd   `cmd:"" help:"Wait for the screen to show, or stop showing, something."`
-	Screen SessionScreenCmd `cmd:"" help:"Print the screen."`
-	Still  SessionStillCmd  `cmd:"" help:"Render the screen as it is now."`
-	Do     SessionDoCmd     `cmd:"" help:"Run tape commands, such as Type, Enter, and Wait."`
-	Export SessionExportCmd `cmd:"" help:"Render what the session has recorded so far."`
-	Stop   SessionStopCmd   `cmd:"" help:"End the program and the session, optionally rendering its recording first."`
+	Start      SessionStartCmd      `cmd:"" help:"Start a program in a new session, and print its name."`
+	Serve      SessionServeCmd      `cmd:"" hidden:"" help:"Run a session's server (started by start)."`
+	List       SessionListCmd       `cmd:"" aliases:"ls" help:"List the running sessions."`
+	Type       SessionTypeCmd       `cmd:"" help:"Type text."`
+	Key        SessionKeyCmd        `cmd:"" help:"Press keys, such as enter, ctrl+c, shift+tab, f5, or a."`
+	Paste      SessionPasteCmd      `cmd:"" help:"Paste text."`
+	Click      SessionClickCmd      `cmd:"" help:"Click a cell."`
+	Scroll     SessionScrollCmd     `cmd:"" help:"Scroll the viewport through the scrollback."`
+	Resize     SessionResizeCmd     `cmd:"" help:"Resize the terminal."`
+	Mark       SessionMarkCmd       `cmd:"" help:"Mark this moment in the recording."`
+	Caption    SessionCaptionCmd    `cmd:"" help:"Show a caption from this moment in the recording."`
+	Callout    SessionCalloutCmd    `cmd:"" help:"Show a callout, pointing at cells of the screen, from this moment in the recording."`
+	EndCaption SessionEndCaptionCmd `cmd:"" name:"end-caption" help:"End the caption, or callout, that shows."`
+	Wait       SessionWaitCmd       `cmd:"" help:"Wait for the screen to show, or stop showing, something."`
+	Screen     SessionScreenCmd     `cmd:"" help:"Print the screen."`
+	Still      SessionStillCmd      `cmd:"" help:"Render the screen as it is now."`
+	Do         SessionDoCmd         `cmd:"" help:"Run tape commands, such as Type, Enter, and Wait."`
+	Export     SessionExportCmd     `cmd:"" help:"Render what the session has recorded so far."`
+	Stop       SessionStopCmd       `cmd:"" help:"End the program and the session, optionally rendering its recording first."`
 }
 
 // AfterApply binds the session flags for the subcommands.
@@ -410,6 +413,41 @@ type SessionMarkCmd struct {
 // Run marks.
 func (c *SessionMarkCmd) Run(ctx context.Context, sc *SessionCmd) error {
 	_, err := sc.call(ctx, live.Request{Op: live.OpMark, Label: c.Label})
+	return err
+}
+
+// SessionCaptionCmd places a caption.
+type SessionCaptionCmd struct {
+	Text    string `arg:"" help:"Text of the caption; a line feed starts a new line."`
+	Options string `name:"options" short:"o" placeholder:"SPEC" help:"Options, such as 'pause=auto;for=3s;side=top'. ${spec}"`
+}
+
+// Run places the caption.
+func (c *SessionCaptionCmd) Run(ctx context.Context, sc *SessionCmd) error {
+	_, err := sc.call(ctx, live.Request{Op: live.OpCaption, Text: c.Text, Spec: c.Options})
+	return err
+}
+
+// SessionCalloutCmd places a callout.
+type SessionCalloutCmd struct {
+	Spec string `arg:"" placeholder:"SPEC" help:"The region the callout points at, and its options, such as 'text=Save;spotlight;pause=2s'. ${spec}"`
+	Text string `arg:"" help:"Text of the callout; a line feed starts a new line."`
+}
+
+// Run places the callout.
+func (c *SessionCalloutCmd) Run(ctx context.Context, sc *SessionCmd) error {
+	_, err := sc.call(ctx, live.Request{Op: live.OpCaption, Callout: true, Text: c.Text, Spec: c.Spec})
+	return err
+}
+
+// SessionEndCaptionCmd ends the caption or callout that shows.
+type SessionEndCaptionCmd struct {
+	Callout bool `name:"callout" help:"End the callout that shows, not the caption."`
+}
+
+// Run ends it.
+func (c *SessionEndCaptionCmd) Run(ctx context.Context, sc *SessionCmd) error {
+	_, err := sc.call(ctx, live.Request{Op: live.OpEndCaption, Callout: c.Callout})
 	return err
 }
 

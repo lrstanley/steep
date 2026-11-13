@@ -12,6 +12,9 @@
 // pointer, clicks, and drags.
 // [Hide] cuts stretches out of playback: between marks, or while the screen
 // shows, or does not show, a [Region].
+// [Captions] draws the recording's captions and callouts, text for its
+// viewers that [NewCaption] and [NewCallout] place in a timeline, and pauses
+// where they ask to.
 //
 // Highlight, Zoom, and Redact work on a [Region] of the terminal's cells:
 // fixed cells ([Cells], [Row], [Rows]), cells that show some text ([Text],
@@ -20,8 +23,8 @@
 // the [Timing] options besides their own; Redact takes only [Between].
 // Frames their region covers no cells of are left alone.
 //
-// Highlight, Keys, Mouse, Redact, Toasts, and Zoom leave frames without a
-// terminal ([reel.Frame.Cells] is nil), such as cards, alone.
+// Captions, Highlight, Keys, Mouse, Redact, Toasts, and Zoom leave frames
+// without a terminal ([reel.Frame.Cells] is nil), such as cards, alone.
 //
 // # Order
 //
@@ -37,8 +40,10 @@
 //  4. Highlight, so the overlays after it are not dimmed.
 //  5. Pause and HoldLast, so the pause's badge is drawn over the effects
 //     before it.
-//  6. Keys, Mouse, and Toasts, which then show the keys, mouse, and toasts
-//     as they were when a pause started.
+//  6. Keys, Mouse, Toasts, and Captions, which then show the keys, mouse,
+//     and toasts as they were when a pause started. A caption's own pause
+//     holds the frame with the overlays listed before Captions as they were
+//     when it started.
 //  7. An effect with no priority of its own.
 //  8. Intro and Outro, which no other effect draws on.
 //

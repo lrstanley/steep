@@ -51,6 +51,7 @@ In a `.cast` file, each is an event with a code of reel's own, which other playe
 | `reel.effect` | An export to `.cast` | An effect's description, so an export of the file can apply it |
 | `reel.query` | A session | A query the program sent, and the terminal's reply |
 | `reel.mark` | A session with `WithSource` | Where in source a mark was placed |
+| `reel.caption`, `reel.caption.end` | `effects.NewCaption`, `effects.NewCallout`, `effects.EndCaption`, and `effects.EndCallout`; steep's `Caption` and `Callout` | A [caption or callout](/reel/captions), and the end of one |
 | `steep.*` | A [harness](/steep/how-it-works#annotations) | What the test did and found |
 
 ### Reading them

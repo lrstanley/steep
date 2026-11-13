@@ -31,6 +31,7 @@ const (
 	effectZoom      = "zoom"
 	effectToasts    = "toasts"
 	effectMouse     = "mouse"
+	effectCaptions  = "captions"
 )
 
 // effectDecoders decode the data of an annotation, by effect name.
@@ -42,6 +43,7 @@ var effectDecoders = map[string]func(data jsontext.Value) (reel.Effect, error){
 	effectZoom:      decodeEffect(zoomData.effect),
 	effectToasts:    decodeEffect(toastsData.effect),
 	effectMouse:     decodeEffect(mouseData.effect),
+	effectCaptions:  decodeEffect(captionsData.effect),
 }
 
 // FromAnnotation returns the effect an annotation of kind [reel.EffectKind]
@@ -127,7 +129,23 @@ func decodeEffect[T any](build func(T) (reel.Effect, error)) func(jsontext.Value
 // millis is d rounded to whole milliseconds.
 func millis(d time.Duration) int64 { return d.Round(time.Millisecond).Milliseconds() }
 
-func fromMillis(ms int64) time.Duration { return time.Duration(ms) * time.Millisecond }
+// MaxDuration is the longest duration an annotation can give an effect or
+// a caption, such as a pause, how long a card or a toast shows, or an ease.
+// Reading a longer one is an error, so a recording from someone else cannot
+// make an export play, or draw, for hours. Raise it before reading
+// recordings you trust that need longer.
+var MaxDuration = 5 * time.Minute
+
+// fromMillis is ms milliseconds of annotation data, or an error above
+// [MaxDuration]. Below -MaxDuration, which fields read as none, it is
+// -MaxDuration, so it cannot overflow.
+func fromMillis(ms int64) (time.Duration, error) {
+	limit := MaxDuration.Milliseconds()
+	if ms > limit {
+		return 0, fmt.Errorf("%dms is longer than effects.MaxDuration, %v", ms, MaxDuration)
+	}
+	return time.Duration(max(ms, -limit)) * time.Millisecond, nil
+}
 
 type keysData struct {
 	ShownMS int64 `json:"shown_ms"`
@@ -139,7 +157,11 @@ func (e keys) Describe() (reel.Annotation, error) {
 }
 
 func (d keysData) effect() (reel.Effect, error) {
-	return Keys(fromMillis(d.ShownMS)), nil
+	shown, err := fromMillis(d.ShownMS)
+	if err != nil {
+		return nil, fmt.Errorf("shown: %w", err)
+	}
+	return Keys(shown), nil
 }
 
 type introData struct {
@@ -211,7 +233,56 @@ func (d introData) effect() (reel.Effect, error) {
 		}
 		lines = append(lines, Line{Text: ld.Text, Style: st})
 	}
-	return Intro(fromMillis(d.DurationMS), lines...), nil
+	dur, err := fromMillis(d.DurationMS)
+	if err != nil {
+		return nil, fmt.Errorf("duration: %w", err)
+	}
+	return Intro(dur, lines...), nil
+}
+
+type captionsData struct {
+	PauseMS   *int64    `json:"pause_ms,omitzero"`
+	PauseAuto bool      `json:"pause_auto,omitzero"`
+	NoPauses  bool      `json:"no_pauses,omitzero"`
+	Accent    colorData `json:"accent,omitzero"`
+}
+
+func (e captions) Describe() (reel.Annotation, error) {
+	if e.pause < 0 && e.pause != AutoPause {
+		return reel.Annotation{}, fmt.Errorf("effects: caption pause %v below zero", e.pause)
+	}
+	d := captionsData{NoPauses: e.noPauses, PauseAuto: e.pause == AutoPause, Accent: colorData{e.accent}}
+	if e.pause > 0 {
+		ms := millis(e.pause)
+		d.PauseMS = &ms
+	}
+	return describe(effectCaptions, d)
+}
+
+func (d captionsData) effect() (reel.Effect, error) {
+	var opts []CaptionsOption
+	switch {
+	case d.PauseAuto && d.PauseMS != nil:
+		return nil, errors.New("both pause_auto and pause_ms")
+	case d.PauseAuto:
+		opts = append(opts, DefaultCaptionPause(AutoPause))
+	case d.PauseMS != nil:
+		if *d.PauseMS < 0 {
+			return nil, fmt.Errorf("pause %dms below zero", *d.PauseMS)
+		}
+		pause, err := fromMillis(*d.PauseMS)
+		if err != nil {
+			return nil, fmt.Errorf("pause: %w", err)
+		}
+		opts = append(opts, DefaultCaptionPause(pause))
+	}
+	if d.NoPauses {
+		opts = append(opts, WithoutCaptionPauses())
+	}
+	if d.Accent.c != nil {
+		opts = append(opts, WithCaptionAccent(d.Accent.c))
+	}
+	return Captions(opts...), nil
 }
 
 type toastsData struct {
@@ -237,9 +308,14 @@ func (e toasts) Describe() (reel.Annotation, error) {
 }
 
 func (d toastsData) effect() (reel.Effect, error) {
-	opts := []ToastOption{WithToastDuration(fromMillis(d.ShownMS))}
+	shown, err := fromMillis(d.ShownMS)
+	if err != nil {
+		return nil, fmt.Errorf("shown: %w", err)
+	}
+	opts := []ToastOption{WithToastDuration(shown)}
 	if d.Corner != "" {
-		c, err := parseCorner(d.Corner)
+		var c Corner
+		c, err = parseCorner(d.Corner)
 		if err != nil {
 			return nil, err
 		}
@@ -317,10 +393,18 @@ func (d mouseData) effect() (reel.Effect, error) {
 		opts = append(opts, WithPointerStyle(PointerStyle(style)))
 	}
 	if d.GlideMS != nil {
-		opts = append(opts, WithPointerGlide(fromMillis(*d.GlideMS)))
+		glide, err := fromMillis(*d.GlideMS)
+		if err != nil {
+			return nil, fmt.Errorf("glide: %w", err)
+		}
+		opts = append(opts, WithPointerGlide(glide))
 	}
 	if d.HideMS != nil {
-		opts = append(opts, WithPointerHide(fromMillis(*d.HideMS)))
+		hide, err := fromMillis(*d.HideMS)
+		if err != nil {
+			return nil, fmt.Errorf("hide: %w", err)
+		}
+		opts = append(opts, WithPointerHide(hide))
 	}
 	if d.Parts != nil {
 		var parts MouseParts
@@ -387,7 +471,10 @@ func (e pause) Describe() (reel.Annotation, error) {
 func (d pauseData) effect() (reel.Effect, error) {
 	var opts []PauseOption
 	for _, pd := range d.Points {
-		dur := fromMillis(pd.DurationMS)
+		dur, err := fromMillis(pd.DurationMS)
+		if err != nil {
+			return nil, fmt.Errorf("pause: %w", err)
+		}
 		switch pd.At {
 		case pauseAtEnd:
 			opts = append(opts, PauseAtEnd(dur))
@@ -397,9 +484,9 @@ func (d pauseData) effect() (reel.Effect, error) {
 			if pd.Pattern == nil {
 				return nil, errors.New("pause at match without a pattern")
 			}
-			re, err := regexp.Compile(*pd.Pattern)
-			if err != nil {
-				return nil, err
+			re, reErr := regexp.Compile(*pd.Pattern)
+			if reErr != nil {
+				return nil, reErr
 			}
 			opts = append(opts, PauseAtMatch(dur, re))
 		default:
@@ -467,7 +554,11 @@ func (d highlightData) effect() (reel.Effect, error) {
 	if err != nil {
 		return nil, err
 	}
-	opts := []HighlightOption{d.Timing.option()}
+	when, err := d.Timing.option()
+	if err != nil {
+		return nil, err
+	}
+	opts := []HighlightOption{when}
 	if d.Dim != nil {
 		opts = append(opts, DimOthers(*d.Dim))
 	}
@@ -517,7 +608,11 @@ func (d zoomData) effect() (reel.Effect, error) {
 	if err != nil {
 		return nil, err
 	}
-	opts := []ZoomOption{d.Timing.option()}
+	when, err := d.Timing.option()
+	if err != nil {
+		return nil, err
+	}
+	opts := []ZoomOption{when}
 	if d.Scale != nil {
 		opts = append(opts, Scale(*d.Scale))
 	}
@@ -547,12 +642,20 @@ func (t timing) data() timingData {
 }
 
 // option returns the [Timing] option that sets the timing d describes.
-func (d timingData) option() Timing {
-	t := timing{easeIn: fromMillis(d.EaseInMS), easeOut: fromMillis(d.EaseOutMS)}
+func (d timingData) option() (Timing, error) {
+	easeIn, err := fromMillis(d.EaseInMS)
+	if err != nil {
+		return nil, fmt.Errorf("ease in: %w", err)
+	}
+	easeOut, err := fromMillis(d.EaseOutMS)
+	if err != nil {
+		return nil, fmt.Errorf("ease out: %w", err)
+	}
+	t := timing{easeIn: easeIn, easeOut: easeOut}
 	if d.Between != nil {
 		t.from, t.to = d.Between.From, d.Between.To
 	}
-	return func(dst *timing) { *dst = t }
+	return func(dst *timing) { *dst = t }, nil
 }
 
 // The types of regions in annotations.

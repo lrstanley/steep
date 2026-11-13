@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -63,6 +64,13 @@ func TestSession(t *testing.T) {
 		t.Errorf("wait text = %q", resp.Text)
 	}
 	call(t, dir, Request{Op: OpMark, Label: "step:1"})
+	call(t, dir, Request{Op: OpCaption, Text: "a caption", Spec: "pause=auto"})
+	call(t, dir, Request{Op: OpCaption, Callout: true, Text: "the greeting", Spec: "text=hello;spotlight"})
+	call(t, dir, Request{Op: OpEndCaption, Callout: true})
+	call(t, dir, Request{Op: OpEndCaption})
+	if _, err := Call(t.Context(), dir, "sh", Request{Op: OpCaption, Text: "x", Spec: "side=diagonal"}); err == nil {
+		t.Error("caption with a bad side: no error")
+	}
 	if resp := call(t, dir, Request{Op: OpScreen, JSON: true}); resp.Screen == nil || resp.Screen.Cols != 40 || strings.HasSuffix(resp.Text, " ") {
 		t.Errorf("screen = %+v, text %q; want the 40-column screen, tidied", resp.Screen, resp.Text)
 	}
@@ -88,6 +96,21 @@ func TestSession(t *testing.T) {
 	}
 	if _, err = tl.Between("step:1", ""); err != nil {
 		t.Errorf("cast lacks the mark: %v", err)
+	}
+	var notes []string
+	for a := range tl.Annotations() {
+		if strings.HasPrefix(a.Kind, "reel.caption") {
+			notes = append(notes, a.Kind+" "+string(a.Data))
+		}
+	}
+	wantNotes := []string{
+		`reel.caption {"text":"a caption","pause_auto":true}`,
+		`reel.caption {"text":"the greeting","anchor":{"type":"text","text":"hello"},"spotlight":true}`,
+		`reel.caption.end {"callout":true}`,
+		`reel.caption.end `,
+	}
+	if !slices.Equal(notes, wantNotes) {
+		t.Errorf("caption annotations\n%q\nwant\n%q", notes, wantNotes)
 	}
 
 	call(t, dir, Request{Op: OpStop})

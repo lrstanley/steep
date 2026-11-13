@@ -29,6 +29,14 @@
       "if": {"properties": {"kind": {"const": "reel.mark"}}, "required": ["kind"]},
       "then": {"$ref": "#/$defs/reel.mark"}
     },
+    {
+      "if": {"properties": {"kind": {"const": "reel.caption"}}, "required": ["kind"]},
+      "then": {"$ref": "#/$defs/reel.caption"}
+    },
+    {
+      "if": {"properties": {"kind": {"const": "reel.caption.end"}}, "required": ["kind"]},
+      "then": {"$ref": "#/$defs/reel.caption.end"}
+    },
     {"if": {"properties": {"kind": {"const": "steep.start"}}, "required": ["kind"]}, "then": {"$ref": "#/$defs/steep.start"}},
     {"if": {"properties": {"kind": {"const": "steep.ready"}}, "required": ["kind"]}, "then": {"$ref": "#/$defs/steep.ready"}},
     {"if": {"properties": {"kind": {"const": "steep.input"}}, "required": ["kind"]}, "then": {"$ref": "#/$defs/steep.input"}},
@@ -50,8 +58,8 @@
       "required": ["effect"],
       "properties": {
         "effect": {
-          "description": "The effect: \"keys\" overlays the keys pressed, \"intro\" shows a title card before the first frame, \"pause\" pauses playback with a pause badge, \"highlight\" draws attention to a region, \"zoom\" zooms in on one, \"toasts\" shows desktop notifications as toasts, and \"mouse\" draws the mouse. reel never writes its effects that hide secrets, since an asciicast file holds what they hide.",
-          "type": "string", "examples": ["keys", "intro", "pause", "highlight", "zoom", "toasts", "mouse"]
+          "description": "The effect: \"keys\" overlays the keys pressed, \"intro\" shows a title card before the first frame, \"pause\" pauses playback with a pause badge, \"highlight\" draws attention to a region, \"zoom\" zooms in on one, \"toasts\" shows desktop notifications as toasts, \"mouse\" draws the mouse, and \"captions\" draws the recording's captions and callouts. reel never writes its effects that hide secrets, since an asciicast file holds what they hide.",
+          "type": "string", "examples": ["keys", "intro", "pause", "highlight", "zoom", "toasts", "mouse", "captions"]
         }
       },
       "allOf": [
@@ -61,7 +69,8 @@
         {"if": {"properties": {"effect": {"const": "highlight"}}, "required": ["effect"]}, "then": {"$ref": "#/$defs/reel.effect.highlight"}},
         {"if": {"properties": {"effect": {"const": "zoom"}}, "required": ["effect"]}, "then": {"$ref": "#/$defs/reel.effect.zoom"}},
         {"if": {"properties": {"effect": {"const": "toasts"}}, "required": ["effect"]}, "then": {"$ref": "#/$defs/reel.effect.toasts"}},
-        {"if": {"properties": {"effect": {"const": "mouse"}}, "required": ["effect"]}, "then": {"$ref": "#/$defs/reel.effect.mouse"}}
+        {"if": {"properties": {"effect": {"const": "mouse"}}, "required": ["effect"]}, "then": {"$ref": "#/$defs/reel.effect.mouse"}},
+        {"if": {"properties": {"effect": {"const": "captions"}}, "required": ["effect"]}, "then": {"$ref": "#/$defs/reel.effect.captions"}}
       ]
     },
     "reel.effect.keys": {
@@ -95,6 +104,31 @@
         "clipboard": {
           "description": "Whether the program's clipboard writes (OSC 52, OSC 1337 Copy, OSC 5522) also show, as a \"Copied to clipboard\" toast without the text written. Left out, false.",
           "type": "boolean"
+        }
+      }
+    },
+    "reel.effect.captions": {
+      "description": "The captions effect: draws the recording's captions and callouts (its reel.caption annotations) on the terminal frames, and pauses playback where they ask to.",
+      "type": "object",
+      "required": ["effect"],
+      "properties": {
+        "kind": {"const": "reel.effect"},
+        "effect": {"const": "captions"},
+        "pause_ms": {
+          "description": "How long to pause at each caption that does not set its own pause. Left out, 0: no pause.",
+          "type": "integer", "minimum": 0
+        },
+        "pause_auto": {
+          "description": "Whether each caption that does not set its own pause pauses for a reading time, as a caption's pause_auto does, instead of pause_ms. Left out, false.",
+          "type": "boolean"
+        },
+        "no_pauses": {
+          "description": "Whether every pause is left out, those the captions set included, so the recording plays at its own pace. Left out, false.",
+          "type": "boolean"
+        },
+        "accent": {
+          "description": "The color of a callout's edge and caret, of the dot on a pill, and of the ring a spotlight draws around its anchor. Left out, \"#a78bfa\".",
+          "$ref": "#/$defs/reel.effect.color"
         }
       }
     },
@@ -473,6 +507,55 @@
         "kind": {"const": "reel.mark"},
         "label": {"description": "The label of the mark just before.", "type": "string"},
         "source": {"$ref": "#/$defs/reel.source"}
+      }
+    },
+    "reel.caption": {
+      "description": "A caption: text shown over the recording for a viewer, from its offset. With an anchor it is a callout, a box with a caret that points at the cells its anchor matches as it starts; without one, it is a pill, a rounded box at the top or bottom of the terminal. A pill and a callout can show at once. A caption shows until the first of: its own end (for_ms or until), a reel.caption.end of its sort, the start of the next caption of the same sort (pill or callout), and the end of the recording. A caption may pause playback as it starts, holding the frame still while it shows; time paused does not count toward for_ms. reel's effects package writes these (NewCaption and NewCallout) and draws them (the captions effect).",
+      "type": "object",
+      "required": ["kind", "text"],
+      "properties": {
+        "kind": {"const": "reel.caption"},
+        "text": {
+          "description": "The text, read as plain text: a line feed starts a new line, other control characters and escape sequences are dropped, and long lines wrap at spaces. At most 4 KiB.",
+          "type": "string"
+        },
+        "anchor": {
+          "description": "Makes the caption a callout that points at the first cells, in reading order, this region matches on the frame where the caption starts. The callout stays where it was placed. Where the region matches no cells, the caption shows as a pill.",
+          "$ref": "#/$defs/reel.effect.region"
+        },
+        "pause_ms": {
+          "description": "How long playback pauses as the caption starts. 0 is no pause, even where the captions effect sets a default. Left out, the captions effect's default.",
+          "type": "integer", "minimum": 0
+        },
+        "pause_auto": {
+          "description": "Whether to pause for a reading time instead of pause_ms: 700ms and 260ms for each word, at least 1400ms. Left out, false.",
+          "type": "boolean"
+        },
+        "for_ms": {
+          "description": "Ends the caption this long into the recording after it starts. 0 shows it only while its pause lasts.",
+          "type": "integer", "minimum": 0
+        },
+        "until": {
+          "description": "Ends the caption at the first mark with this label at or after its start.",
+          "type": "string"
+        },
+        "side": {
+          "description": "For a pill, the side of the terminal it shows at; for a callout, the side of its anchor. Where a callout does not fit on that side, it takes another. Left out, the side that covers the fewest cells with text, preferring the bottom.",
+          "type": "string", "examples": ["top", "bottom", "left", "right"]
+        },
+        "spotlight": {
+          "description": "For a callout, whether to darken everything but its anchor while it shows. Left out, false.",
+          "type": "boolean"
+        }
+      }
+    },
+    "reel.caption.end": {
+      "description": "The end, at this offset, of the pill or the callout that shows, if one does. It ends only a reel.caption before it in the timeline, so one at the same offset placed after it shows on.",
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {"const": "reel.caption.end"},
+        "callout": {"description": "Ends the callout that shows, rather than the pill.", "const": true}
       }
     },
     "steep.truncated": {
