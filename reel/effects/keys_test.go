@@ -249,6 +249,30 @@ func TestKeysSkipsGoneBursts(t *testing.T) {
 	}
 }
 
+// TestKeysPausedBefore checks that a paused frame does not show a key
+// pressed at or just after its offset, which the delay grid would round onto
+// it, such as a caption's pause placed just before the key the caption is
+// about.
+func TestKeysPausedBefore(t *testing.T) {
+	t.Parallel()
+	k := &keysStage{ctx: &reel.Context{Step: 50 * ms, Speed: 1}, fade: fade{shown: time.Second, step: 50 * ms}}
+	k.presses = []keyPress{{at: 1000 * ms, label: "a"}, {at: 1010 * ms, label: "b"}}
+	for _, tc := range []struct {
+		at   time.Duration
+		want []string
+	}{
+		{995 * ms, nil},
+		{1000 * ms, nil},
+		{1005 * ms, []string{"a"}},
+		{1020 * ms, []string{"a", "b"}},
+	} {
+		tl := k.timeline(reel.Frame{At: tc.at, Delay: 2 * time.Second, Paused: true})
+		if st := tl.state(0); (st == noKeys) != (tc.want == nil) || (st != noKeys && !slices.Equal(tl.labels[st.first:st.last+1], tc.want)) {
+			t.Errorf("paused at %v shows %+v of %q, want %q", tc.at, st, tl.labels, tc.want)
+		}
+	}
+}
+
 // TestKeysLeavesAlone checks what the overlay does not show: paste and
 // mouse input, input before the window, frames without a terminal, and
 // anything with a shown of zero.

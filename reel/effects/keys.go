@@ -246,6 +246,14 @@ type keyTimeline struct {
 func (k *keysStage) timeline(f reel.Frame) keyTimeline {
 	t := keyTimeline{fade: k.fade}
 	for _, p := range k.presses[k.start:] {
+		// A paused frame shows the moment of its offset, before what happens
+		// there, so not a key pressed at or just after it, which the delay
+		// grid would round onto it: a caption's pause holds before the key
+		// the caption is about, even where an asciicast file's millisecond
+		// offsets give the two the same offset.
+		if f.Paused && p.at >= f.At {
+			break
+		}
 		at := playOffset(k.ctx, f, p.at)
 		if at >= f.Delay {
 			break
