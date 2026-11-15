@@ -6,6 +6,9 @@ on:
     tags: [v*]
   schedule:
     - cron: "0 13 * * *"
+  # a release pushes more than three tags, which GitHub creates no tag events for, so modrelease starts this on the
+  # v* tag instead.
+  workflow_dispatch: {}
 
 jobs:
   generate:
