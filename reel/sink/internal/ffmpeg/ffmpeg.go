@@ -36,6 +36,9 @@ type Info struct {
 	// fpsMode reports -fps_mode support (ffmpeg 5.1 and later). Older builds
 	// only take -vsync, which newer ones deprecate.
 	fpsMode bool
+	// demuxTimeBase reports "-enc_time_base demux" support (ffmpeg 6.1 and
+	// later). Older builds only take -1, which ffmpeg 9 rejects.
+	demuxTimeBase bool
 }
 
 type cachedProbe struct {
@@ -53,13 +56,17 @@ var (
 // HasEncoder reports whether the binary has the video encoder name.
 func (i *Info) HasEncoder(name string) bool { return i.encoders[name] }
 
-// PassthroughArgs keeps every frame at its own timestamp, instead of ffmpeg
-// resampling MP4 to a constant rate.
+// PassthroughArgs keeps every frame at its own timestamp, in the input's
+// time base, instead of ffmpeg resampling MP4 to a constant rate.
 func (i *Info) PassthroughArgs() []string {
+	args := []string{"-vsync", "passthrough", "-enc_time_base", "-1"}
 	if i.fpsMode {
-		return []string{"-fps_mode", "passthrough"}
+		args[0] = "-fps_mode"
 	}
-	return []string{"-vsync", "passthrough"}
+	if i.demuxTimeBase {
+		args[3] = "demux"
+	}
+	return args
 }
 
 // Probe runs the ffmpeg binary at path for its version and encoders, once
@@ -88,9 +95,10 @@ func probeBinary(path string) (*Info, error) {
 		return nil, err
 	}
 	return &Info{
-		Path:     path,
-		encoders: parseEncoders(encoders),
-		fpsMode:  hasFPSMode(version),
+		Path:          path,
+		encoders:      parseEncoders(encoders),
+		fpsMode:       atLeast(version, 5, 1),
+		demuxTimeBase: atLeast(version, 6, 1),
 	}, nil
 }
 
@@ -127,9 +135,10 @@ func parseEncoders(out []byte) map[string]bool {
 	return encoders
 }
 
-// hasFPSMode reports whether "ffmpeg -version" output is from 5.1 or later.
-// Versions that are not a release number (git snapshots) are assumed recent.
-func hasFPSMode(version []byte) bool {
+// atLeast reports whether "ffmpeg -version" output is from wantMajor.wantMinor
+// or later. Versions that are not a release number (git snapshots) are
+// assumed recent.
+func atLeast(version []byte, wantMajor, wantMinor int) bool {
 	line, _, _ := bytes.Cut(version, []byte("\n"))
 	fields := strings.Fields(string(line))
 	if len(fields) < 3 || fields[0] != "ffmpeg" || fields[1] != "version" {
@@ -145,7 +154,7 @@ func hasFPSMode(version []byte) bool {
 		rest = rest[:i]
 	}
 	minor, _ := strconv.Atoi(rest)
-	return major > 5 || (major == 5 && minor >= 1)
+	return major > wantMajor || (major == wantMajor && minor >= wantMinor)
 }
 
 // Job is one running encode: ffmpeg reads a stream on stdin and writes

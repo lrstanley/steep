@@ -537,8 +537,8 @@ func TestVideoFailedEncodeKeepsExistingFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if args := ffmpegArgs(info, videoProfiles[FormatMP4], "libx264", VideoConfig{}, path); !slices.Contains(args, "-vsync") {
-		t.Fatalf("ffmpeg 4.4 args %v should use -vsync", args)
+	if args := strings.Join(ffmpegArgs(info, videoProfiles[FormatMP4], "libx264", VideoConfig{}, path), " "); !strings.Contains(args, "-vsync passthrough -enc_time_base -1") {
+		t.Fatalf("ffmpeg 4.4 args %q should use -vsync and -enc_time_base -1", args)
 	}
 	// The fake exits after reading a little input, so a large frame fails
 	// once the pipe closes. Small ones may only fail at Close.

@@ -190,9 +190,8 @@ func ffmpegArgs(info *ffmpeg.Info, p videoProfile, encoder string, cfg VideoConf
 		"-f", "matroska", "-i", "pipe:0",
 		"-map", "0:v:0", "-an", "-sn", "-dn",
 	}
-	args = append(args, info.PassthroughArgs()...)
 	// Keep the stream's millisecond time base rather than a guessed frame rate.
-	args = append(args, "-enc_time_base", "-1")
+	args = append(args, info.PassthroughArgs()...)
 	if p.muxer != "webp" {
 		pixFmt := "yuv420p"
 		filter := fmt.Sprintf(
