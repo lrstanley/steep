@@ -4,8 +4,8 @@ go 1.27.3
 
 require (
 	charm.land/lipgloss/v2 v2.0.6
-	getsteep.dev/steep/reel v0.0.0-alpha.11
-	getsteep.dev/steep/reel/sink/native v0.0.0-20261115220308-6138a103f0fb
+	getsteep.dev/steep/reel v0.0.0-alpha.12
+	getsteep.dev/steep/reel/sink/native v0.0.0-alpha.12
 	github.com/alecthomas/kong v1.17.0
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/charmbracelet/x/term v0.2.2
@@ -24,6 +24,8 @@ require (
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/creack/pty v1.1.24 // indirect
+	github.com/ebitengine/purego v0.10.1 // indirect
+	github.com/gen2brain/webp v0.6.4 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/lmittmann/tint v1.2.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
