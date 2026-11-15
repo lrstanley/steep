@@ -3,7 +3,8 @@
 // the LICENSE file.
 
 // Package sink encodes frames, such as render package output, to PNG and
-// GIF, and through ffmpeg to MP4, WebM, and animated WebP.
+// GIF, and through a [Driver] (ffmpeg by default) to MP4, WebM, and animated
+// WebP.
 //
 // Every output is a [Sink], which is given frames with resolved delays and
 // finishes the output on [Sink.Close]: [CreateGIF] or [NewGIF] for GIF,
@@ -22,11 +23,15 @@
 //
 // # Video
 //
-// Video needs ffmpeg, looked up on PATH or set with [WithFFmpeg]. The binary
-// and the format's encoder are checked when the encoder is created, so a
-// missing one fails before anything is recorded ([ErrFFmpegNotFound],
-// [MissingEncoderError]); [CheckVideo] runs the same check alone. Each frame
-// keeps its own duration, so a long hold stays one frame.
+// Video is encoded by a [Driver]: [FFmpeg] on PATH by default, or the first
+// of [WithDrivers] that can encode the format, such as a pure Go driver from
+// another module. [VideoEncoder] owns the output file and hands the driver
+// frames ready to encode: one canvas size, composited where the format has
+// no alpha, and millisecond delays. The driver is picked when the encoder is
+// created, so a missing ffmpeg or encoder fails before anything is recorded
+// ([ErrFFmpegNotFound], [MissingEncoderError]); [CheckVideo] runs the same
+// check alone. Each frame keeps its own duration, so a long hold stays one
+// frame.
 //
 // MP4 and WebM are 4:2:0 by default for compatibility; 4:2:0 needs even
 // dimensions, so odd ones are padded ([WithFullChroma] keeps full color

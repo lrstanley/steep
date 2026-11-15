@@ -80,7 +80,7 @@ func (c *RunCmd) run(ctx context.Context, path string) error {
 	}
 	res, err := tp.Run(ctx,
 		play.WithLook(c.Look),
-		play.WithProfile(reel.Profile{Outputs: outputs, Effects: fx, Vars: tapeVars(c.Vars, path)}),
+		play.WithProfile(reel.Profile{Outputs: outputs, Effects: fx, Encode: c.encode(), Vars: tapeVars(c.Vars, path)}),
 	)
 	for _, w := range res.Warnings {
 		warnf("%s", w)

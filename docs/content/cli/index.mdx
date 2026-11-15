@@ -3,7 +3,7 @@ title: Introduction
 description: Install the reel command, and record terminals and render recordings without writing Go.
 ---
 
-`reel` is a command for making terminal recordings. It runs [VHS](https://github.com/charmbracelet/vhs) tapes, records commands, drives programs for scripts and agents, and turns asciicast files into GIFs, videos, and stills. It doesn't need Go to use, a browser, or anything else to run, apart from ffmpeg for some formats.
+`reel` is a command for making terminal recordings. It runs [VHS](https://github.com/charmbracelet/vhs) tapes, records commands, drives programs for scripts and agents, and turns asciicast files into GIFs, videos, and stills. It doesn't need Go to use, a browser, or anything else to run, apart from ffmpeg for MP4 and WebM.
 
 ```console
 $ reel run demo.tape
@@ -63,7 +63,7 @@ Or, with Go:
 go install getsteep.dev/steep/cmd/reel@latest
 ```
 
-Video and WebP formats need [ffmpeg](https://ffmpeg.org) on your `PATH`, and [the rest need nothing](/reel/formats). `reel run` and `reel test` need a shell, and tapes run in `bash` unless they say otherwise. Fonts are built in, so recordings look the same on any machine.
+MP4 and WebM need [ffmpeg](https://ffmpeg.org) on your `PATH`. WebP uses it where it is installed, and is encoded in `reel` itself where it isn't (see [encoders](/cli/outputs#encoders)), and [the rest need nothing](/reel/formats). `reel run` and `reel test` need a shell, and tapes run in `bash` unless they say otherwise. Fonts are built in, so recordings look the same on any machine.
 
 ## Next
 

@@ -499,7 +499,7 @@ func TestExportError(t *testing.T) {
 	h := NewHarness(ftb, rootTestModel{}, exportOptions(t.TempDir(),
 		WithRecording(reel.Profile{
 			Outputs: reel.MustFiles("rec.mp4"),
-			Encode:  []sink.Option{sink.WithFFmpeg(filepath.Join(t.TempDir(), "no-ffmpeg"))},
+			Encode:  []sink.Option{sink.WithDrivers(sink.FFmpeg(filepath.Join(t.TempDir(), "no-ffmpeg")))},
 		}),
 		WithExportAlways(),
 	)...)

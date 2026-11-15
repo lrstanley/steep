@@ -11,7 +11,7 @@ MP4, WebM, and WebP need ffmpeg on your `PATH`. `Export` checks first, and fails
 ffmpeg -encoders | grep -E 'libwebp|libx264|libvpx-vp9'
 ```
 
-To use a specific binary, pass `sink.WithFFmpeg(path)` in `Profile.Encode`.
+To use a specific binary, pass `sink.WithDrivers(sink.FFmpeg(path))` in `Profile.Encode`. WebP can skip ffmpeg with the pure Go [`sink/native`](https://pkg.go.dev/getsteep.dev/steep/reel/sink/native) driver, a separate module: `sink.WithDrivers(sink.FFmpeg(""), native.Driver())` falls back to it when ffmpeg is missing or lacks `libwebp`.
 
 ## `ErrRawOutput`
 

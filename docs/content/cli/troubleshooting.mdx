@@ -45,7 +45,7 @@ reel export in.cast --between ,brew:done -o out.png
 
 ## ffmpeg
 
-MP4, WebM, and WebP need ffmpeg on your `PATH`. See [what to check](/reel/troubleshooting#ffmpeg).
+MP4 and WebM need ffmpeg on your `PATH`. WebP doesn't: without ffmpeg, or with a build that lacks `libwebp`, `reel` encodes it itself, unless `--encoder ffmpeg` is set. See [what to check](/reel/troubleshooting#ffmpeg).
 
 ## A session isn't found
 

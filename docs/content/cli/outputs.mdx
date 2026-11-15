@@ -23,6 +23,10 @@ reel export in.cast -o 'out.webm?quality=80&full-chroma=true'
 
 [Every parameter](/reel/formats#parameters) is listed there, and the [configurator](/steep/configurator) can build these for you.
 
+## Encoders
+
+`--encoder` picks what encodes `.mp4`, `.webm`, and `.webp`. The default, `auto`, uses ffmpeg when it is on your `PATH` and has the encoder, and otherwise encodes `.webp` in `reel` itself; `.mp4` and `.webm` always need ffmpeg. `ffmpeg` uses only ffmpeg, so a missing one fails even for `.webp`, and `native` never runs it, so it writes `.webp` only.
+
 ## Path variables
 
 | Variable | Is | Commands |

@@ -2,9 +2,9 @@ name: release
 
 # builds the binaries in .github/ci-config.yml, and publishes them with checksums as a GitHub release.
 #
-# "task release" tags every module at once (v*, reel/v*, cmd/reel/v*), and this runs on the v* one. the pattern doesn't
-# match the others, as * doesn't match a slash. GitHub creates no tag events for a push of more than three tags, so
-# with more modules than that, modrelease starts this through workflow_dispatch instead, on the same tag. a manual
+# "task release" tags every module at once (v*, reel/v*, reel/sink/native/v*, cmd/reel/v*), and this runs on the v* one.
+# the pattern doesn't match the others, as * doesn't match a slash. GitHub creates no tag events for a push of more than
+# three tags, so modrelease starts this through workflow_dispatch instead, on the same tag. a manual
 # run on a tag re-releases it, and on a branch builds a snapshot without publishing.
 
 on:

@@ -17,12 +17,26 @@ import (
 	"getsteep.dev/steep/cmd/reel/internal/spec"
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/sink"
+	"getsteep.dev/steep/reel/sink/native"
 )
 
 // OutputFlags are the files a command writes.
 type OutputFlags struct {
 	Outputs []string          `short:"o" name:"output" placeholder:"FILE" help:"File to write, repeatable; the extension picks the format (.gif, .mp4, .webm, .webp, .png with ?marks=, .cast, .snap, .json). Takes query options, such as out.gif?max-bytes=5MB&loop=once, and {variables}, such as {duration}."`
 	Vars    map[string]string `name:"var" placeholder:"NAME=VALUE" help:"Extra {NAME} path variable, repeatable."`
+	Encoder string            `name:"encoder" enum:"auto,native,ffmpeg" default:"auto" help:"How .mp4, .webm, and .webp are encoded: ffmpeg; native, built in, which encodes .webp only; or auto, for ffmpeg where it is installed and native otherwise."`
+}
+
+// encode returns the encoding options of the flags.
+func (o OutputFlags) encode() []sink.Option {
+	switch o.Encoder {
+	case "native":
+		return []sink.Option{sink.WithDrivers(native.Driver())}
+	case "ffmpeg":
+		return []sink.Option{sink.WithDrivers(sink.FFmpeg(""))}
+	}
+	return []sink.Option{sink.WithDrivers(sink.FFmpeg(""), native.Driver())}
 }
 
 func (o OutputFlags) files() ([]reel.File, error) {
@@ -163,7 +177,7 @@ func (f RenderFlags) profile(base ...reel.Effect) (reel.Profile, error) {
 	if err != nil {
 		return reel.Profile{}, err
 	}
-	p := reel.Profile{Outputs: outputs, Render: opts, Vars: f.Vars}
+	p := reel.Profile{Outputs: outputs, Render: opts, Encode: f.encode(), Vars: f.Vars}
 	f.Profile(&p)
 	// Captions draw by default. One --caption-pause sets up replaces the
 	// file's own; without it, the file's own is kept.

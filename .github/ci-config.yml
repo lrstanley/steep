@@ -6,7 +6,7 @@ goreleaser:
       hooks:
         # go.work is gitignored, and snapshot builds of master may need reel changes that aren't published yet. on a
         # release commit, every module already pins the released reel, so this changes nothing there.
-        - go work init ./reel ./cmd/reel
+        - go work init ./reel ./reel/sink/native ./cmd/reel
     git:
       # the module tags point at the same commits as the v* tag, which is the one that names the release.
       ignore_tags: ["reel/*", "cmd/*"]
@@ -16,6 +16,9 @@ goreleaser:
       dir: cmd/reel
       main: .
       binary: reel
+      # sink/native's libwebp is compiled into the binary; without this tag it prefers a system libwebp when one is
+      # installed, so output would depend on the machine.
+      tags: [nodynamic]
       targets:
         - linux_amd64
         - linux_arm64
@@ -39,6 +42,11 @@ goreleaser:
         ids: [binary]
         description: Make terminal recordings from VHS tapes, and render them as GIFs, videos, and stills
         homepage: https://getsteep.dev/cli
+        # casks can't have optional dependencies, and ffmpeg is large and only needed for some formats, so it's only
+        # suggested.
+        caveats: |
+          .mp4 and .webm outputs need ffmpeg:
+            brew install ffmpeg
         # every tag updates the tap, prereleases included, as no release is stable yet. skip_upload: auto would skip
         # them.
         # snapshot builds disable the release, and GoReleaser can't derive the download URL without it.

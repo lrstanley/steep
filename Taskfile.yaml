@@ -2,8 +2,8 @@
 version: "3"
 
 vars:
-  # In dependency order. steep and cmd/reel both require reel.
-  MODULES: [reel, ".", cmd/reel, _examples]
+  # In dependency order. steep and cmd/reel both require reel, and cmd/reel requires reel/sink/native.
+  MODULES: [reel, reel/sink/native, ".", cmd/reel, _examples]
   WASM2GO: github.com/ncruces/wasm2go@v0.4.19
   MODRELEASE: github.com/lrstanley/x/cmd/modrelease@latest
   VT_IMAGE: term-vt-zig:0.16.0
@@ -23,7 +23,7 @@ tasks:
     desc: create or update go.work, so each module builds against the others in this checkout
     run: once
     # go.work's go version follows the modules' go directives.
-    sources: [Taskfile.yaml, "{reel,.,cmd/reel,_examples}/go.mod"]
+    sources: [Taskfile.yaml, "{reel,reel/sink/native,.,cmd/reel,_examples}/go.mod"]
     generates: [go.work]
     cmds:
       - test -f go.work || go work init
@@ -42,7 +42,7 @@ tasks:
   lint:
     desc: run linters, applying fixes (not on _examples, whose replace directives are intentional)
     cmds:
-      - for: [reel, ".", cmd/reel]
+      - for: [reel, reel/sink/native, ".", cmd/reel]
         cmd: cd {{.ITEM}} && go fix ./... && golangci-lint run --fix
   tidy:
     desc: run go mod tidy (steep and cmd/reel need the reel version they require to be published)

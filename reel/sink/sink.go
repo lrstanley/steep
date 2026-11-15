@@ -54,12 +54,12 @@ const (
 	FormatGIF Format = "gif"
 	// FormatPNG is a PNG of the last frame (see [PNG]).
 	FormatPNG Format = "png"
-	// FormatMP4 is H.264 in MP4 (libx264), which plays nearly everywhere.
+	// FormatMP4 is H.264 in MP4, which plays nearly everywhere.
 	FormatMP4 Format = "mp4"
-	// FormatWebM is VP9 in WebM (libvpx-vp9).
+	// FormatWebM is VP9 in WebM.
 	FormatWebM Format = "webm"
-	// FormatWebP is animated WebP (libwebp). ffmpeg builds without libwebp
-	// are common.
+	// FormatWebP is animated WebP, which keeps transparency. ffmpeg builds
+	// without libwebp are common.
 	FormatWebP Format = "webp"
 )
 
@@ -77,7 +77,7 @@ func FormatOf(path string) (Format, error) {
 }
 
 // File returns a sink writing to path in the format its extension names (see
-// [FormatOf]): [CreateGIF], [CreateVideo] (which probes ffmpeg here), or for
+// [FormatOf]): [CreateGIF], [CreateVideo] (which picks its [Driver] here), or for
 // ".png" a sink that writes the last frame. Output is written to a temporary
 // file beside path and renamed into place on Close.
 func File(path string, opts ...Option) (Sink, error) {

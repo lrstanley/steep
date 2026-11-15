@@ -71,8 +71,8 @@ type options struct {
 	quality    int
 	qualitySet bool
 	fullChroma bool
-	// ffmpeg is empty to look up "ffmpeg" on PATH.
-	ffmpeg string
+	// drivers is nil for the default, [FFmpeg] on PATH.
+	drivers []Driver
 }
 
 // collectOptions applies opts over the default optimize flags without
@@ -166,11 +166,12 @@ func WithMaxBytes(n int64) Option {
 
 // WithQuality sets how closely [VideoEncoder] output matches the frames, from 0
 // (smallest file) to [MaxQuality] (lossless where the format supports it).
-// MP4 maps q to libx264 CRF 51..0 (default CRF 18) and WebM to libvpx-vp9 CRF
-// 63..0 (default CRF 30, lossless at [MaxQuality]). WebP is lossless by
-// default and at [MaxQuality], which for terminal frames is smaller than lossy
-// at any useful quality; a lower q selects lossy WebP at that quality. Values
-// outside [0, [MaxQuality]] are rejected. PNG and GIF ignore it.
+// Each [Driver] maps q onto its encoders; for [FFmpeg], MP4 maps q to libx264
+// CRF 51..0 (default CRF 18) and WebM to libvpx-vp9 CRF 63..0 (default CRF 30,
+// lossless at [MaxQuality]). WebP is lossless by default and at [MaxQuality],
+// which for terminal frames is smaller than lossy at any useful quality; a
+// lower q selects lossy WebP at that quality. Values outside [0,
+// [MaxQuality]] are rejected. PNG and GIF ignore it.
 func WithQuality(q int) Option {
 	return func(cfg *options) {
 		cfg.quality = q
@@ -184,13 +185,5 @@ func WithQuality(q int) Option {
 func WithFullChroma(enabled bool) Option {
 	return func(cfg *options) {
 		cfg.fullChroma = enabled
-	}
-}
-
-// WithFFmpeg sets the ffmpeg binary [VideoEncoder] runs: a path, or a name
-// looked up on PATH. The default is "ffmpeg" on PATH. PNG and GIF ignore it.
-func WithFFmpeg(path string) Option {
-	return func(cfg *options) {
-		cfg.ffmpeg = path
 	}
 }

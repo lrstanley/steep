@@ -53,7 +53,7 @@ func fakeFFmpeg(args []string) int {
 	return 0
 }
 
-// useFakeFFmpeg returns a WithFFmpeg option for the fake build. The child
+// useFakeFFmpeg returns a WithDrivers option for the fake build. The child
 // inherits the environment, so callers cannot run in parallel.
 func useFakeFFmpeg(t *testing.T) Option {
 	t.Helper()
@@ -62,7 +62,7 @@ func useFakeFFmpeg(t *testing.T) Option {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return WithFFmpeg(exe)
+	return WithDrivers(FFmpeg(exe))
 }
 
 // requireVideo skips the test unless ffmpeg can encode format.
@@ -71,7 +71,7 @@ func requireVideo(t *testing.T, format Format) *ffmpeg.Info {
 	if err := CheckVideo(format); err != nil {
 		t.Skipf("skipping %s: %v", format, err)
 	}
-	info, err := findFFmpeg("", format)
+	info, err := findFFmpeg("ffmpeg", format)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -474,7 +474,7 @@ func TestVideoMissingFFmpeg(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "out.mp4")
-	missing := WithFFmpeg(filepath.Join(dir, "no-ffmpeg"))
+	missing := WithDrivers(FFmpeg(filepath.Join(dir, "no-ffmpeg")))
 	for _, format := range videoFormats {
 		if err := CheckVideo(format, missing); !errors.Is(err, ErrFFmpegNotFound) {
 			t.Fatalf("CheckVideo(%s) = %v, want ErrFFmpegNotFound", format, err)
@@ -483,8 +483,8 @@ func TestVideoMissingFFmpeg(t *testing.T) {
 		if !errors.Is(err, ErrFFmpegNotFound) {
 			t.Fatalf("CreateVideo(%s) = %v, want ErrFFmpegNotFound", format, err)
 		}
-		if !strings.Contains(err.Error(), string(format)) || !strings.Contains(err.Error(), "WithFFmpeg") {
-			t.Fatalf("error does not say what needs ffmpeg or how to set it: %v", err)
+		if !strings.Contains(err.Error(), string(format)) || !strings.Contains(err.Error(), "put it on PATH") {
+			t.Fatalf("error does not say what needs ffmpeg or how to install it: %v", err)
 		}
 	}
 	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
@@ -529,8 +529,16 @@ func TestVideoFailedEncodeKeepsExistingFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(enc.args(), "-vsync") {
-		t.Fatalf("ffmpeg 4.4 args %v should use -vsync", enc.args())
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := findFFmpeg(exe, FormatMP4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if args := ffmpegArgs(info, videoProfiles[FormatMP4], "libx264", VideoConfig{}, path); !slices.Contains(args, "-vsync") {
+		t.Fatalf("ffmpeg 4.4 args %v should use -vsync", args)
 	}
 	// The fake exits after reading a little input, so a large frame fails
 	// once the pipe closes. Small ones may only fail at Close.
@@ -591,7 +599,7 @@ func TestVideoQualityArgs(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		args := videoProfiles[tc.format].args(cfg)
+		args := videoProfiles[tc.format].args(cfg.videoConfig())
 		joined := " " + strings.Join(args, " ") + " "
 		if !strings.Contains(joined, " "+strings.Join(tc.want, " ")+" ") {
 			t.Fatalf("%s %d opts: args %v do not contain %v", tc.format, len(tc.opts), args, tc.want)

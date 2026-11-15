@@ -16,12 +16,12 @@ import (
 // milliseconds.
 const maxWebPDuration = 1<<24 - 1
 
-// fixWebP patches the loop count and last frame duration of an animated WebP
+// fixWebP patches the play count and last frame duration of an animated WebP
 // that ffmpeg wrote. ffmpeg's webp muxer ignores the loop count for
 // libwebp_anim, and older releases guess the last frame's duration from the
 // others. The last frame gets whatever remains of total, which also holds
 // when libwebp merged identical frames.
-func fixWebP(path string, loopCount int, total time.Duration) error {
+func fixWebP(path string, plays int, total time.Duration) error {
 	f, err := os.OpenFile(path, os.O_RDWR, 0)
 	if err != nil {
 		return err
@@ -73,7 +73,7 @@ func fixWebP(path string, loopCount int, total time.Duration) error {
 	}
 
 	var loop [2]byte
-	binary.LittleEndian.PutUint16(loop[:], uint16(webpLoopCount(loopCount))) //nolint:gosec // <= 65535.
+	binary.LittleEndian.PutUint16(loop[:], uint16(plays)) //nolint:gosec // <= 65535.
 	_, err = f.WriteAt(loop[:], anim+4)
 	if err != nil {
 		return err

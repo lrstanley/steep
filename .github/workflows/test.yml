@@ -41,7 +41,7 @@ jobs:
       fail-fast: false
       matrix:
         go-version: ${{ fromJSON(needs.go-versions.outputs.versions) }}
-        module: [".", _examples, cmd/reel, reel]
+        module: [".", _examples, cmd/reel, reel, reel/sink/native]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -67,7 +67,7 @@ jobs:
       fail-fast: false
       matrix:
         # not _examples, whose replace directives are intentional.
-        module: [".", cmd/reel, reel]
+        module: [".", cmd/reel, reel, reel/sink/native]
     steps:
       - uses: actions/checkout@v7
         with:

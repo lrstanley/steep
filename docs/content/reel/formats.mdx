@@ -64,7 +64,9 @@ The same syntax works in [`STEEP_EXPORT`](/steep/environment#exports) and [`reel
 
 **WebM** is VP9, from `libvpx-vp9`.
 
-**WebP** is from `libwebp`, and keeps transparency. Builds of ffmpeg without `libwebp` are common, so check `ffmpeg -encoders | grep libwebp` if it fails.
+**WebP** is from `libwebp`, and keeps transparency. Builds of ffmpeg without `libwebp` are common, so check `ffmpeg -encoders | grep libwebp` if it fails, or encode it without ffmpeg.
+
+**Without ffmpeg**, the `reel` command encodes WebP itself, and Go programs can with [`sink/native`](https://pkg.go.dev/getsteep.dev/steep/reel/sink/native), a separate module, through `sink.WithDrivers(sink.FFmpeg(""), native.Driver())` in `Profile.Encode`, which uses ffmpeg where it's installed. MP4 and WebM always need ffmpeg.
 
 **`.snap`** is the screen's text at the end of the window, or at each mark. Effects don't change it, so it shows what a redaction hides.
 
