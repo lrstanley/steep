@@ -128,7 +128,7 @@ func (d *Renderer) drawCellFg(area image.Rectangle, cell *vt.Cell, f *renderFram
 	}
 }
 
-func (d *Renderer) drawCursor(dst draw.Image, area image.Rectangle, f *renderFrame) {
+func (d *Renderer) drawCursor(dst *image.NRGBA, area image.Rectangle, f *renderFrame) {
 	metrics := f.metrics
 
 	switch f.st.Cursor.Shape {
@@ -145,9 +145,13 @@ func (d *Renderer) drawCursor(dst draw.Image, area image.Rectangle, f *renderFra
 	}
 
 	idraw.Fill(dst, area, f.cursorColorNRGBA())
+	// The glyph is drawn again in the cursor's text color only where the
+	// cursor covers it, so a bar, an underline, or a short block leaves the
+	// rest of the glyph as it was drawn.
 	if cursorCell := f.cursorCell; cursorCell != nil &&
 		idraw.TextVisible(f, cursorCell) && cellHasForegroundGlyph(cursorCell) {
-		raster.DrawGlyph(f, dst, f.cursorBounds(), cursorCell, f.cursorTextColorNRGBA())
+		clip, _ := dst.SubImage(area).(*image.NRGBA) // NRGBA.SubImage is always an NRGBA.
+		raster.DrawGlyph(f, clip, f.cursorBounds(), cursorCell, f.cursorTextColorNRGBA())
 	}
 }
 

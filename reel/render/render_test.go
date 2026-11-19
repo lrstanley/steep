@@ -947,3 +947,57 @@ func TestDrawCleanBufferDoesNotCacheBlink(t *testing.T) {
 		}
 	})
 }
+
+// TestRendererCursorKeepsGlyphOutsideShape checks that a cursor narrower or
+// shorter than its cell leaves the part of the glyph it does not cover as it
+// was drawn, rather than drawing the whole glyph again in the cursor's text
+// color, which hides it against the background.
+func TestRendererCursorKeepsGlyphOutsideShape(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name  string
+		shape vt.CursorShape
+	}{
+		{"bar", vt.CursorBar},
+		{"underline", vt.CursorUnderline},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			scr := newTestScreen(1, 1)
+			putText(scr, 0, 0, "W", vt.Style{})
+
+			d := MustNew()
+			plain := drawAt(t, d, scr, vt.State{Focused: true}, 0)
+			cursor := drawAt(t, d, scr, vt.State{
+				Focused: true,
+				Cursor:  vt.Cursor{Visible: true, Shape: tt.shape},
+			}, 0)
+
+			f := d.layoutSnapshot(t, image.Point{}, scr)
+			cell := f.cellBounds(0, 0)
+			if plain.NRGBAAt(cell.Min.X, cell.Max.Y-1) == cursor.NRGBAAt(cell.Min.X, cell.Max.Y-1) {
+				t.Fatal("the cursor was not drawn")
+			}
+			outside := cell
+			if tt.shape == vt.CursorBar {
+				outside.Min.X += f.Metrics().CursorThickness.Int()
+			} else {
+				outside.Max.Y -= f.Metrics().CursorThickness.Int()
+			}
+
+			var changed int
+			for y := outside.Min.Y; y < outside.Max.Y; y++ {
+				for x := outside.Min.X; x < outside.Max.X; x++ {
+					if plain.NRGBAAt(x, y) != cursor.NRGBAAt(x, y) {
+						changed++
+					}
+				}
+			}
+			if changed > 0 {
+				t.Fatalf("%d pixels of the glyph outside the cursor changed", changed)
+			}
+		})
+	}
+}
