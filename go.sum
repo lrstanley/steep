@@ -1,7 +1,7 @@
 charm.land/bubbletea/v2 v2.1.2 h1:vB3XAcHhLB2gR3HOHpwO3lHB3nbvaowIgL3e5x/DUZo=
 charm.land/bubbletea/v2 v2.1.2/go.mod h1:xWHeyxIX9/wiFU2kgPW04ojOZyTzrWf+8lGjUCaftiU=
-getsteep.dev/steep/reel v0.0.0-alpha.12 h1:2v6T7YKHKEu+DsylIEVyieOExTy2/dSgX3PHNltYAkA=
-getsteep.dev/steep/reel v0.0.0-alpha.12/go.mod h1:VeUY4PNBwZ2boxECu12VOhOcUaqLjN4SRZwZXUsTraU=
+getsteep.dev/steep/reel v0.0.0-alpha.13 h1:TZq7uY0VRScycFnHgI29IrD4qcvpo4OLHclX/Sd57Ps=
+getsteep.dev/steep/reel v0.0.0-alpha.13/go.mod h1:OObr4Qlg58HRD1khUSd14zIRMNko86PUsHqQCgRsjZs=
 github.com/aymanbagabas/go-udiff v0.4.2 h1:2TKp3Wz8khD9K1GB7cqrkvu20OTNxgRvjn3Cm/bX3Ns=
 github.com/aymanbagabas/go-udiff v0.4.2/go.mod h1:0L9PGwj20lrtmEMeyw4WKJ/TMyDtvAoK9bf2u/mNo3w=
 github.com/charmbracelet/colorprofile v0.4.3 h1:QPa1IWkYI+AOB+fE+mg/5/4HRMZcaXex9t5KX76i20Q=
