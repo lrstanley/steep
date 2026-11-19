@@ -7,4 +7,4 @@ require (
 	github.com/gen2brain/webp v0.6.4
 )
 
-require github.com/ebitengine/purego v0.10.1 // indirect
+require github.com/ebitengine/purego v0.11.3 // indirect

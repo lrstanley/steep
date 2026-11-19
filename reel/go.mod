@@ -7,8 +7,8 @@ require (
 	github.com/charmbracelet/x/xpty v0.1.4
 	github.com/google/jsonschema-go v0.4.3
 	github.com/lucasb-eyer/go-colorful v1.4.1
-	golang.org/x/image v0.47.0
-	golang.org/x/text v0.43.0
+	golang.org/x/image v0.48.0
+	golang.org/x/text v0.44.0
 )
 
 require (
@@ -19,5 +19,5 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/creack/pty v1.1.24 // indirect
 	github.com/mattn/go-runewidth v0.0.31 // indirect
-	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/sys v0.50.0 // indirect
 )
