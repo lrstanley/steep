@@ -16,6 +16,7 @@ import (
 
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/internal/testutil"
+	"getsteep.dev/steep/reel/region"
 )
 
 // shown is a frame as the hide tests compare it: the screen's text, without
@@ -80,7 +81,7 @@ func TestHide(t *testing.T) {
 		{"unclosed", []HideRule{HideBetween("hide", "")}, []shown{
 			{"a", 0, 100 * ms}, {"ab", 100 * ms, 50 * ms},
 		}},
-		{"two rules", []HideRule{HideBetween("", "show"), HideWhile(Text("f"))}, []shown{
+		{"two rules", []HideRule{HideBetween("", "show"), HideWhile(region.Text("f"))}, []shown{
 			{"abcd", 350 * ms, 50 * ms}, {"abcde", 400 * ms, 100 * ms},
 		}},
 	} {
@@ -121,8 +122,8 @@ func TestHideScreen(t *testing.T) {
 		rule HideRule
 		want []string
 	}{
-		{"while", HideWhile(Text("secret")), []string{"boot", "boot\n$"}},
-		{"unless", HideUnless(Text("$")), []string{"boot\n$", "boot\n$ secret", "boot\n$ secret\n$"}},
+		{"while", HideWhile(region.Text("secret")), []string{"boot", "boot\n$"}},
+		{"unless", HideUnless(region.Text("$")), []string{"boot\n$", "boot\n$ secret", "boot\n$ secret\n$"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -150,7 +151,7 @@ func TestHideKeys(t *testing.T) {
 		rule HideRule
 	}{
 		{"between", HideBetween("hide", "show")},
-		{"while", HideWhile(Text("b"))},
+		{"while", HideWhile(region.Text("b"))},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -207,7 +208,7 @@ func TestHideStart(t *testing.T) {
 		{"no hide mark", Hide(HideBetween("nope", "show")), nil, reel.ErrNoMark, `"nope"`},
 		{"no show mark", Hide(HideBetween("hide", "nope")), nil, reel.ErrNoMark, `"nope"`},
 		{"show before hide", Hide(HideBetween("show", "hide")), nil, nil, ""},
-		{"every frame", Hide(HideWhile(Text("a"))), nil, nil, "dropped every frame"},
+		{"every frame", Hide(HideWhile(region.Text("a"))), nil, nil, "dropped every frame"},
 		{"cast", Hide(HideBetween("hide", "show")), reel.MustFiles("x.gif", "x.cast"), reel.ErrRawOutput, "asciicast"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

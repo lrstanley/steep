@@ -13,7 +13,7 @@ import (
 	"getsteep.dev/steep/reel"
 )
 
-// Timing is an option the effects that work on a [Region] take: [Between]
+// Timing is an option the effects that work on a region take: [Between]
 // limits the effect to a window of the timeline, and [Ease], [EaseIn], and
 // [EaseOut] ease it in and out.
 type Timing func(*timing)

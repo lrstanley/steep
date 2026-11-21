@@ -74,12 +74,12 @@ These can't be combined with a `.cast` output, which would keep the secret. And 
 
 ## Spec
 
-`--highlight`, `--zoom`, and `--redact` take a spec: `REGION[;KEY=VALUE]...`, and they repeat.
+`--highlight`, `--zoom`, and `--redact` take a spec: `REGION[;KEY=VALUE]...`, and they repeat. [`reel s wait --idle`](/cli/sessions#waiting) takes a `REGION` on its own.
 
 | Region | Covers |
 | --- | --- |
-| `row=Y` | One row, from 0 |
-| `rows=Y0-Y1` | Rows from `Y0` up to `Y1` |
+| `row=Y` | One row, from 0 at the top, or from -1 at the bottom |
+| `rows=Y0-Y1` | Rows from `Y0` up to `Y1`. After a negative `Y0`, a `Y1` of 0 is the bottom, so `rows=-2-0` is the last two rows |
 | `cells=X0,Y0,X1,Y1` | A rectangle of cells |
 | `text=TEXT` | Each place `TEXT` shows |
 | `re=PATTERN` | Each match of a regular expression |

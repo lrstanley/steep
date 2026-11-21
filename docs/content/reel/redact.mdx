@@ -13,8 +13,8 @@ description: Hide secrets from a recording, what that covers, and where it stops
 
 ```go
 Effects: []reel.Effect{
-	effects.Redact(effects.Env("API_TOKEN")),
-	effects.Redact(effects.Regexp(regexp.MustCompile(`sk-[A-Za-z0-9]{20,}`)), effects.Blur()),
+	effects.Redact(region.Env("API_TOKEN")),
+	effects.Redact(region.Regexp(regexp.MustCompile(`sk-[A-Za-z0-9]{20,}`)), effects.Blur()),
 },
 ```
 
@@ -61,8 +61,8 @@ These outputs skip effects, so they aren't redacted, and they hold the secret:
 
 ```go
 Effects: []reel.Effect{
-	effects.Redact(effects.Env("PASSWORD")),
-	effects.RedactInputs(effects.Env("PASSWORD")),
+	effects.Redact(region.Env("PASSWORD")),
+	effects.RedactInputs(region.Env("PASSWORD")),
 	effects.Keys(time.Second),
 },
 ```

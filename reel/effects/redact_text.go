@@ -13,7 +13,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/vt"
 )
 
@@ -21,7 +21,8 @@ import (
 // [MinPartial].
 type Matching func(*matching)
 
-// matching is how the text of [Text] and [Env] regions is matched.
+// matching is how the text of [region.Text] and [region.Env] regions is
+// matched.
 type matching struct {
 	// minPartial is the fewest characters of a secret hidden where only its
 	// start or end shows.
@@ -31,16 +32,17 @@ type matching struct {
 // defaultMatching is the matching without options.
 var defaultMatching = matching{minPartial: 3}
 
-// MinPartial sets the fewest characters of the start or end of a [Text] or
-// [Env] secret that [Redact] and [RedactInputs] hide where only that part
-// of it shows. A start is hidden where it is cut off at the end of a line,
-// at the cursor, or before a character that is not a letter or digit, as
-// while it is typed into a prompt; an end at the start of a line or after
-// such a character, as when its first wrapped row has scrolled away. A
-// secret of n characters or fewer is only hidden whole, so an n as long as
-// the longest secret turns partial matching off. The default is 3: a lower
-// n shows less of a secret as it is typed, but hides more unrelated text
-// that starts or ends like it. An n below 1 is an error from Start.
+// MinPartial sets the fewest characters of the start or end of a
+// [region.Text] or [region.Env] secret that [Redact] and [RedactInputs] hide
+// where only that part of it shows. A start is hidden where it is cut off
+// at the end of a line, at the cursor, or before a character that is not a
+// letter or digit, as while it is typed into a prompt; an end at the start
+// of a line or after such a character, as when its first wrapped row has
+// scrolled away. A secret of n characters or fewer is only hidden whole, so
+// an n as long as the longest secret turns partial matching off. The
+// default is 3: a lower n shows less of a secret as it is typed, but hides
+// more unrelated text that starts or ends like it. An n below 1 is an error
+// from Start.
 func MinPartial(n int) Matching {
 	return func(m *matching) { m.minPartial = n }
 }
@@ -64,44 +66,27 @@ func (m matching) check() error {
 const redactMask = '•'
 
 // secrets is what a region given to [Redact] or [RedactInputs] looks for,
-// as of one frame: the literals of [Text] and [Env] regions (see
-// [secrets.ranges]), the regular expressions of [Regexp] regions, and the
-// other regions, which find no text and are matched with their Rects.
+// as of one frame: the literals of [region.Text] and [region.Env] regions
+// (see [secrets.ranges]), the regular expressions of [region.Regexp]
+// regions, and the other regions, which find no text and are matched with
+// their Rects.
 type secrets struct {
 	literals   []string
 	minPartial int
 	res        []*regexp.Regexp
-	others     []Region
+	others     []region.Region
+	// cursor is the cursor of the frame s is matched on, set before its
+	// Rects: a secret cut off there may be partly typed.
+	cursor vt.Cursor
 }
 
-// secretsOf returns what region looks for now, matched with m. The values
-// of an [Env] region's variables are read when it is called.
-func secretsOf(region Region, m matching) secrets {
+// secretsOf returns what region looks for now, matched with m (see
+// [region.TextOf]). The values of an [region.Env] region's variables are
+// read when it is called.
+func secretsOf(r region.Region, m matching) secrets {
 	s := secrets{minPartial: m.minPartial}
-	addSecrets(&s, region)
-	s.literals = textNeedles(s.literals)
+	s.literals, s.res, s.others = region.TextOf(r)
 	return s
-}
-
-// addSecrets adds what region looks for to s.
-func addSecrets(s *secrets, region Region) {
-	switch r := region.(type) {
-	case nil:
-	case anyRegion:
-		for _, sub := range r {
-			addSecrets(s, sub)
-		}
-	case textRegion:
-		s.literals = append(s.literals, string(r))
-	case envRegion:
-		s.literals = append(s.literals, r.values()...)
-	case regexpRegion:
-		if r.re != nil {
-			s.res = append(s.res, r.re)
-		}
-	default:
-		s.others = append(s.others, r)
-	}
 }
 
 // findsText reports whether s looks for any text.
@@ -221,20 +206,20 @@ func prefixEnds(text string, i, cursor int) bool {
 	return !wordChar(r)
 }
 
-// rects returns the cells s covers on f: the ranges of each line of f's
-// screen, with the cursor's cell, and the Rects of the other regions.
-func (s secrets) rects(f *reel.CellFrame) []image.Rectangle {
+// Rects returns the cells s covers on screen: the ranges of each line, with
+// the cell of s.cursor, and the Rects of the other regions.
+func (s secrets) Rects(screen *vt.Buffer) []image.Rectangle {
 	var out []image.Rectangle
 	for _, r := range s.others {
-		out = append(out, r.Rects(f)...)
+		out = append(out, r.Rects(screen)...)
 	}
 	if !s.findsText() {
 		return out
 	}
-	cur := f.State.Cursor
-	for line := range screenLines(f) {
-		for _, m := range s.ranges(line.text, line.offsetAt(cur.X, cur.Y)) {
-			out = line.appendMatch(out, m[0], m[1])
+	cur := s.cursor
+	for line := range region.Lines(screen) {
+		for _, m := range s.ranges(line.Text, line.Offset(cur.X, cur.Y)) {
+			out = line.AppendRects(out, m[0], m[1])
 		}
 	}
 	return out

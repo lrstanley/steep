@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/render"
 )
 
@@ -46,9 +47,9 @@ func TestNewCaptionErrors(t *testing.T) {
 		"long pause":           {make: func() (reel.Annotation, error) { return NewCaption("x", CaptionPause(6*time.Minute)) }},
 		"long for":             {make: func() (reel.Annotation, error) { return NewCaption("x", CaptionFor(6*time.Minute)) }},
 		"nil anchor":           {make: func() (reel.Annotation, error) { return NewCallout(nil, "x") }},
-		"nil regexp anchor":    {make: func() (reel.Annotation, error) { return NewCallout(Regexp(nil), "x") }},
+		"nil regexp anchor":    {make: func() (reel.Annotation, error) { return NewCallout(region.Regexp(nil), "x") }},
 		"custom anchor":        {make: func() (reel.Annotation, error) { return NewCallout(customRegion{}, "x") }, unsupported: true},
-		"callout without text": {make: func() (reel.Annotation, error) { return NewCallout(Text("x"), "") }},
+		"callout without text": {make: func() (reel.Annotation, error) { return NewCallout(region.Text("x"), "") }},
 	} {
 		_, err := tc.make()
 		if err == nil {
@@ -65,7 +66,7 @@ func TestNewCaptionErrors(t *testing.T) {
 // it was made with.
 func TestCaptionRoundTrip(t *testing.T) {
 	t.Parallel()
-	a, err := NewCallout(Regexp(regexp.MustCompile(`v\d+`)), "Deploys\n\n  the build  ",
+	a, err := NewCallout(region.Regexp(regexp.MustCompile(`v\d+`)), "Deploys\n\n  the build  ",
 		CaptionPause(AutoPause), CaptionFor(2*time.Second),
 		CaptionUntil("done"), CaptionSide(SideRight), Spotlight())
 	if err != nil {
@@ -160,10 +161,10 @@ func TestCaptionEnds(t *testing.T) {
 	tl := buildTimeline(t, 40, 8, "",
 		output(0, "$ ./demo"),
 		note(100, must(NewCaption("one"))),
-		note(200, must(NewCallout(Text("demo"), "c1", CaptionFor(300*ms)))),
+		note(200, must(NewCallout(region.Text("demo"), "c1", CaptionFor(300*ms)))),
 		note(400, must(NewCaption("two"))),
 		mark(600, "m"),
-		note(700, must(NewCallout(Text("demo"), "c2", CaptionUntil("m2")))),
+		note(700, must(NewCallout(region.Text("demo"), "c2", CaptionUntil("m2")))),
 		mark(800, "m2"),
 		note(900, EndCaption()),
 		note(1000, must(NewCaption("pause only", CaptionFor(0)))),
@@ -232,7 +233,7 @@ func TestCaptionsPauses(t *testing.T) {
 		note(100, must(NewCaption("own pause", CaptionPause(500*ms)))),
 		note(200, must(NewCaption("no pause", CaptionPause(0)))),
 		note(300, must(NewCaption("default pause"))),
-		note(400, must(NewCallout(Text("demo"), "read this", CaptionPause(AutoPause)))),
+		note(400, must(NewCallout(region.Text("demo"), "read this", CaptionPause(AutoPause)))),
 		mark(500, "hide"),
 		note(600, must(NewCaption("hidden", CaptionPause(time.Second)))),
 		mark(700, "show"),
@@ -408,7 +409,7 @@ func TestCaptionsPauseShowsOthers(t *testing.T) {
 			evs = append(evs, note(400, must(NewCaption("brief", CaptionSide(SideTop), CaptionFor(122*ms)))))
 		}
 		return append(evs,
-			note(520, must(NewCallout(Text("demo"), "look", CaptionPause(time.Second)))),
+			note(520, must(NewCallout(region.Text("demo"), "look", CaptionPause(time.Second)))),
 			output(523, "\r\nafter"),
 			mark(900, "end"),
 		)
@@ -501,10 +502,10 @@ func TestCaptionsCallout(t *testing.T) {
 	t.Parallel()
 	tl := buildTimeline(t, 40, 10, "",
 		output(0, "$ ./deploy --env prod\r\nbuilding... done\r\n\x1b[10;34Hv1.2.3"),
-		note(100, must(NewCallout(Text("$"), "The prompt", CaptionPause(100*ms)))),
-		note(200, must(NewCallout(Text("v1.2.3"), "The version this deploy ships", CaptionPause(100*ms)))),
-		note(300, must(NewCallout(Text("building"), "Asked to the right", CaptionSide(SideRight), CaptionPause(100*ms)))),
-		note(400, must(NewCallout(Text("nowhere"), "No anchor, so a caption", CaptionPause(100*ms)))),
+		note(100, must(NewCallout(region.Text("$"), "The prompt", CaptionPause(100*ms)))),
+		note(200, must(NewCallout(region.Text("v1.2.3"), "The version this deploy ships", CaptionPause(100*ms)))),
+		note(300, must(NewCallout(region.Text("building"), "Asked to the right", CaptionSide(SideRight), CaptionPause(100*ms)))),
+		note(400, must(NewCallout(region.Text("nowhere"), "No anchor, so a caption", CaptionPause(100*ms)))),
 		mark(600, "end"),
 	)
 	out := captionFrames(t, tl, Captions())
@@ -521,7 +522,7 @@ func TestCaptionsSpotlight(t *testing.T) {
 	t.Parallel()
 	tl := buildTimeline(t, 40, 8, "",
 		output(0, "$ make deploy\r\nstep 1/3: build\r\nstep 2/3: test\r\nstep 3/3: ship"),
-		note(100, must(NewCallout(Text("step 2/3: test"), "Tests run before anything ships",
+		note(100, must(NewCallout(region.Text("step 2/3: test"), "Tests run before anything ships",
 			Spotlight(), CaptionPause(100*ms), CaptionFor(200*ms)))),
 		output(250, "\r\n$ "),
 		mark(500, "end"),

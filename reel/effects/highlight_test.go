@@ -16,6 +16,7 @@ import (
 
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/internal/testutil"
+	"getsteep.dev/steep/reel/region"
 )
 
 // highlightRast is the fake rasterizer of the highlight tests, with cells
@@ -78,7 +79,7 @@ func (e effectFunc) Start(*reel.Context) (reel.Stage, error) { return reel.Stage
 func TestHighlightCells(t *testing.T) {
 	t.Parallel()
 	tl := buildTimeline(t, 8, 3, "", output(0, "ab cd\r\nefgh"), output(100, "\r\nxyz"))
-	in, out := highlightFrames(t, tl, Highlight(Cells(image.Rect(1, 0, 4, 2)), Outline(red, 1)))
+	in, out := highlightFrames(t, tl, Highlight(region.Cells(image.Rect(1, 0, 4, 2)), Outline(red, 1)))
 	want := []frameInfo{{0, 100 * ms, true, false}, {100 * ms, 10 * ms, true, false}}
 	if got := infoOf(out); !slices.Equal(got, want) {
 		t.Fatalf("frames %+v, want %+v", got, want)
@@ -100,7 +101,7 @@ func TestHighlightTextMoves(t *testing.T) {
 		output(200, "\x1b[2J\x1b[Hnothing"),
 		output(300, "\x1b[3;1Hkey keys"),
 	)
-	in, out := highlightFrames(t, tl, Highlight(Text("key"), DimOthers(0.75), Outline(red, 1)))
+	in, out := highlightFrames(t, tl, Highlight(region.Text("key"), DimOthers(0.75), Outline(red, 1)))
 	if len(out) != 4 || len(in) != 4 {
 		t.Fatalf("%d frames in and %d out, want 4", len(in), len(out))
 	}
@@ -121,7 +122,7 @@ func TestHighlightBetween(t *testing.T) {
 		mark(140, "off"),
 		output(300, " ef"),
 	)
-	_, out := highlightFrames(t, tl, Highlight(Row(0), Between("on", "off"), Ease(20*ms)))
+	_, out := highlightFrames(t, tl, Highlight(region.Row(0), Between("on", "off"), Ease(20*ms)))
 	// The window is from 60ms to 140ms, with 20ms of easing on either
 	// side: steps whose middle is from 45ms to 55ms ease in, and 145ms to
 	// 155ms ease out.
@@ -164,7 +165,7 @@ func TestHighlightCard(t *testing.T) {
 	t.Parallel()
 	tl := buildTimeline(t, 6, 2, "", output(0, "abc"))
 	var cards []reel.Frame
-	_, out := highlightFrames(t, tl, cardEffect{}, recordFrames{&cards, 2}, Highlight(Rows(0, 2), Outline(nil, 0)))
+	_, out := highlightFrames(t, tl, cardEffect{}, recordFrames{&cards, 2}, Highlight(region.Rows(0, 2), Outline(nil, 0)))
 	if len(out) != 2 || out[0].Cells != nil || out[0].Image != cards[0].Image || !out[0].Isolated || out[0].Delay != 50*ms {
 		t.Fatalf("frames %+v, want the card untouched and the terminal frame", infoOf(out))
 	}
@@ -181,12 +182,12 @@ func TestHighlightErrors(t *testing.T) {
 		is     error
 	}{
 		{"nil region", Highlight(nil), nil},
-		{"dim below 0", Highlight(Row(0), DimOthers(-0.1)), nil},
-		{"dim above 1", Highlight(Row(0), DimOthers(1.5)), nil},
-		{"dim NaN", Highlight(Row(0), DimOthers(math.NaN())), nil},
-		{"outline width", Highlight(Row(0), Outline(red, -1)), nil},
-		{"padding", Highlight(Row(0), Padding(-1)), nil},
-		{"ease", Highlight(Row(0), Ease(-ms)), nil},
+		{"dim below 0", Highlight(region.Row(0), DimOthers(-0.1)), nil},
+		{"dim above 1", Highlight(region.Row(0), DimOthers(1.5)), nil},
+		{"dim NaN", Highlight(region.Row(0), DimOthers(math.NaN())), nil},
+		{"outline width", Highlight(region.Row(0), Outline(red, -1)), nil},
+		{"padding", Highlight(region.Row(0), Padding(-1)), nil},
+		{"ease", Highlight(region.Row(0), Ease(-ms)), nil},
 	} {
 		st, err := tc.effect.Start(ctx)
 		if err == nil || st != nil || (tc.is != nil && !errors.Is(err, tc.is)) {
@@ -195,8 +196,8 @@ func TestHighlightErrors(t *testing.T) {
 	}
 	// Neither dimming nor outlining is no stage.
 	for _, e := range []reel.Effect{
-		Highlight(Row(0), DimOthers(0)),
-		Highlight(Row(0), DimOthers(0), Outline(color.Transparent, 2)),
+		Highlight(region.Row(0), DimOthers(0)),
+		Highlight(region.Row(0), DimOthers(0), Outline(color.Transparent, 2)),
 	} {
 		if st, err := e.Start(ctx); st != nil || err != nil {
 			t.Errorf("Start = %v, %v, want no stage", st != nil, err)
@@ -209,7 +210,7 @@ func TestHighlightErrors(t *testing.T) {
 func TestHighlightOutlineOnly(t *testing.T) {
 	t.Parallel()
 	tl := buildTimeline(t, 6, 2, "", output(0, "abc"))
-	in, out := highlightFrames(t, tl, Highlight(Text("b"), DimOthers(0), Outline(red, 1), Padding(0)))
+	in, out := highlightFrames(t, tl, Highlight(region.Text("b"), DimOthers(0), Outline(red, 1), Padding(0)))
 	if len(out) != 1 || out[0].Isolated || out[0].Image == in[0].Image {
 		t.Fatalf("frames %+v, want one outlined frame on the shared palette", infoOf(out))
 	}
@@ -249,7 +250,7 @@ func TestHighlightPadding(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			opts := append([]HighlightOption{DimOthers(1)}, tc.opts...)
-			in, out := highlightFrames(t, tl, Highlight(Text("b"), opts...))
+			in, out := highlightFrames(t, tl, Highlight(region.Text("b"), opts...))
 			if len(out) != 1 {
 				t.Fatalf("%d frames, want 1", len(out))
 			}

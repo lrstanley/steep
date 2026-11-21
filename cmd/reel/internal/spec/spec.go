@@ -9,8 +9,9 @@
 //
 // A REGION is one of:
 //
-//	row=Y            a row, from 0
-//	rows=Y0-Y1       rows Y0 to Y1, inclusive
+//	row=Y            a row, from 0, or from -1 at the bottom
+//	rows=Y0-Y1       rows Y0 up to Y1, as in row; after a negative Y0,
+//	                 a Y1 of 0 is the bottom, so rows=-2-0 is the last two
 //	cells=X0,Y0,X1,Y1 a rectangle of cells, X1 and Y1 exclusive
 //	text=TEXT        each occurrence of TEXT
 //	re=PATTERN       each match of a regular expression
@@ -50,10 +51,11 @@ import (
 	"getsteep.dev/steep/cmd/reel/internal/themes"
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/region"
 )
 
 // Kinds are the effects [Effect] parses, by name.
-var Kinds = map[string]func(region effects.Region, opts map[string]string) (reel.Effect, error){
+var Kinds = map[string]func(region region.Region, opts map[string]string) (reel.Effect, error){
 	"highlight": highlight,
 	"zoom":      zoom,
 	"redact":    redact,
@@ -81,8 +83,12 @@ func Effect(kind, spec string) (reel.Effect, error) {
 	return e, nil
 }
 
+// rowsSpec is the value of a rows REGION: two rows, either of which may be
+// signed, separated by "-".
+var rowsSpec = regexp.MustCompile(`^\s*([+-]?\d+)\s*-\s*([+-]?\d+)\s*$`)
+
 // Region parses a REGION.
-func Region(s string) (effects.Region, error) {
+func Region(s string) (region.Region, error) {
 	kind, v, ok := strings.Cut(s, "=")
 	if !ok || v == "" {
 		return nil, fmt.Errorf("region %q is not KIND=VALUE", s)
@@ -93,29 +99,37 @@ func Region(s string) (effects.Region, error) {
 		if err != nil {
 			return nil, fmt.Errorf("row %q: %w", v, err)
 		}
-		return effects.Row(y), nil
+		return region.Row(y), nil
 	case "rows":
-		ys, err := ints(v, "-", 2)
+		m := rowsSpec.FindStringSubmatch(v)
+		if m == nil {
+			return nil, fmt.Errorf("rows %q: want 2 numbers separated by %q", v, "-")
+		}
+		y0, err := strconv.Atoi(m[1])
 		if err != nil {
 			return nil, fmt.Errorf("rows %q: %w", v, err)
 		}
-		return effects.Rows(ys[0], ys[1]), nil
+		y1, err := strconv.Atoi(m[2])
+		if err != nil {
+			return nil, fmt.Errorf("rows %q: %w", v, err)
+		}
+		return region.Rows(y0, y1), nil
 	case "cells":
 		n, err := ints(v, ",", 4)
 		if err != nil {
 			return nil, fmt.Errorf("cells %q: %w", v, err)
 		}
-		return effects.Cells(image.Rect(n[0], n[1], n[2], n[3])), nil
+		return region.Cells(image.Rect(n[0], n[1], n[2], n[3])), nil
 	case "text":
-		return effects.Text(v), nil
+		return region.Text(v), nil
 	case "re":
 		re, err := regexp.Compile(v)
 		if err != nil {
 			return nil, err
 		}
-		return effects.Regexp(re), nil
+		return region.Regexp(re), nil
 	case "env":
-		return effects.Env(v), nil
+		return region.Env(v), nil
 	}
 	return nil, fmt.Errorf("unknown region %q, want row, rows, cells, text, re, or env", kind)
 }
@@ -203,7 +217,7 @@ func Caption(s string) ([]effects.CaptionOption, error) {
 
 // Callout reads REGION[;OPTION]..., the anchor of a callout and its
 // options (see the package documentation).
-func Callout(s string) (effects.Region, []effects.CaptionOption, error) {
+func Callout(s string) (region.Region, []effects.CaptionOption, error) {
 	regionSpec, rest, _ := strings.Cut(s, ";")
 	region, err := Region(regionSpec)
 	if err != nil {
@@ -288,7 +302,7 @@ func ease(v string) (effects.Timing, error) {
 	return effects.Ease(d), nil
 }
 
-func highlight(region effects.Region, opts map[string]string) (reel.Effect, error) {
+func highlight(r region.Region, opts map[string]string) (reel.Effect, error) {
 	o, err := options(opts, map[string]func(string) (effects.HighlightOption, error){
 		optBetween: func(v string) (effects.HighlightOption, error) { return between(v) },
 		"ease":     func(v string) (effects.HighlightOption, error) { return ease(v) },
@@ -318,10 +332,10 @@ func highlight(region effects.Region, opts map[string]string) (reel.Effect, erro
 	if err != nil {
 		return nil, err
 	}
-	return effects.Highlight(region, o...), nil
+	return effects.Highlight(r, o...), nil
 }
 
-func zoom(region effects.Region, opts map[string]string) (reel.Effect, error) {
+func zoom(r region.Region, opts map[string]string) (reel.Effect, error) {
 	o, err := options(opts, map[string]func(string) (effects.ZoomOption, error){
 		optBetween: func(v string) (effects.ZoomOption, error) { return between(v) },
 		"ease":     func(v string) (effects.ZoomOption, error) { return ease(v) },
@@ -340,10 +354,10 @@ func zoom(region effects.Region, opts map[string]string) (reel.Effect, error) {
 	if err != nil {
 		return nil, err
 	}
-	return effects.Zoom(region, o...), nil
+	return effects.Zoom(r, o...), nil
 }
 
-func redact(region effects.Region, opts map[string]string) (reel.Effect, error) {
+func redact(r region.Region, opts map[string]string) (reel.Effect, error) {
 	o, err := options(opts, map[string]func(string) (effects.RedactOption, error){
 		optBetween: func(v string) (effects.RedactOption, error) { return between(v) },
 		"style": func(v string) (effects.RedactOption, error) {
@@ -361,5 +375,5 @@ func redact(region effects.Region, opts map[string]string) (reel.Effect, error) 
 	if err != nil {
 		return nil, err
 	}
-	return effects.Redact(region, o...), nil
+	return effects.Redact(r, o...), nil
 }

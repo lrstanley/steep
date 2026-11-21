@@ -23,7 +23,7 @@ if err := s.Annotate(a); err != nil {
 }
 
 // Later: a callout pointing at the first cells that show "PASS".
-a, err = effects.NewCallout(effects.Text("PASS"), "Every test passed", effects.Spotlight())
+a, err = effects.NewCallout(region.Text("PASS"), "Every test passed", effects.Spotlight())
 ```
 
 The anchor of a callout is one of the package's [regions](/reel/effects#regions). A region of your own, or `Any` of one, has no description to save in the timeline, so it's an error wrapping `errors.ErrUnsupported`.

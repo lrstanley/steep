@@ -17,6 +17,7 @@ import (
 	"getsteep.dev/steep/cmd/reel/internal/spec"
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/sink"
 	"getsteep.dev/steep/reel/sink/native"
 )
@@ -121,14 +122,14 @@ func (e EffectFlags) effects() ([]reel.Effect, error) {
 		if os.Getenv(name) == "" {
 			warnf("--redact-env %s: the variable is empty or unset, so there is nothing to redact", name)
 		}
-		fx = append(fx, effects.Redact(effects.Env(name)))
+		fx = append(fx, effects.Redact(region.Env(name)))
 	}
 	for _, pattern := range e.RedactRegexp {
 		re, err := regexp.Compile(pattern)
 		if err != nil {
 			return nil, fmt.Errorf("--redact-regexp: %w", err)
 		}
-		fx = append(fx, effects.Redact(effects.Regexp(re)))
+		fx = append(fx, effects.Redact(region.Regexp(re)))
 	}
 	return fx, nil
 }

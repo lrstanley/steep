@@ -22,6 +22,7 @@ import (
 
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/render"
 	"github.com/lrstanley/clix/v2"
 )
@@ -117,8 +118,8 @@ func profile(dir string) reel.Profile {
 		Render:  []render.Option{render.WithWindowChrome(true), render.WithPadding(14)},
 		Effects: []reel.Effect{
 			// Before every other effect, so none of them sees the token.
-			effects.Redact(effects.Env(tokenEnv), effects.Replace('•')),
-			effects.RedactInputs(effects.Env(tokenEnv)),
+			effects.Redact(region.Env(tokenEnv), effects.Replace('•')),
+			effects.RedactInputs(region.Env(tokenEnv)),
 			effects.Keys(time.Second),
 			effects.Pause(),
 		},

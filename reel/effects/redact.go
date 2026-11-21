@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/render"
 	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
@@ -70,17 +71,18 @@ func Replace(c rune) RedactOption {
 	return redactOption(func(r *redact) { r.mode, r.mask = redactReplace, c })
 }
 
-// Redact returns an effect that hides the cells of region, such as a
+// Redact returns an effect that hides the cells of r, such as a
 // secret, from every frame it passes on, with [Block], the default, [Blur],
 // or [Replace]. It redraws each frame from the edited cells and passes them
 // on in [reel.Frame.Cells], so the effects after it never see what it hid.
 //
-// [Text] and [Env] regions also hide a secret that only partly shows, such
-// as while it is typed (see [MinPartial]). They and [Regexp] regions also
-// hide their text in the terminal's title, program status (OSC 7501), and
-// desktop notifications, as a • for each character, and in
-// [reel.Context.Title], which effects after Redact, such as [Intro], read.
-// [Cells], [Row], and [Rows] regions hide cells only.
+// [region.Text] and [region.Env] regions also hide a secret that only
+// partly shows, such as while it is typed (see [MinPartial]). They and
+// [region.Regexp] regions also hide their text in the terminal's title,
+// program status (OSC 7501), and desktop notifications, as a • for each
+// character, and in [reel.Context.Title], which effects after Redact, such
+// as [Intro], read. [region.Cells], [region.Row], and [region.Rows] regions
+// hide cells only.
 //
 // Redact is a [reel.Concealer]. What the effects after it draw themselves,
 // such as a card of a caller's own, is not redacted. A still of
@@ -89,11 +91,11 @@ func Replace(c rune) RedactOption {
 //
 // Redact can only hide what it finds in the text as the program wrote it.
 // It does not match across lines a program lays out itself, by moving the
-// cursor (see [Text]), a middle part of a secret cut off on both sides, or
-// a secret spelled with characters that draw as nothing, such as zero-width
-// spaces. The first characters of a secret typed into a prompt show until
-// [MinPartial] of them are typed. Hide such cells with [Cells] or [Row]
-// where that matters.
+// cursor (see [region.Text]), a middle part of a secret cut off on both
+// sides, or a secret spelled with characters that draw as nothing, such as
+// zero-width spaces. The first characters of a secret typed into a prompt
+// show until [MinPartial] of them are typed. Hide such cells with
+// [region.Cells] or [region.Row] where that matters.
 //
 // [Between] limits Redact to a window of the timeline; every step of the
 // delay grid that shows any of the window is redacted whole. An export of a
@@ -102,18 +104,18 @@ func Replace(c rune) RedactOption {
 // to mark, it is redacted to the end. Notifications are scrubbed on every
 // frame, whatever the window, since a [Toasts] toast shows one after it
 // arrives. A nil region is an error from Start.
-func Redact(region Region, opts ...RedactOption) reel.Effect {
-	r := redact{region: region, matching: defaultMatching}
+func Redact(r region.Region, opts ...RedactOption) reel.Effect {
+	e := redact{region: r, matching: defaultMatching}
 	for _, opt := range opts {
 		if opt != nil {
-			opt.applyRedact(&r)
+			opt.applyRedact(&e)
 		}
 	}
-	return r
+	return e
 }
 
 type redact struct {
-	region Region
+	region region.Region
 	timing timing
 	matching
 	mode redactMode
@@ -246,7 +248,8 @@ func (s *redactStage) hide(f reel.Frame) (*reel.CellFrame, *image.NRGBA) {
 // generation, so no renderer takes it for the one it drew.
 func (s *redactStage) hideCells(cf *reel.CellFrame) (hidden *reel.CellFrame, covered []bool) {
 	sec := secretsOf(s.region, s.matching)
-	covered = coveredCells(cf, sec.rects(cf))
+	sec.cursor = cf.State.Cursor
+	covered = region.Covered(cf.Screen, sec)
 	st := cf.State
 	st.Title = sec.scrub(st.Title)
 	var scrubbed bool
@@ -304,7 +307,7 @@ func (s *redactStage) blur(img *image.NRGBA, scr *vt.Buffer, covered []bool) {
 		s.layout, s.size = s.rast.Layout(size.X, size.Y), size
 	}
 	radius := max(1, s.layout.Cell.Y/8)
-	for _, c := range cellRuns(covered, size.X, size.Y) {
+	for _, c := range region.Runs(covered, size.X, size.Y) {
 		r := s.layout.CellRect(c.Min.X, c.Min.Y).Union(s.layout.CellRect(c.Max.X-1, c.Max.Y-1))
 		blurNRGBA(img, r.Add(img.Rect.Min).Intersect(img.Rect), radius)
 	}

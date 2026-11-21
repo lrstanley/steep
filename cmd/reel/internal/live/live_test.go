@@ -122,6 +122,49 @@ func TestSession(t *testing.T) {
 	}
 }
 
+// TestSessionWaitIdleRegions checks idle waits on a screen whose last row
+// ticks, as a status bar's clock would.
+func TestSessionWaitIdleRegions(t *testing.T) {
+	dir, done := serve(t, time.Minute)
+	call(t, dir, Request{Op: OpWait, Wait: &Wait{Text: "$ ", Timeout: 5 * time.Second}})
+	call(t, dir, Request{Op: OpType, Text: `i=0; while :; do i=$((i+1)); printf '\0337\033[5;1Htick %d\0338' $i; sleep 0.02; done &` + "\r"})
+	call(t, dir, Request{Op: OpWait, Wait: &Wait{Text: "tick", Timeout: 5 * time.Second}})
+
+	wait := func(w Wait) (*Response, error) { return Call(t.Context(), dir, "sh", Request{Op: OpWait, Wait: &w}) }
+	var lerr *Error
+	if _, err := wait(Wait{Idle: 200 * time.Millisecond, Timeout: 500 * time.Millisecond}); !errors.As(err, &lerr) || lerr.Code != CodeTimeout {
+		t.Errorf("idle with a ticking row = %v, want a timeout", err)
+	}
+	for _, w := range []Wait{
+		{Ignore: []string{"row=-1"}},
+		{Ignore: []string{"re=tick \\d+"}},
+		{Only: []string{"rows=0-4"}},
+	} {
+		w.Idle, w.Timeout = 200*time.Millisecond, 5*time.Second
+		if resp, err := wait(w); err != nil || !strings.Contains(resp.Text, "tick") {
+			t.Errorf("idle %+v = %+v, %v, want the screen", w, resp, err)
+		}
+	}
+	if _, err := wait(Wait{Idle: 100 * time.Millisecond, Only: []string{"text=never"}, Timeout: 300 * time.Millisecond}); !errors.As(err, &lerr) || lerr.Code != CodeTimeout {
+		t.Errorf("idle on a region not on the screen = %v, want a timeout", err)
+	}
+	for _, w := range []Wait{
+		{Text: "$ ", Ignore: []string{"row=-1"}},
+		{Idle: time.Second, Only: []string{"pixel=1"}},
+		{Idle: time.Second, Ignore: []string{"re=("}},
+	} {
+		if _, err := wait(w); !errors.As(err, &lerr) || lerr.Code != CodeInvalid {
+			t.Errorf("wait %+v = %v, want invalid", w, err)
+		}
+	}
+
+	call(t, dir, Request{Op: OpType, Text: "kill $!\r"})
+	call(t, dir, Request{Op: OpStop})
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestResponseText checks that a blank screen's response still has "text",
 // so its JSON has the same keys as any other.
 func TestResponseText(t *testing.T) {

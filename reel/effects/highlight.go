@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/region"
 )
 
 // highlightDim is the default of [DimOthers].
@@ -64,15 +65,15 @@ func Padding(px int) HighlightOption {
 	return highlightOption(func(h *highlight) { h.pad, h.padSet = px, true })
 }
 
-// Highlight returns an effect that draws attention to the cells of region:
+// Highlight returns an effect that draws attention to the cells of r:
 // it darkens all of the frame but the region and its [Padding] (see
-// [DimOthers]), and can draw an [Outline] around them. The region is matched
-// on each terminal frame, so a [Text] region follows its text. It takes the
-// [Timing] options and works with any [reel.Rasterizer].
+// [DimOthers]), and can draw an [Outline] around them. The region is
+// matched on each terminal frame, so a [region.Text] region follows its
+// text. It takes the [Timing] options and works with any [reel.Rasterizer].
 //
 // A nil region is an error from Start.
-func Highlight(region Region, opts ...HighlightOption) reel.Effect {
-	h := highlight{region: region, dim: highlightDim}
+func Highlight(r region.Region, opts ...HighlightOption) reel.Effect {
+	h := highlight{region: r, dim: highlightDim}
 	for _, opt := range opts {
 		if opt != nil {
 			opt.applyHighlight(&h)
@@ -82,7 +83,7 @@ func Highlight(region Region, opts ...HighlightOption) reel.Effect {
 }
 
 type highlight struct {
-	region    Region
+	region    region.Region
 	timing    timing
 	dim       float64
 	outline   color.NRGBA

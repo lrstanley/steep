@@ -7,12 +7,15 @@ package reel
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"regexp"
 	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"getsteep.dev/steep/reel/region"
 )
 
 func TestConditions(t *testing.T) {
@@ -167,6 +170,128 @@ func TestSessionWaitSettle(t *testing.T) {
 			t.Fatalf("WaitSettle = %v, want a settle WaitError", err)
 		}
 	})
+}
+
+// tickClock writes a clock that ticks every 10ms to row 3 of s, as a status
+// bar of "updated Ns ago" would, until the returned stop is called, which
+// waits for it to. It goes from 9s to 10s on its third tick, so the text
+// grows.
+func tickClock(s *Session) (stop func()) {
+	done, stopped := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(stopped)
+		for i := 8; ; i++ {
+			select {
+			case <-done:
+				return
+			case <-time.After(10 * time.Millisecond):
+				_, _ = fmt.Fprintf(s, "\x1b[3;1Hupdated %ds ago", i)
+			}
+		}
+	}()
+	return func() {
+		close(done)
+		<-stopped
+	}
+}
+
+func TestSessionWaitSettleRegions(t *testing.T) {
+	t.Parallel()
+	const quiet = 30 * time.Millisecond
+	// Each case's writes are 20ms apart, from the call, while the clock
+	// ticks past them.
+	moves := []string{"\x1b[1;1Hdone", "\x1b[1;1H\x1b[2K     done"}
+	content := []string{"\x1b[1;1Hone", "\x1b[1;1Htwo", "\x1b[2;1Hdone"}
+	for _, tc := range []struct {
+		name   string
+		writes []string
+		opts   []SettleOption
+		// want is when it settles, or 0 for a wait that ends with its
+		// context, with a WaitError of wait.
+		want time.Duration
+		wait string
+	}{
+		{name: "clock never settles", writes: content, wait: "settle"},
+		{name: "ignore the clock's row", writes: content, opts: []SettleOption{SettleIgnore(region.Row(-1))}, want: 60*time.Millisecond + quiet},
+		{name: "ignore the clock's text", writes: content, opts: []SettleOption{SettleIgnore(region.Regexp(regexp.MustCompile(`updated \d+s ago`)))}, want: 60*time.Millisecond + quiet},
+		{name: "ignore what covers nothing", writes: content, opts: []SettleOption{SettleIgnore(region.Text("nowhere"), nil)}, wait: "settle"},
+		{name: "only a row", writes: content, opts: []SettleOption{SettleOnly(region.Row(0))}, want: 40*time.Millisecond + quiet},
+		{name: "only rows, ignoring some", writes: content, opts: []SettleOption{SettleOnly(region.Rows(0, 2)), SettleIgnore(region.Text("done"))}, want: 40*time.Millisecond + quiet},
+		{name: "options add up", writes: content, opts: []SettleOption{SettleIgnore(region.Row(1)), SettleIgnore(region.Row(2))}, want: 40*time.Millisecond + quiet},
+		// The quiet time starts when the text shows.
+		{name: "only text, once it shows", writes: content, opts: []SettleOption{SettleOnly(region.Text("done"))}, want: 60*time.Millisecond + quiet},
+		// A watched region that moves has changed.
+		{name: "only text that moves", writes: moves, opts: []SettleOption{SettleOnly(region.Text("done"))}, want: 40*time.Millisecond + quiet},
+		{name: "only text that never shows", writes: content, opts: []SettleOption{SettleOnly(region.Text("never"))}, wait: "settle, with the regions it watches not on the screen"},
+		// SettleOnly of nothing watches everything.
+		{name: "only no regions", writes: content, opts: []SettleOption{SettleOnly(), SettleOnly(nil)}, wait: "settle"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				s := openTest(t, 20, 3)
+				ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+				defer cancel()
+				start := time.Now()
+				defer tickClock(s)()
+				writeLater(t, s, 20*time.Millisecond, tc.writes...)
+				got, err := s.WaitSettle(ctx, quiet, tc.opts...)
+				elapsed := time.Since(start)
+				if tc.want == 0 {
+					var werr *WaitError
+					if !errors.As(err, &werr) || werr.Wait != tc.wait {
+						t.Fatalf("WaitSettle = %q, %v, want a WaitError for %q", got, err, tc.wait)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if elapsed != tc.want {
+					t.Fatalf("settled after %s, want %s", elapsed, tc.want)
+				}
+				if !strings.Contains(got, "done") || !strings.Contains(got, "updated") {
+					t.Fatalf("settled on %q, want the whole screen", got)
+				}
+			})
+		})
+	}
+}
+
+// TestSessionWaitSettleResize checks that a resize changes a settle on
+// part of the screen only when it changes the part watched.
+func TestSessionWaitSettleResize(t *testing.T) {
+	t.Parallel()
+	const quiet = 30 * time.Millisecond
+	for _, tc := range []struct {
+		name string
+		opts []SettleOption
+		want time.Duration
+	}{
+		// Rows added below the watched row leave it as it was.
+		{"only a row it leaves", []SettleOption{SettleOnly(region.Row(0))}, quiet},
+		// Without SettleOnly, the new rows are watched, so they changed.
+		{"the whole screen", []SettleOption{SettleIgnore(region.Text("nowhere"))}, 20*time.Millisecond + quiet},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				s := openTest(t, 10, 2)
+				write(t, s, "top")
+				start := time.Now()
+				go func() {
+					time.Sleep(20 * time.Millisecond)
+					_ = s.Resize(10, 4)
+				}()
+				if _, err := s.WaitSettle(t.Context(), quiet, tc.opts...); err != nil {
+					t.Fatal(err)
+				}
+				if elapsed := time.Since(start); elapsed != tc.want {
+					t.Fatalf("settled after %s, want %s", elapsed, tc.want)
+				}
+			})
+		})
+	}
 }
 
 func TestSessionWaitIdle(t *testing.T) {

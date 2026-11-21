@@ -21,6 +21,7 @@ import (
 
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/internal/testutil"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -44,7 +45,7 @@ func describeTimeline(t *testing.T) *reel.Timeline {
 // customRegion is a region of a caller's own, which has no description.
 type customRegion struct{}
 
-func (customRegion) Rects(*reel.CellFrame) []image.Rectangle { return nil }
+func (customRegion) Rects(*vt.Buffer) []image.Rectangle { return nil }
 
 // describe returns the description of e, which must be a [reel.Describer].
 func describeEffect(t *testing.T, e reel.Effect) (reel.Annotation, error) {
@@ -142,12 +143,12 @@ func TestDescribeRoundTrip(t *testing.T) {
 		},
 		{
 			name:   "highlight default",
-			effect: Highlight(Text("hunter2")),
+			effect: Highlight(region.Text("hunter2")),
 			want:   `{"effect":"highlight","region":{"type":"text","text":"hunter2"}}`,
 		},
 		{
 			name: "highlight full",
-			effect: Highlight(Cells(image.Rect(5, 2, 1, 0)),
+			effect: Highlight(region.Cells(image.Rect(5, 2, 1, 0)),
 				DimOthers(0.25), Outline(color.NRGBA{R: 0xff, A: 0xc8}, 3), Padding(2), Between("a", "b"), Ease(100*ms)),
 			want: `{"effect":"highlight","region":{"type":"cells","x0":1,"y0":0,"x1":5,"y1":2},` +
 				`"timing":{"between":{"from":"a","to":"b"},"ease_in_ms":100,"ease_out_ms":100},` +
@@ -155,25 +156,25 @@ func TestDescribeRoundTrip(t *testing.T) {
 		},
 		{
 			name:   "highlight default outline",
-			effect: Highlight(Row(1), Outline(nil, 0), Padding(0), DimOthers(0), EaseIn(50*ms), EaseOut(70*ms)),
+			effect: Highlight(region.Row(1), Outline(nil, 0), Padding(0), DimOthers(0), EaseIn(50*ms), EaseOut(70*ms)),
 			want: `{"effect":"highlight","region":{"type":"rows","from":1,"to":2},` +
 				`"timing":{"ease_in_ms":50,"ease_out_ms":70},"dim":0,"outline":{},"padding_px":0}`,
 		},
-		{name: "zoom default", effect: Zoom(Rows(2, 0)), want: `{"effect":"zoom","region":{"type":"rows","from":0,"to":2}}`},
+		{name: "zoom default", effect: Zoom(region.Rows(2, 0)), want: `{"effect":"zoom","region":{"type":"rows","from":0,"to":2}}`},
 		{
 			name:   "zoom full",
-			effect: Zoom(Regexp(re), Scale(2), Anchor(0, 1), Between("", "b")),
+			effect: Zoom(region.Regexp(re), Scale(2), Anchor(0, 1), Between("", "b")),
 			want: `{"effect":"zoom","region":{"type":"regexp","pattern":"hun\\w+"},` +
 				`"timing":{"between":{"to":"b"}},"scale":2,"anchor":{"x":0,"y":1}}`,
 		},
 		{
 			name:   "highlight env",
-			effect: Highlight(Env("REEL_TEST_SECRET"), Between("a", "")),
+			effect: Highlight(region.Env("REEL_TEST_SECRET"), Between("a", "")),
 			want:   `{"effect":"highlight","region":{"type":"env","names":["REEL_TEST_SECRET"]},"timing":{"between":{"from":"a"}}}`,
 		},
 		{
 			name:   "highlight any",
-			effect: Highlight(Any(Text("hunter2"), Regexp(re), Cells(image.Rect(0, 3, 2, 4)), Row(2), Env("REEL_TEST_SECRET", "REEL_UNSET"))),
+			effect: Highlight(region.Any(region.Text("hunter2"), region.Regexp(re), region.Cells(image.Rect(0, 3, 2, 4)), region.Row(2), region.Env("REEL_TEST_SECRET", "REEL_UNSET"))),
 			after:  []reel.Effect{keys},
 			want: `{"effect":"highlight","region":{"type":"any","regions":[` +
 				`{"type":"text","text":"hunter2"},{"type":"regexp","pattern":"hun\\w+"},` +
@@ -182,7 +183,7 @@ func TestDescribeRoundTrip(t *testing.T) {
 		},
 		{
 			name:   "zoom env without names",
-			effect: Zoom(Env()),
+			effect: Zoom(region.Env()),
 			want:   `{"effect":"zoom","region":{"type":"env","names":[]}}`,
 		},
 	} {
@@ -262,7 +263,7 @@ func TestDescribeUnsupported(t *testing.T) {
 	t.Parallel()
 	for name, e := range map[string]reel.Effect{
 		"highlight": Highlight(customRegion{}),
-		"zoom any":  Zoom(Any(Text("x"), customRegion{})),
+		"zoom any":  Zoom(region.Any(region.Text("x"), customRegion{})),
 	} {
 		if _, err := describeEffect(t, e); !errors.Is(err, errors.ErrUnsupported) {
 			t.Errorf("%s: Describe = %v, want ErrUnsupported", name, err)
@@ -274,9 +275,9 @@ func TestDescribeInvalid(t *testing.T) {
 	t.Parallel()
 	for name, e := range map[string]reel.Effect{
 		"nil region":       Highlight(nil),
-		"nil regexp":       Zoom(Regexp(nil)),
-		"dim":              Highlight(Text("x"), DimOthers(2)),
-		"negative ease":    Zoom(Text("x"), EaseIn(-10*ms)),
+		"nil regexp":       Zoom(region.Regexp(nil)),
+		"dim":              Highlight(region.Text("x"), DimOthers(2)),
+		"negative ease":    Zoom(region.Text("x"), EaseIn(-10*ms)),
 		"pause nil regexp": Pause(PauseAtMatch(ms, nil)),
 		"pause negative":   Pause(PauseAtMarks(-ms)),
 		"pause corner":     Pause(WithBadgeCorner(Corner(9))),
@@ -284,7 +285,7 @@ func TestDescribeInvalid(t *testing.T) {
 		"caption pause":    Captions(DefaultCaptionPause(-5 * ms)),
 		"badge size":       Pause(WithBadgeSize(4)),
 		"underline":        Intro(ms, Line{Text: "x", Style: vt.Style{Underline: 99}}),
-		"anchor":           Zoom(Text("x"), Anchor(2, 0)),
+		"anchor":           Zoom(region.Text("x"), Anchor(2, 0)),
 	} {
 		_, err := describeEffect(t, e)
 		if err == nil || errors.Is(err, errors.ErrUnsupported) {
@@ -379,9 +380,9 @@ func TestExportCastEffects(t *testing.T) {
 		dir := t.TempDir()
 		tl := describeTimeline(t)
 		effects := []reel.Effect{
-			Zoom(Text("hunter2"), Scale(2), Between("a", "b")),
+			Zoom(region.Text("hunter2"), Scale(2), Between("a", "b")),
 			Highlight(customRegion{}),
-			Highlight(Text("line"), Outline(nil, 2)),
+			Highlight(region.Text("line"), Outline(nil, 2)),
 			Pause(PauseAtMarks(100*ms, "b")),
 			Keys(500 * ms),
 			Toasts(WithToastDuration(500*ms), WithToastCorner(BottomRight), WithClipboardToasts()),
@@ -456,11 +457,11 @@ func TestCheckMarks(t *testing.T) {
 		effect reel.Effect
 		ok     bool
 	}{
-		"between":       {Zoom(Rows(0, 1), Between("b", "c")), true},
-		"to":            {Highlight(Rows(0, 1), Between("", "c")), true},
-		"no marks":      {Highlight(Rows(0, 1)), true},
-		"from outside":  {Zoom(Rows(0, 1), Between("a", "c")), false},
-		"to outside":    {Highlight(Rows(0, 1), Between("", "a")), false},
+		"between":       {Zoom(region.Rows(0, 1), Between("b", "c")), true},
+		"to":            {Highlight(region.Rows(0, 1), Between("", "c")), true},
+		"no marks":      {Highlight(region.Rows(0, 1)), true},
+		"from outside":  {Zoom(region.Rows(0, 1), Between("a", "c")), false},
+		"to outside":    {Highlight(region.Rows(0, 1), Between("", "a")), false},
 		"pause":         {Pause(PauseAtMarks(ms, "b", "c")), true},
 		"pause outside": {Pause(PauseAtMarks(ms, "c", "a")), false},
 		"pause match":   {Pause(PauseAtMatch(ms, regexp.MustCompile("a"))), true},

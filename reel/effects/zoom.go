@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/render"
 	"getsteep.dev/steep/reel/vt"
 )
@@ -62,7 +63,7 @@ func (o Timing) applyZoom(z *zoom) {
 	}
 }
 
-// Zoom returns an effect that zooms in on the cells of region: the
+// Zoom returns an effect that zooms in on the cells of r: the
 // terminal's grid shows the region larger (see [Scale]), placed by
 // [Anchor]. Everything around the grid, such as window chrome, is kept as
 // the frame has it, so the image keeps its size. It takes the [Timing]
@@ -80,8 +81,8 @@ func (o Timing) applyZoom(z *zoom) {
 //
 // Sharp zooms are drawn from the cells, over whatever effects before Zoom
 // drew. A nil region is an error from Start.
-func Zoom(region Region, opts ...ZoomOption) reel.Effect {
-	z := zoom{region: region, ax: 0.5, ay: 0.5}
+func Zoom(r region.Region, opts ...ZoomOption) reel.Effect {
+	z := zoom{region: r, ax: 0.5, ay: 0.5}
 	for _, opt := range opts {
 		if opt != nil {
 			opt.applyZoom(&z)
@@ -91,7 +92,7 @@ func Zoom(region Region, opts ...ZoomOption) reel.Effect {
 }
 
 type zoom struct {
-	region Region
+	region region.Region
 	timing timing
 	// scale is the zoom's scale when scaleSet, and the region is fit to
 	// the grid otherwise.

@@ -19,6 +19,7 @@ import (
 	"getsteep.dev/steep"
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/render"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -29,7 +30,8 @@ import (
 func record(t *testing.T) *reel.Timeline {
 	t.Helper()
 	opts := append(demo("tour", true), steep.WithSource(true), steep.WithRecordMessages(true))
-	// Time to follow along, only when recording, so the test stays quick otherwise.
+	// Time to follow along, only when recording, so the test stays quick
+	// otherwise.
 	var typing, hold time.Duration
 	if exporting() {
 		typing, hold = 80*time.Millisecond, 900*time.Millisecond
@@ -68,8 +70,8 @@ func TestTour(t *testing.T) {
 		return
 	}
 
-	secret := effects.Text(License)
-	row := effects.Regexp(regexp.MustCompile(` Oolong.*3m `))
+	secret := region.Text(License)
+	row := region.Regexp(regexp.MustCompile(` Oolong.*3m `))
 
 	// The gallery: the same recording, one change at a time.
 	gallery := map[string]reel.Profile{
@@ -101,7 +103,7 @@ func TestTour(t *testing.T) {
 			effects.Highlight(row, effects.Between("brew:start", "brew:done"), effects.DimOthers(0.6), effects.Ease(200*time.Millisecond)),
 		}},
 		"effect-zoom.webp": {Effects: []reel.Effect{
-			effects.Zoom(effects.Cells(image.Rect(1, 10, 38, 14)), effects.Between("brew:start", "brew:done"), effects.Ease(250*time.Millisecond)),
+			effects.Zoom(region.Cells(image.Rect(1, 10, 38, 14)), effects.Between("brew:start", "brew:done"), effects.Ease(250*time.Millisecond)),
 		}},
 		"effect-hide.webp": {Effects: []reel.Effect{
 			effects.Hide(effects.HideBetween("filter:start", "filter:done")),

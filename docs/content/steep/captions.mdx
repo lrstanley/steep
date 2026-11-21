@@ -28,7 +28,7 @@ It shows until the next caption, or until the recording ends. There's nothing to
 A callout points at the first cells a [region](/reel/effects#regions) matches when it starts, such as the cells that show some text:
 
 ```go
-h.Callout(effects.Text("/ filter"), "Press / to filter the menu").
+h.Callout(region.Text("/ filter"), "Press / to filter the menu").
 	Key("/").
 	Type("green")
 ```
@@ -43,7 +43,7 @@ A callout stays where it was placed. It doesn't follow the text if the text move
 
 ```go
 h.Locate(reel.Contains("Oolong")).LeftClick().
-	Callout(effects.Text("Oolong"), "Click a tea, then press enter to brew it", effects.Spotlight()).
+	Callout(region.Text("Oolong"), "Click a tea, then press enter to brew it", effects.Spotlight()).
 	Key("enter")
 ```
 
@@ -62,7 +62,7 @@ A caption and a callout can show at once, but only one of each. Each replaces th
 `EndCaption` and `EndCallout` end the one of their sort that shows, and do nothing when none does. They read well around the steps a callout is about:
 
 ```go
-h.Callout(effects.Text("Oolong"), "Brewing takes a while").
+h.Callout(region.Text("Oolong"), "Brewing takes a while").
 	Key("enter").
 	Wait("Oolong is ready").
 	EndCallout().
@@ -107,7 +107,7 @@ A caption goes at the top or bottom of the terminal, whichever covers less text,
 
 ```go
 h.Caption("Status", effects.CaptionSide(effects.SideTop))
-h.Callout(effects.Text("Oolong is ready"), "Ready to pour", effects.CaptionSide(effects.SideTop))
+h.Callout(region.Text("Oolong is ready"), "Ready to pour", effects.CaptionSide(effects.SideTop))
 ```
 
 A caption takes `SideTop` or `SideBottom`. A callout also takes `SideLeft` and `SideRight`, and moves to another side where it doesn't fit on the one asked for.
@@ -133,7 +133,7 @@ h := steep.NewHarness(t, NewModel(), steep.WithRecording(reel.Profile{
 }), steep.WithExportAlways())
 h.Wait("Sencha").
 	Caption("The Tea Shop lists teas to filter and brew").
-	Callout(effects.Text("/ filter"), "Press / to filter the menu").
+	Callout(region.Text("/ filter"), "Press / to filter the menu").
 	Key("/").
 	Type("green").
 	EndCallout().
@@ -142,13 +142,13 @@ h.Wait("Sencha").
 	WaitNot("Filter:").
 	EndCaption()
 h.Locate(reel.Contains("Oolong")).LeftClick().
-	Callout(effects.Text("Oolong"), "Click a tea, then press enter to brew it", effects.Spotlight()).
+	Callout(region.Text("Oolong"), "Click a tea, then press enter to brew it", effects.Spotlight()).
 	Key("enter").
 	Wait("█████").
 	EndCallout().
 	Caption("The status line shows how far along it is", effects.CaptionPause(0)).
 	Wait("Oolong is ready").
-	Callout(effects.Text("Oolong is ready"), "Ready to pour", effects.CaptionSide(effects.SideTop))
+	Callout(region.Text("Oolong is ready"), "Ready to pour", effects.CaptionSide(effects.SideTop))
 ```
 
 ## Also good to know

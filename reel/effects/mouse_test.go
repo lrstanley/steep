@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/vt"
 )
 
@@ -257,9 +258,10 @@ func TestMotion(t *testing.T) {
 	}
 }
 
-// TestPaintMask checks that paintMask blends exactly as [draw.DrawMask] does,
-// over pixels of every opacity, into a piece of a larger image, with masks
-// partly or wholly off the piece, and leaves the rest of the image alone.
+// TestPaintMask checks that paintMask blends exactly as [draw.DrawMask]
+// does, over pixels of every opacity, into a piece of a larger image, with
+// masks partly or wholly off the piece, and leaves the rest of the image
+// alone.
 func TestPaintMask(t *testing.T) {
 	t.Parallel()
 	rng := rand.New(rand.NewPCG(1, 2))
@@ -360,7 +362,7 @@ func TestMouseZoom(t *testing.T) {
 		mark(600, "out"),
 		output(2000, " "),
 	)
-	zoom := Zoom(Cells(image.Rect(7, 1, 13, 2)), Scale(2), Between("", "out"), EaseOut(150*ms))
+	zoom := Zoom(region.Cells(image.Rect(7, 1, 13, 2)), Scale(2), Between("", "out"), EaseOut(150*ms))
 	_, out := mouseFrames(t, tl, zoom, Mouse())
 	at := func(d time.Duration) reel.Frame {
 		i := slices.IndexFunc(out, func(f reel.Frame) bool { return f.At >= d })

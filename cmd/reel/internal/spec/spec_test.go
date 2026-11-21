@@ -10,6 +10,7 @@ import (
 
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/region"
 )
 
 func TestEffect(t *testing.T) {
@@ -25,7 +26,13 @@ func TestEffect(t *testing.T) {
 		{kind: "redact", spec: "text=x;style=block"},
 		{kind: "blur", spec: "row=1", err: `unknown effect "blur"`},
 		{kind: "zoom", spec: "row", err: `region "row" is not KIND=VALUE`},
+		{kind: "highlight", spec: "row=-1"},
+		{kind: "highlight", spec: "rows=-2-0"},
+		{kind: "highlight", spec: "rows=1--1"},
 		{kind: "zoom", spec: "rows=1", err: "want 2 numbers"},
+		{kind: "zoom", spec: "rows=1-2-3", err: "want 2 numbers"},
+		{kind: "zoom", spec: "rows=a-b", err: "want 2 numbers"},
+		{kind: "zoom", spec: "rows=1-99999999999999999999", err: "out of range"},
 		{kind: "zoom", spec: "cells=1,2,3", err: "want 4 numbers"},
 		{kind: "zoom", spec: "re=(", err: "missing closing )"},
 		{kind: "zoom", spec: "pixel=1", err: `unknown region "pixel"`},
@@ -104,5 +111,26 @@ func TestCaption(t *testing.T) {
 	}
 	if _, _, err = Callout("Save"); err == nil {
 		t.Error("Callout without a region: no error")
+	}
+}
+
+func TestRegionRows(t *testing.T) {
+	t.Parallel()
+	for spec, want := range map[string]string{
+		"row=-1":     `{"type":"rows","from":-1,"to":0}`,
+		"rows=2-4":   `{"type":"rows","from":2,"to":4}`,
+		"rows=-2-0":  `{"type":"rows","from":-2,"to":0}`,
+		"rows=1--1":  `{"type":"rows","from":1,"to":-1}`,
+		"rows=-3--1": `{"type":"rows","from":-3,"to":-1}`,
+		"rows=+1-+3": `{"type":"rows","from":1,"to":3}`,
+	} {
+		r, err := Region(spec)
+		if err != nil {
+			t.Fatalf("Region(%q): %v", spec, err)
+		}
+		got, err := region.Marshal(r)
+		if err != nil || string(got) != want {
+			t.Errorf("Region(%q) = %s, %v, want %s", spec, got, err, want)
+		}
 	}
 }

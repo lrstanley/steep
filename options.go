@@ -17,6 +17,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/render"
 	"github.com/charmbracelet/colorprofile"
 )
@@ -31,8 +32,9 @@ const (
 	DefaultTimeout = 2 * time.Second
 	// DefaultCheckInterval is the default [WithCheck] interval.
 	DefaultCheckInterval = 10 * time.Millisecond
-	// DefaultSettleTimeout is the default settle timeout used by [Harness] settle
-	// waits. Settle timeouts are capped at 80% of the [WithTimeout] timeout.
+	// DefaultSettleTimeout is the default settle timeout used by [Harness]
+	// settle waits. Settle timeouts are capped at 80% of the [WithTimeout]
+	// timeout.
 	DefaultSettleTimeout = 100 * time.Millisecond
 )
 
@@ -45,6 +47,8 @@ type options struct {
 
 	settleTimeout time.Duration
 	settleIgnore  []reflect.Type
+	// settleScreen is the [WithSettleIgnore] and [WithSettleOnly] regions.
+	settleScreen []reel.SettleOption
 
 	// scrollOnInput is [WithScrollOnInput].
 	scrollOnInput bool
@@ -201,7 +205,8 @@ func WithProgramOptions(opts ...tea.ProgramOption) Option {
 // settle, mutation) may run before failing the test. Defaults to
 // [DefaultTimeout].
 //
-// Environment: STEEP_TIMEOUT (overrides this option unless [WithIgnoreEnv] is set).
+// Environment: STEEP_TIMEOUT (overrides this option unless [WithIgnoreEnv]
+// is set).
 func WithTimeout(timeout time.Duration) Option {
 	return func(cfg *options) {
 		cfg.timeout = timeout
@@ -214,7 +219,8 @@ func WithTimeout(timeout time.Duration) Option {
 // how long the program's output must stay quiet before an action is marked
 // (see [Harness.Mark]).
 //
-// Environment: STEEP_CHECK (overrides this option unless [WithIgnoreEnv] is set).
+// Environment: STEEP_CHECK (overrides this option unless [WithIgnoreEnv] is
+// set).
 func WithCheck(interval time.Duration) Option {
 	return func(cfg *options) {
 		cfg.checkInterval = interval
@@ -225,17 +231,18 @@ func WithCheck(interval time.Duration) Option {
 // [DefaultSettleTimeout], and is capped at 80% of [WithTimeout]. While
 // exporting, it also paces action marks (see [Harness.Mark]).
 //
-// Environment: STEEP_SETTLE (overrides this option unless [WithIgnoreEnv] is set).
+// Environment: STEEP_SETTLE (overrides this option unless [WithIgnoreEnv]
+// is set).
 func WithSettle(timeout time.Duration) Option {
 	return func(cfg *options) {
 		cfg.settleTimeout = timeout
 	}
 }
 
-// WithSettleIgnoreMsgs marks message types that do not reset the quiet period
-// used by [Harness.WaitSettleMessages]. Pass a value of each type to ignore,
-// such as a zero value of a periodic tick type; types must match exactly.
-// Calls accumulate.
+// WithSettleIgnoreMsgs marks message types that do not reset the quiet
+// period used by [Harness.WaitSettleMessages]. Pass a value of each type to
+// ignore, such as a zero value of a periodic tick type; types must match
+// exactly. Calls accumulate.
 func WithSettleIgnoreMsgs(types ...any) Option {
 	return func(cfg *options) {
 		for _, s := range types {
@@ -247,10 +254,32 @@ func WithSettleIgnoreMsgs(types ...any) Option {
 	}
 }
 
-// WithScrollOnInput determines whether [Harness.Type], [Harness.Key] (and the
-// helpers built on it), and [Harness.Paste] first scroll a viewport scrolled
-// with [Harness.ScrollUp] and friends back to the bottom, as a real terminal
-// does on a key press. Enabled by default. Mouse events and
+// WithSettleIgnore leaves changes to the cells any of regions covers out of
+// the quiet period [Harness.WaitSettle] requires, such as [region.Row](-1)
+// for a status bar with a clock in it, or [region.Regexp] of the clock
+// itself. Calls accumulate. See [reel.SettleIgnore].
+func WithSettleIgnore(regions ...region.Region) Option {
+	return func(cfg *options) {
+		cfg.settleScreen = append(cfg.settleScreen, reel.SettleIgnore(regions...))
+	}
+}
+
+// WithSettleOnly makes [Harness.WaitSettle] watch only the cells any of
+// regions covers for changes, such as [region.Text] of a result, still
+// leaving out those [WithSettleIgnore] covers. The screen is not settled
+// while the regions cover none of it, so a settle on a region that never
+// shows fails at the [WithTimeout]. Calls accumulate. See
+// [reel.SettleOnly].
+func WithSettleOnly(regions ...region.Region) Option {
+	return func(cfg *options) {
+		cfg.settleScreen = append(cfg.settleScreen, reel.SettleOnly(regions...))
+	}
+}
+
+// WithScrollOnInput determines whether [Harness.Type], [Harness.Key] (and
+// the helpers built on it), and [Harness.Paste] first scroll a viewport
+// scrolled with [Harness.ScrollUp] and friends back to the bottom, as a
+// real terminal does on a key press. Enabled by default. Mouse events and
 // [Harness.SendProgram] never scroll.
 func WithScrollOnInput(enable bool) Option {
 	return func(cfg *options) {
@@ -288,7 +317,8 @@ func WithIgnoreEnv(ignore bool) Option {
 // animations, ticks, and timers. Recordings do not need it: they play back
 // the timeline as it happened, at [reel.Profile.Speed].
 //
-// Environment: STEEP_SLOW (overrides this option unless [WithIgnoreEnv] is set).
+// Environment: STEEP_SLOW (overrides this option unless [WithIgnoreEnv] is
+// set).
 func WithSlow(d time.Duration) Option {
 	return func(cfg *options) {
 		cfg.slow = d
@@ -308,8 +338,8 @@ func WithLog(tb testing.TB) Option {
 
 // WithRecordMessages records each message the model receives as a
 // "steep.message" annotation of its type and %+v value. It is off by
-// default, since programs that tick or animate receive many messages, each of
-// which grows the timeline and ".cast" file.
+// default, since programs that tick or animate receive many messages, each
+// of which grows the timeline and ".cast" file.
 //
 // The [tea.EnvMsg] Bubble Tea sends the model is never recorded, since it
 // holds the program's whole environment (see [WithEnvVars]). Other messages
@@ -343,22 +373,22 @@ func WithSource(enable bool) Option {
 	}
 }
 
-// WithEnvVars sets environment variables for the [tea.Program], in the form of
-// "key=value". Without this option the program sees only the defaults:
+// WithEnvVars sets environment variables for the [tea.Program], in the form
+// of "key=value". Without this option the program sees only the defaults:
 //
 //   - TTY_FORCE=1
 //   - TERM=xterm-256color (see [WithColor])
 //
-// This option replaces those defaults with the test process environment plus
-// vars, so pass TTY_FORCE and TERM again if the program needs them. It panics
-// if an entry is not in "key=value" form.
+// This option replaces those defaults with the test process environment
+// plus vars, so pass TTY_FORCE and TERM again if the program needs them. It
+// panics if an entry is not in "key=value" form.
 //
 // The program sees the whole test process environment, which in CI may hold
 // tokens and credentials. [WithRecordMessages] does not record it, but the
 // program can still read and draw it.
 //
-// For [NewExecHarness], vars and the test process environment replace those of
-// the same name in cmd's environment.
+// For [NewExecHarness], vars and the test process environment replace those
+// of the same name in cmd's environment.
 func WithEnvVars(vars ...string) Option {
 	return func(cfg *options) {
 		current := map[string]string{}
@@ -419,7 +449,8 @@ const term256 = "TERM=xterm-256color"
 // colorEnvKeys are the color detection variables [WithColor] replaces.
 var colorEnvKeys = []string{"TERM", "COLORTERM", "NO_COLOR", "CLICOLOR", "CLICOLOR_FORCE"}
 
-// env returns env with the color variables replaced by those that advertise p.
+// env returns env with the color variables replaced by those that advertise
+// p.
 func (p ColorProfile) env(env []string) []string {
 	out := slices.DeleteFunc(slices.Clone(env), func(entry string) bool {
 		key, _, _ := strings.Cut(entry, "=")

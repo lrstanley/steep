@@ -19,6 +19,7 @@ import (
 	"getsteep.dev/steep/_examples/internal/showcase"
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/render"
 	"github.com/lrstanley/clix/v2"
 )
@@ -54,7 +55,7 @@ func run(ctx context.Context, dir string) ([]string, error) {
 		Effects: []reel.Effect{
 			// "input:8" is the mark of the key that deploys billing.
 			effects.Highlight(
-				effects.Text("billing"),
+				region.Text("billing"),
 				effects.Outline(nil, 0),
 				effects.Between("input:8", ""),
 				effects.Ease(300*time.Millisecond),

@@ -457,6 +457,8 @@ type SessionWaitCmd struct {
 	Regexp     string        `name:"regexp" xor:"cond" required:"" placeholder:"PATTERN" help:"Wait for a match of this regular expression."`
 	Gone       string        `name:"gone" xor:"cond" required:"" placeholder:"TEXT" help:"Wait for this text to stop showing."`
 	Idle       time.Duration `name:"idle" xor:"cond" required:"" placeholder:"DUR" help:"Wait for the screen not to change for this long."`
+	Ignore     []string      `name:"ignore" sep:"none" placeholder:"REGION" help:"With --idle, leave out changes to this region, such as row=-1 for a status bar with a clock; repeatable."`
+	Only       []string      `name:"only" sep:"none" placeholder:"REGION" help:"With --idle, watch only this region for changes; the screen is not idle while it is not on it. Repeatable."`
 	CursorLine bool          `name:"cursor-line" help:"Look only at the cursor's line."`
 	Timeout    time.Duration `name:"timeout" default:"15s" help:"Give up after this long, with exit code 3."`
 	Print      bool          `name:"print" short:"p" help:"Print the screen once the wait ends."`
@@ -465,7 +467,8 @@ type SessionWaitCmd struct {
 // Run waits.
 func (c *SessionWaitCmd) Run(ctx context.Context, sc *SessionCmd) error {
 	resp, err := sc.call(ctx, live.Request{Op: live.OpWait, Wait: &live.Wait{
-		Text: c.Text, Regexp: c.Regexp, Gone: c.Gone, Idle: c.Idle, CursorLine: c.CursorLine, Timeout: c.Timeout,
+		Text: c.Text, Regexp: c.Regexp, Gone: c.Gone, Idle: c.Idle, Ignore: c.Ignore, Only: c.Only,
+		CursorLine: c.CursorLine, Timeout: c.Timeout,
 	}})
 	if err == nil && c.Print && !sc.JSON {
 		_, err = fmt.Fprintln(os.Stdout, resp.Text)

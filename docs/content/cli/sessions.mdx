@@ -26,9 +26,21 @@ reel s wait --idle 500ms
 | `--regexp PATTERN` | A match |
 | `--gone TEXT` | Text to stop showing |
 | `--idle DUR` | The screen not to change for this long |
+| `--ignore REGION` | With `--idle`, leaves out changes to a [region](/cli/effects#spec). Repeatable. |
+| `--only REGION` | With `--idle`, watches only a region for changes. Repeatable. |
 | `--cursor-line` | Looks only at the cursor's line |
 | `--timeout DUR` | Gives up after this long, with exit code 3. The default is 15s. |
 | `--print`, `-p` | Prints the screen once the wait ends |
+
+A screen with a clock or a spinner never goes idle, since the clock keeps changing it. Leave the clock out, or watch only what you care about:
+
+```console
+reel s wait --idle 500ms --ignore row=-1
+reel s wait --idle 500ms --ignore 're=updated [0-9]+s ago'
+reel s wait --idle 500ms --only rows=2--1
+```
+
+Ignored text that shows up or grows isn't a change. A region in `--only` that moves is. While the `--only` regions aren't on the screen, it isn't idle, so a wait for one that never shows times out.
 
 ## Which session
 

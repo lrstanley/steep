@@ -78,6 +78,13 @@ type Wait struct {
 	Gone string `json:"gone,omitempty"`
 	// Idle waits for the screen not to change for this long.
 	Idle time.Duration `json:"idle,omitempty"`
+	// Ignore leaves changes to the cells of these regions, each a REGION
+	// of package spec, out of Idle.
+	Ignore []string `json:"ignore,omitempty"`
+	// Only makes Idle watch only the cells of these regions, each a REGION
+	// of package spec, for changes; while they cover none, the screen is
+	// not idle.
+	Only []string `json:"only,omitempty"`
 	// CursorLine looks at only the cursor's line, for Text, Regexp, or Gone.
 	CursorLine bool `json:"cursor_line,omitempty"`
 	// Timeout ends the wait with an error; zero means 15 seconds.

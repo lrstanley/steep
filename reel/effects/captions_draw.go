@@ -64,7 +64,7 @@ func (s *captionsStage) layout(c *shownCaption, cf *reel.CellFrame, others []*ca
 	lay := s.ctx.Rasterizer.Layout(b.Dx(), b.Dy())
 	var look *captionLook
 	if c.callout() {
-		if anchor, ok := firstRect(c.anchor.Rects(cf), b); ok {
+		if anchor, ok := firstRect(c.anchor.Rects(cf.Screen), b); ok {
 			look = s.callout(c, cf, lay, cellRect(lay.Grid, lay.Cell, anchor), others)
 		}
 	}

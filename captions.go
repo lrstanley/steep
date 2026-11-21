@@ -9,6 +9,7 @@ import (
 
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/region"
 )
 
 // Caption shows text in a caption from here in the recording: a pill at the
@@ -37,14 +38,15 @@ func (h *Harness) Caption(text string, opts ...effects.CaptionOption) *Harness {
 
 // Callout shows text in a callout from here in the recording: a box with a
 // caret pointing at the first cells anchor matches as it starts, such as
-// [effects.Text] of a button's label (see [effects.NewCallout]). It is
-// otherwise a caption (see [Harness.Caption]), but for its own sort: it shows
-// until the next callout or [Harness.EndCallout], and a caption does not end
-// it. With [effects.Spotlight], it darkens all but its anchor while it shows.
+// [region.Text] of a button's label (see [effects.NewCallout]). It is
+// otherwise a caption (see [Harness.Caption]), but for its own sort: it
+// shows until the next callout or [Harness.EndCallout], and a caption does
+// not end it. With [effects.Spotlight], it darkens all but its anchor while
+// it shows.
 //
-// The anchor must be one of package effects' regions; a region of a
-// caller's own is a test error.
-func (h *Harness) Callout(anchor effects.Region, text string, opts ...effects.CaptionOption) *Harness {
+// The anchor must be a region of package region, such as [region.Text]; a
+// region of a caller's own is a test error.
+func (h *Harness) Callout(anchor region.Region, text string, opts ...effects.CaptionOption) *Harness {
 	h.tb.Helper()
 	if anchor == nil {
 		h.tb.Errorf("steep: callout: nil anchor")
@@ -71,7 +73,7 @@ func (h *Harness) EndCallout() *Harness {
 }
 
 // placeCaption places a caption, or a callout with an anchor.
-func (h *Harness) placeCaption(anchor effects.Region, text string, opts []effects.CaptionOption) {
+func (h *Harness) placeCaption(anchor region.Region, text string, opts []effects.CaptionOption) {
 	h.tb.Helper()
 	sort := "caption"
 	var a reel.Annotation

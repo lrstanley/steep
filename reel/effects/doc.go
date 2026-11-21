@@ -11,17 +11,18 @@
 // clipboard writes, as toasts, and [Mouse] draws the mouse input: the
 // pointer, clicks, and drags.
 // [Hide] cuts stretches out of playback: between marks, or while the screen
-// shows, or does not show, a [Region].
+// shows, or does not show, a [region.Region].
 // [Captions] draws the recording's captions and callouts, text for its
 // viewers that [NewCaption] and [NewCallout] place in a timeline, and pauses
 // where they ask to.
 //
-// Highlight, Zoom, and Redact work on a [Region] of the terminal's cells:
-// fixed cells ([Cells], [Row], [Rows]), cells that show some text ([Text],
-// [Regexp], [Env]), which follow it as it moves (a [Zoom] holds what it
-// matched when it started), or [Any] of them. They take
-// the [Timing] options besides their own; Redact takes only [Between].
-// Frames their region covers no cells of are left alone.
+// Highlight, Zoom, and Redact work on a [region.Region] of the terminal's
+// cells: fixed cells ([region.Cells], [region.Row], [region.Rows]), cells
+// that show some text ([region.Text], [region.Regexp], [region.Env]), which
+// follow it as it moves (a [Zoom] holds what it matched when it started),
+// or [region.Any] of them. They take the [Timing] options besides their
+// own; Redact takes only [Between]. Frames their region covers no cells of
+// are left alone.
 //
 // Captions, Highlight, Keys, Mouse, Redact, Toasts, and Zoom leave frames
 // without a terminal ([reel.Frame.Cells] is nil), such as cards, alone.
@@ -57,13 +58,13 @@
 // back, so an export of the file applies it again. A description is lossy
 // in a few ways:
 //
-//   - A region of a caller's own, or [Any] of one, has none: Describe
+//   - A region of a caller's own, or [region.Any] of one, has none: Describe
 //     returns an error wrapping [errors.ErrUnsupported], and the file leaves
 //     the effect out.
-//   - An [Env] region is described by its variable names, never their
-//     values.
-//   - A [Regexp] region is described by its source text, so it reads back
-//     with leftmost-first matching ([regexp.Regexp.Longest] is lost).
+//   - A [region.Env] region is described by its variable names, never
+//     their values.
+//   - A [region.Regexp] region is described by its source text, so it reads
+//     back with leftmost-first matching ([regexp.Regexp.Longest] is lost).
 //   - Durations are rounded to the millisecond.
 //   - Palette colors of a [Line]'s style read back as [vt.Indexed].
 //

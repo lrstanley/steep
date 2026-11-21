@@ -45,7 +45,7 @@ The message says what the wait wanted, and shows the screen as it was. Compare t
 
 ## A settle that never settles
 
-The screen was still changing when the timeout came, usually because of a spinner or a clock. Use `Wait` or [`WaitSettleMessages`](/steep/checks#settling-on-messages). The `(for 100ms)` is the quiet period it was looking for.
+The screen was still changing when the timeout came, usually because of a spinner or a clock. Leave it out with [`WithSettleIgnore`](/steep/checks#settling-on-part-of-the-screen), or use `Wait` or [`WaitSettleMessages`](/steep/checks#settling-on-messages). The `(for 100ms)` is the quiet period it was looking for. With `WithSettleOnly`, the error says when its regions weren't on the screen.
 
 <include cwd lang="console">fixtures/TestFailSettle.output</include>
 

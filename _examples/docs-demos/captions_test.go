@@ -13,6 +13,7 @@ import (
 	"getsteep.dev/steep"
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/region"
 )
 
 // TestCaptions records the shop with captions and callouts, for the
@@ -31,7 +32,7 @@ func TestCaptions(t *testing.T) {
 	)...)
 	h.Wait("Sencha").
 		Caption("The Tea Shop lists teas to filter and brew").
-		Callout(effects.Text("/ filter"), "Press / to filter the menu").
+		Callout(region.Text("/ filter"), "Press / to filter the menu").
 		Key("/").
 		Type("green", reel.Delay(typing)).
 		EndCallout().
@@ -40,13 +41,13 @@ func TestCaptions(t *testing.T) {
 		WaitNot("Filter:").
 		EndCaption()
 	h.Locate(reel.Contains("Oolong")).LeftClick().
-		Callout(effects.Text("Oolong"), "Click a tea, then press enter to brew it", effects.Spotlight()).
+		Callout(region.Text("Oolong"), "Click a tea, then press enter to brew it", effects.Spotlight()).
 		Key("enter").
 		Wait("█████").
 		EndCallout().
 		Caption("The status line shows how far along it is", effects.CaptionPause(0)).
 		Wait("Oolong is ready").
-		Callout(effects.Text("Oolong is ready"), "Ready to pour", effects.CaptionSide(effects.SideTop)).
+		Callout(region.Text("Oolong is ready"), "Ready to pour", effects.CaptionSide(effects.SideTop)).
 		Sleep(hold)
 	h.Close()
 	if !exporting() {

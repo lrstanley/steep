@@ -14,6 +14,7 @@ import (
 
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/internal/plaintext"
+	"getsteep.dev/steep/reel/region"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -153,7 +154,7 @@ func NewCaption(text string, opts ...CaptionOption) (reel.Annotation, error) {
 // The anchor must be one of this package's regions, which an annotation can
 // describe (see the package documentation); a region of a caller's own is
 // an error wrapping [errors.ErrUnsupported].
-func NewCallout(anchor Region, text string, opts ...CaptionOption) (reel.Annotation, error) {
+func NewCallout(anchor region.Region, text string, opts ...CaptionOption) (reel.Annotation, error) {
 	if anchor == nil {
 		return reel.Annotation{}, errors.New("effects: callout: nil anchor")
 	}
@@ -188,7 +189,7 @@ type captionEndData struct {
 	Callout bool `json:"callout,omitzero"`
 }
 
-func newCaption(anchor Region, text string, opts []CaptionOption) (reel.Annotation, error) {
+func newCaption(anchor region.Region, text string, opts []CaptionOption) (reel.Annotation, error) {
 	what := "caption"
 	if anchor != nil {
 		what = "callout"
@@ -202,7 +203,7 @@ func newCaption(anchor Region, text string, opts []CaptionOption) (reel.Annotati
 	}
 	if anchor != nil {
 		var err error
-		if d.Anchor, err = describeRegion(anchor); err != nil {
+		if d.Anchor, err = region.Marshal(anchor); err != nil {
 			return reel.Annotation{}, fmt.Errorf("effects: callout anchor: %w", err)
 		}
 	}
@@ -219,7 +220,7 @@ func newCaption(anchor Region, text string, opts []CaptionOption) (reel.Annotati
 // caption is a caption as [Captions] draws it, read from its annotation.
 type caption struct {
 	lines  []string
-	anchor Region // nil for a pill
+	anchor region.Region // nil for a pill
 	// pause is the caption's own pause, AutoPause, or -2 to take the
 	// default.
 	pause     time.Duration
@@ -249,7 +250,7 @@ func (d captionData) caption() (*caption, error) {
 	}
 	if d.Anchor != nil {
 		var err error
-		if c.anchor, err = decodeRegion(d.Anchor); err != nil {
+		if c.anchor, err = region.Unmarshal(d.Anchor); err != nil {
 			return nil, fmt.Errorf("callout anchor: %w", err)
 		}
 	}

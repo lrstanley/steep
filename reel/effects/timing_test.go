@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/region"
 )
 
 // smooth is the ease-in-out curve the window eases on.
@@ -363,7 +364,7 @@ func TestBetweenRecord(t *testing.T) {
 			Outputs:    reel.MustFiles(filepath.Join(dir, name+".gif")),
 			Rasterizer: highlightRast,
 			FPS:        100,
-			Effects:    []reel.Effect{Highlight(Row(0), Between("on", to))},
+			Effects:    []reel.Effect{Highlight(region.Row(0), Between("on", to))},
 		}
 	}
 	rec, err := reel.Record(t.Context(), s, profile("record", "off"))

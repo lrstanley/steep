@@ -22,6 +22,7 @@ import (
 	syntax "getsteep.dev/steep/cmd/reel/internal/tape"
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/region"
 )
 
 // describeNote is the step that places an annotation, as the tests compare
@@ -125,7 +126,7 @@ func TestParseCommands(t *testing.T) {
 		{src: `Caption "hi" "pause=auto;for=2s;side=top;until=done"`, want: []string{describeNote(effects.NewCaption("hi",
 			effects.CaptionPause(effects.AutoPause), effects.CaptionFor(2*time.Second), effects.CaptionSide(effects.SideTop),
 			effects.CaptionUntil("done")))}},
-		{src: `Callout "text=foo;spotlight;pause=1s;side=left" "look"`, want: []string{describeNote(effects.NewCallout(effects.Text("foo"), "look",
+		{src: `Callout "text=foo;spotlight;pause=1s;side=left" "look"`, want: []string{describeNote(effects.NewCallout(region.Text("foo"), "look",
 			effects.Spotlight(), effects.CaptionPause(time.Second), effects.CaptionSide(effects.SideLeft)))}},
 		{src: "EndCaption\nEndCallout", want: []string{
 			describeNote(effects.EndCaption(), nil),

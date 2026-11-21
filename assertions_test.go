@@ -6,6 +6,7 @@ package steep
 
 import (
 	"context"
+	"fmt"
 	"iter"
 	"reflect"
 	"regexp"
@@ -16,6 +17,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/region"
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
@@ -102,8 +104,9 @@ func (m *swapViewModel) Update(msg uv.Event) tea.Cmd {
 	return nil
 }
 
-// delayedPingModel pings itself repeatedly, as a live wait only sees messages
-// after it starts, which can be later than the first ping on a loaded machine.
+// delayedPingModel pings itself repeatedly, as a live wait only sees
+// messages after it starts, which can be later than the first ping on a
+// loaded machine.
 type delayedPingModel struct{}
 
 func (m *delayedPingModel) View() string { return "ready" }
@@ -201,6 +204,64 @@ func TestWaitSettleView(t *testing.T) {
 	)
 	if !strings.Contains(h.View(), "stable") {
 		t.Fatalf("view = %q, want stable", h.View())
+	}
+}
+
+// clockTick is a tick of clockModel.
+type clockTick struct{}
+
+// clockModel shows "stable" over a status line whose clock ticks every
+// 10ms, as "updated Ns ago" would.
+type clockModel struct{ ticks int }
+
+func (m *clockModel) View() string { return fmt.Sprintf("stable\nupdated %ds ago", m.ticks) }
+
+func (m *clockModel) Init() tea.Cmd { return m.tick() }
+
+func (m *clockModel) Update(msg uv.Event) tea.Cmd {
+	if _, ok := msg.(clockTick); !ok {
+		return nil
+	}
+	m.ticks++
+	return m.tick()
+}
+
+func (m *clockModel) tick() tea.Cmd {
+	return tea.Tick(10*time.Millisecond, func(time.Time) uv.Event { return clockTick{} })
+}
+
+func TestWaitSettleRegions(t *testing.T) {
+	t.Parallel()
+	settle := []Option{WithSettle(50 * time.Millisecond), WithTimeout(5 * time.Second)}
+	for name, opts := range map[string][]Option{
+		"ignore the clock's row":  {WithSettleIgnore(region.Row(-1))},
+		"ignore the clock's text": {WithSettleIgnore(region.Regexp(regexp.MustCompile(`updated \d+s ago`)))},
+		"only the result":         {WithSettleOnly(region.Text("stable"))},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			// As harness options, which each wait takes.
+			h := NewComponentHarness(t, &clockModel{}, append([]Option{WithWindowSize(40, 2)}, opts...)...)
+			h.Wait("updated").WaitSettle(settle...)
+		})
+	}
+
+	// Without them, the clock keeps the screen from settling.
+	tb := &fakeTB{TB: t}
+	h := NewComponentHarness(tb, &clockModel{}, WithWindowSize(40, 2), WithIgnoreEnv(true))
+	h.Wait("updated")
+	runFailing(func() { h.WaitSettle(WithSettle(50*time.Millisecond), WithTimeout(300*time.Millisecond)) })
+	if errs := strings.Join(tb.errors(), "\n"); !strings.Contains(errs, "wait for settle") {
+		t.Fatalf("errors = %q, want a settle that timed out", errs)
+	}
+	// Nor does a region that never shows.
+	tb = &fakeTB{TB: t}
+	h = NewComponentHarness(tb, &clockModel{}, WithWindowSize(40, 2), WithIgnoreEnv(true))
+	runFailing(func() {
+		h.WaitSettle(WithSettleOnly(region.Text("never")), WithSettle(50*time.Millisecond), WithTimeout(300*time.Millisecond))
+	})
+	if errs := strings.Join(tb.errors(), "\n"); !strings.Contains(errs, "regions it watches not on the screen") {
+		t.Fatalf("errors = %q, want a settle on regions not on the screen", errs)
 	}
 }
 

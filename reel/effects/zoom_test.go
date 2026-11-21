@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/render"
 )
 
@@ -70,7 +71,7 @@ func TestZoomPixels(t *testing.T) {
 	t.Parallel()
 	// Cells far apart in red, which the fake rasterizer draws text as.
 	tl := buildTimeline(t, 8, 4, "", output(0, "~ A~ A~ \r\n A~~A ~A\r\n~ A~ A~ \r\nA~"))
-	in, out := zoomFrames(t, tl, 100, nil, nil, Zoom(Cells(image.Rect(2, 1, 4, 2)), Scale(2)))
+	in, out := zoomFrames(t, tl, 100, nil, nil, Zoom(region.Cells(image.Rect(2, 1, 4, 2)), Scale(2)))
 	if len(out) != 1 || out[0].Isolated || out[0].Image == in[0].Image {
 		t.Fatalf("frames %+v, want one zoomed frame on the shared palette", infoOf(out))
 	}
@@ -87,7 +88,7 @@ func TestZoomRenderer(t *testing.T) {
 	t.Parallel()
 	rend := zoomRenderer(t, zoomRenderOpts...)
 	tl := buildTimeline(t, 12, 3, "zoom", output(0, "$ echo hi\r\nhi\r\n$ "))
-	in, out := zoomFrames(t, tl, 100, rend, zoomRenderOpts, Zoom(Text("echo"), Scale(2)))
+	in, out := zoomFrames(t, tl, 100, rend, zoomRenderOpts, Zoom(region.Text("echo"), Scale(2)))
 	if len(out) != 1 || out[0].Isolated {
 		t.Fatalf("frames %+v, want one zoomed frame on the shared palette", infoOf(out))
 	}
@@ -104,17 +105,17 @@ func TestZoomSharp(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		out    string
-		region Region
+		region region.Region
 		scale  float64
 		// cell is the cell drawn at the grid's top left.
 		cell image.Point
 	}{
-		{"top left", out, Cells(image.Rect(0, 0, 4, 1)), 2, image.Pt(0, 0)},
+		{"top left", out, region.Cells(image.Rect(0, 0, 4, 1)), 2, image.Pt(0, 0)},
 		// The left column is half of a wide character.
-		{"inside", out, Cells(image.Rect(1, 1, 5, 2)), 2, image.Pt(1, 1)},
-		{"fractional", out, Cells(image.Rect(3, 1, 5, 2)), 2.5, image.Pt(3, 1)},
+		{"inside", out, region.Cells(image.Rect(1, 1, 5, 2)), 2, image.Pt(1, 1)},
+		{"fractional", out, region.Cells(image.Rect(3, 1, 5, 2)), 2.5, image.Pt(3, 1)},
 		// The right edge cuts a wide character.
-		{"wide at the right", "abcdefg日本xyz", Cells(image.Rect(0, 0, 4, 1)), 2, image.Pt(0, 0)},
+		{"wide at the right", "abcdefg日本xyz", region.Cells(image.Rect(0, 0, 4, 1)), 2, image.Pt(0, 0)},
 	} {
 		tl := buildTimeline(t, 16, 4, "", output(0, tc.out))
 		in, zoomed := zoomFrames(t, tl, 100, rend, zoomRenderOpts, Zoom(tc.region, Scale(tc.scale), Anchor(0, 0)))
@@ -149,7 +150,7 @@ func TestZoomEase(t *testing.T) {
 		output(2500, "ef"),
 	)
 	in, out := zoomFrames(t, tl, 20, nil, nil,
-		Zoom(Cells(image.Rect(0, 0, 2, 1)), Scale(2), Between("on", "off"), Ease(200*ms)))
+		Zoom(region.Cells(image.Rect(0, 0, 2, 1)), Scale(2), Between("on", "off"), Ease(200*ms)))
 	// 200ms of easing is four 50ms steps on either side of the window.
 	want := []frameInfo{
 		{0, 300 * ms, false, false},
@@ -202,7 +203,7 @@ func TestZoomHolds(t *testing.T) {
 		output(200, "\x1b[2J\x1b[3;5Hkey"),
 		output(300, "\x1b[2J"),
 	)
-	in, out := zoomFrames(t, tl, 100, nil, nil, Zoom(Text("key"), Scale(2), Anchor(0, 0)))
+	in, out := zoomFrames(t, tl, 100, nil, nil, Zoom(region.Text("key"), Scale(2), Anchor(0, 0)))
 	if len(out) != 4 {
 		t.Fatalf("%d frames, want 4", len(out))
 	}
@@ -232,14 +233,14 @@ func TestZoomErrors(t *testing.T) {
 		is     error
 	}{
 		{"nil region", Zoom(nil), nil},
-		{"scale below 1", Zoom(Row(0), Scale(0.5)), nil},
-		{"scale zero", Zoom(Row(0), Scale(0)), nil},
-		{"scale NaN", Zoom(Row(0), Scale(math.NaN())), nil},
-		{"scale infinite", Zoom(Row(0), Scale(math.Inf(1))), nil},
-		{"anchor below 0", Zoom(Row(0), Anchor(-0.1, 0)), nil},
-		{"anchor above 1", Zoom(Row(0), Anchor(0, 1.5)), nil},
-		{"anchor NaN", Zoom(Row(0), Anchor(math.NaN(), 0)), nil},
-		{"ease", Zoom(Row(0), Ease(-ms)), nil},
+		{"scale below 1", Zoom(region.Row(0), Scale(0.5)), nil},
+		{"scale zero", Zoom(region.Row(0), Scale(0)), nil},
+		{"scale NaN", Zoom(region.Row(0), Scale(math.NaN())), nil},
+		{"scale infinite", Zoom(region.Row(0), Scale(math.Inf(1))), nil},
+		{"anchor below 0", Zoom(region.Row(0), Anchor(-0.1, 0)), nil},
+		{"anchor above 1", Zoom(region.Row(0), Anchor(0, 1.5)), nil},
+		{"anchor NaN", Zoom(region.Row(0), Anchor(math.NaN(), 0)), nil},
+		{"ease", Zoom(region.Row(0), Ease(-ms)), nil},
 	} {
 		st, err := tc.effect.Start(ctx)
 		if err == nil || st != nil || (tc.is != nil && !errors.Is(err, tc.is)) {
@@ -287,7 +288,7 @@ func TestZoomCursorCrop(t *testing.T) {
 	t.Parallel()
 	rend := zoomRenderer(t)
 	tl := buildTimeline(t, 20, 4, "", output(0, "abc\r\n\r\n\r\n                xyz"))
-	in, out := zoomFrames(t, tl, 100, rend, nil, Zoom(Cells(image.Rect(0, 0, 2, 1)), Scale(3), Anchor(0, 0)))
+	in, out := zoomFrames(t, tl, 100, rend, nil, Zoom(region.Cells(image.Rect(0, 0, 2, 1)), Scale(3), Anchor(0, 0)))
 	direct := zoomRenderer(t, render.WithScale(3))
 	cells := in[0].Cells
 	st := cells.State
@@ -316,7 +317,7 @@ func TestZoomSharpEase(t *testing.T) {
 	t.Parallel()
 	rend := zoomRenderer(t)
 	tl := buildTimeline(t, 16, 4, "", output(0, "zoom in on this\r\nand not on this"), mark(500, "on"), output(1000, "!"))
-	_, out := zoomFrames(t, tl, 20, rend, nil, Zoom(Text("this"), Scale(3), Between("on", ""), Ease(400*ms)))
+	_, out := zoomFrames(t, tl, 20, rend, nil, Zoom(region.Text("this"), Scale(3), Between("on", ""), Ease(400*ms)))
 	grid := rend.Layout(16, 4).Grid
 	// diff is the mean difference of the grids of a and b, per channel.
 	diff := func(a, b *image.NRGBA) float64 {
@@ -339,7 +340,7 @@ func TestZoomSharpEase(t *testing.T) {
 		t.Fatalf("easing starts %.2f from the frame and ends %.2f from the zoom, which are %.2f apart", first, last, apart)
 	}
 
-	_, same := zoomFrames(t, tl, 20, rend, nil, Zoom(Rows(0, 4)))
+	_, same := zoomFrames(t, tl, 20, rend, nil, Zoom(region.Rows(0, 4)))
 	_, in := zoomFrames(t, tl, 20, rend, nil)
 	if len(same) != len(in) || !bytes.Equal(same[0].Image.Pix, in[0].Image.Pix) {
 		t.Fatal("a zoom fit to the whole screen changed the frames")

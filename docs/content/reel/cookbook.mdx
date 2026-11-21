@@ -148,8 +148,8 @@ Redact first, and leave out `.cast`, which would keep the secret.
 reel.Profile{
 	Outputs: reel.MustFiles("demo.webp"),
 	Effects: []reel.Effect{
-		effects.Redact(effects.Env("API_TOKEN")),
-		effects.RedactInputs(effects.Env("API_TOKEN")),
+		effects.Redact(region.Env("API_TOKEN")),
+		effects.RedactInputs(region.Env("API_TOKEN")),
 		effects.Keys(time.Second),
 	},
 }
@@ -160,8 +160,8 @@ reel.Profile{
 steep.WithRecording(reel.Profile{
 	Outputs: reel.MustFiles("{name}.webp"),
 	Effects: []reel.Effect{
-		effects.Redact(effects.Env("API_TOKEN")),
-		effects.RedactInputs(effects.Env("API_TOKEN")),
+		effects.Redact(region.Env("API_TOKEN")),
+		effects.RedactInputs(region.Env("API_TOKEN")),
 		effects.Keys(time.Second),
 	},
 }),

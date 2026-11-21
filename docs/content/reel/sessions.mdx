@@ -55,8 +55,21 @@ The [conditions](/steep/checks#conditions) are `Contains`, `NotContains`, `Match
 | Method | Waits until |
 | --- | --- |
 | `Wait(ctx, cond)` | A condition holds |
-| `WaitSettle(ctx, quiet)` | The screen's text hasn't changed for `quiet` |
+| `WaitSettle(ctx, quiet, opts...)` | The screen's text hasn't changed for `quiet` |
 | `WaitIdle(ctx, since, quiet, limit)` | The program has responded to something and gone quiet |
+
+A screen with a clock or a spinner on it never settles, because the clock changes it. Settle on the rest of the screen by passing [regions](/reel/effects#regions):
+
+```go
+// Leave out the status bar, or just the clock in it.
+text, err := s.WaitSettle(ctx, 200*time.Millisecond, reel.SettleIgnore(region.Row(-1)))
+text, err = s.WaitSettle(ctx, 200*time.Millisecond, reel.SettleIgnore(region.Regexp(regexp.MustCompile(`updated \d+s ago`))))
+
+// Watch only the results pane.
+text, err = s.WaitSettle(ctx, 200*time.Millisecond, reel.SettleOnly(region.Rows(2, -1)))
+```
+
+`SettleIgnore` leaves out changes to the cells its regions cover, and ignored text that shows or grows doesn't count as a change either. `SettleOnly` watches only the cells its regions cover, minus any that `SettleIgnore` covers. A watched region that moves counts as a change. While `SettleOnly` regions cover no cell, the screen isn't settled, and the wait starts timing once they show. A wait for a region that never shows ends with `ctx`, and its `*WaitError` says so.
 
 ## Reading
 

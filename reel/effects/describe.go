@@ -10,7 +10,6 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
-	"image"
 	"image/color"
 	"regexp"
 	"slices"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -525,11 +525,11 @@ type outlineData struct {
 
 // Describe implements [reel.Describer].
 func (e highlight) Describe() (reel.Annotation, error) {
-	region, err := describeRegion(e.region)
+	desc, err := region.Marshal(e.region)
 	if err != nil {
 		return reel.Annotation{}, err
 	}
-	d := highlightData{Region: region, Timing: e.timing.data()}
+	d := highlightData{Region: desc, Timing: e.timing.data()}
 	if e.dim != highlightDim {
 		d.Dim = &e.dim
 	}
@@ -550,7 +550,7 @@ func (e highlight) Describe() (reel.Annotation, error) {
 func (e highlight) CheckMarks(tl *reel.Timeline) error { return e.timing.checkMarks(tl) }
 
 func (d highlightData) effect() (reel.Effect, error) {
-	region, err := decodeRegion(d.Region)
+	r, err := region.Unmarshal(d.Region)
 	if err != nil {
 		return nil, err
 	}
@@ -568,7 +568,7 @@ func (d highlightData) effect() (reel.Effect, error) {
 	if d.PaddingPX != nil {
 		opts = append(opts, Padding(*d.PaddingPX))
 	}
-	return Highlight(region, opts...), nil
+	return Highlight(r, opts...), nil
 }
 
 type zoomData struct {
@@ -585,11 +585,11 @@ type anchorData struct {
 
 // Describe implements [reel.Describer].
 func (e zoom) Describe() (reel.Annotation, error) {
-	region, err := describeRegion(e.region)
+	desc, err := region.Marshal(e.region)
 	if err != nil {
 		return reel.Annotation{}, err
 	}
-	d := zoomData{Region: region, Timing: e.timing.data()}
+	d := zoomData{Region: desc, Timing: e.timing.data()}
 	if e.scaleSet {
 		d.Scale = &e.scale
 	}
@@ -604,7 +604,7 @@ func (e zoom) Describe() (reel.Annotation, error) {
 func (e zoom) CheckMarks(tl *reel.Timeline) error { return e.timing.checkMarks(tl) }
 
 func (d zoomData) effect() (reel.Effect, error) {
-	region, err := decodeRegion(d.Region)
+	r, err := region.Unmarshal(d.Region)
 	if err != nil {
 		return nil, err
 	}
@@ -619,7 +619,7 @@ func (d zoomData) effect() (reel.Effect, error) {
 	if d.Anchor != nil {
 		opts = append(opts, Anchor(d.Anchor.X, d.Anchor.Y))
 	}
-	return Zoom(region, opts...), nil
+	return Zoom(r, opts...), nil
 }
 
 type timingData struct {
@@ -656,148 +656,6 @@ func (d timingData) option() (Timing, error) {
 		t.from, t.to = d.Between.From, d.Between.To
 	}
 	return func(dst *timing) { *dst = t }, nil
-}
-
-// The types of regions in annotations.
-const (
-	regionTypeCells  = "cells"
-	regionTypeRows   = "rows"
-	regionTypeText   = "text"
-	regionTypeRegexp = "regexp"
-	regionTypeEnv    = "env"
-	regionTypeAny    = "any"
-)
-
-type cellsData struct {
-	Type string `json:"type"`
-	X0   int    `json:"x0"`
-	Y0   int    `json:"y0"`
-	X1   int    `json:"x1"`
-	Y1   int    `json:"y1"`
-}
-
-func (d cellsData) region() (Region, error) { return Cells(image.Rect(d.X0, d.Y0, d.X1, d.Y1)), nil }
-
-type rowsData struct {
-	Type string `json:"type"`
-	From int    `json:"from"`
-	To   int    `json:"to"`
-}
-
-func (d rowsData) region() (Region, error) { return Rows(d.From, d.To), nil }
-
-type textData struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-
-func (d textData) region() (Region, error) { return Text(d.Text), nil }
-
-type regexpData struct {
-	Type    string `json:"type"`
-	Pattern string `json:"pattern"`
-}
-
-func (d regexpData) region() (Region, error) {
-	re, err := regexp.Compile(d.Pattern)
-	if err != nil {
-		return nil, err
-	}
-	return Regexp(re), nil
-}
-
-type envData struct {
-	Type  string   `json:"type"`
-	Names []string `json:"names"`
-}
-
-func (d envData) region() (Region, error) { return Env(d.Names...), nil }
-
-type anyData struct {
-	Type    string           `json:"type"`
-	Regions []jsontext.Value `json:"regions"`
-}
-
-func (d anyData) region() (Region, error) {
-	regions := make([]Region, len(d.Regions))
-	for i, sub := range d.Regions {
-		var err error
-		if regions[i], err = decodeRegion(sub); err != nil {
-			return nil, err
-		}
-	}
-	return Any(regions...), nil
-}
-
-// describeRegion returns the JSON object that describes r. A region of a
-// caller's own, or [Any] of one, is an error wrapping
-// [errors.ErrUnsupported].
-func describeRegion(r Region) (jsontext.Value, error) {
-	var v any
-	switch r := r.(type) {
-	case nil:
-		return nil, errors.New("effects: no region")
-	case cellsRegion:
-		v = cellsData{regionTypeCells, r.Min.X, r.Min.Y, r.Max.X, r.Max.Y}
-	case rowsRegion:
-		v = rowsData{regionTypeRows, r.y0, r.y1}
-	case textRegion:
-		v = textData{regionTypeText, string(r)}
-	case regexpRegion:
-		if r.re == nil {
-			return nil, errors.New("effects: regexp region without a regexp")
-		}
-		v = regexpData{regionTypeRegexp, r.re.String()}
-	case envRegion:
-		v = envData{regionTypeEnv, r}
-	case anyRegion:
-		d := anyData{Type: regionTypeAny, Regions: make([]jsontext.Value, len(r))}
-		for i, sub := range r {
-			var err error
-			if d.Regions[i], err = describeRegion(sub); err != nil {
-				return nil, err
-			}
-		}
-		v = d
-	default:
-		return nil, fmt.Errorf("effects: region %T has no description: %w", r, errors.ErrUnsupported)
-	}
-	return json.Marshal(v)
-}
-
-// decodeRegion returns the region the JSON object v describes.
-func decodeRegion(v jsontext.Value) (Region, error) {
-	if len(v) == 0 {
-		return nil, errors.New("no region")
-	}
-	var head struct {
-		Type string `json:"type"`
-	}
-	if err := json.Unmarshal(v, &head); err != nil {
-		return nil, fmt.Errorf("region: %w", err)
-	}
-	var r Region
-	var err error
-	switch head.Type {
-	case regionTypeCells:
-		r, err = decodeAs(v, cellsData.region)
-	case regionTypeRows:
-		r, err = decodeAs(v, rowsData.region)
-	case regionTypeText:
-		r, err = decodeAs(v, textData.region)
-	case regionTypeRegexp:
-		r, err = decodeAs(v, regexpData.region)
-	case regionTypeEnv:
-		r, err = decodeAs(v, envData.region)
-	case regionTypeAny:
-		r, err = decodeAs(v, anyData.region)
-	default:
-		return nil, fmt.Errorf("unknown region type %q", head.Type)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("%s region: %w", head.Type, err)
-	}
-	return r, nil
 }
 
 // colorData is a color in an annotation: a palette index from 0 to 255 for

@@ -25,6 +25,7 @@ import (
 
 	"getsteep.dev/steep/cmd/reel/internal/play"
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/vt"
 )
 
@@ -293,6 +294,26 @@ func failed(err error) *Response {
 	return &Response{Error: err.Error(), Code: CodeFailed}
 }
 
+// settleOptions returns the options of w's idle wait: its Ignore and Only
+// regions.
+func settleOptions(w *Wait) ([]reel.SettleOption, error) {
+	var opts []reel.SettleOption
+	for _, set := range []struct {
+		name    string
+		specs   []string
+		options func(...region.Region) reel.SettleOption
+	}{{"ignore", w.Ignore, reel.SettleIgnore}, {"only", w.Only, reel.SettleOnly}} {
+		for _, s := range set.specs {
+			r, err := spec.Region(s)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", set.name, err)
+			}
+			opts = append(opts, set.options(r))
+		}
+	}
+	return opts, nil
+}
+
 // wait answers an [OpWait].
 func (srv *server) wait(ctx context.Context, w *Wait) *Response {
 	if w == nil {
@@ -304,6 +325,9 @@ func (srv *server) wait(ctx context.Context, w *Wait) *Response {
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	if w.Idle <= 0 && (len(w.Ignore) > 0 || len(w.Only) > 0) {
+		return &Response{Error: "wait: ignore and only need idle", Code: CodeInvalid}
+	}
 	var cond reel.Condition
 	switch {
 	case w.Text != "":
@@ -317,7 +341,11 @@ func (srv *server) wait(ctx context.Context, w *Wait) *Response {
 		}
 		cond = reel.Matches(re)
 	case w.Idle > 0:
-		text, settleErr := srv.s.WaitSettle(ctx, w.Idle)
+		opts, optsErr := settleOptions(w)
+		if optsErr != nil {
+			return &Response{Error: fmt.Sprintf("wait: %v", optsErr), Code: CodeInvalid}
+		}
+		text, settleErr := srv.s.WaitSettle(ctx, w.Idle, opts...)
 		return waited(text, settleErr, timeout)
 	default:
 		return &Response{Error: "wait: give text, gone, regexp, or idle", Code: CodeInvalid}

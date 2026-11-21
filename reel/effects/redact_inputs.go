@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/region"
 )
 
 // typedRedactionKey is the [reel.Context] value key of the
@@ -19,7 +20,7 @@ type typedRedactionKey struct{}
 
 // typedRedaction is the region of a [RedactInputs], with its matching.
 type typedRedaction struct {
-	region Region
+	region region.Region
 	matching
 }
 
@@ -30,28 +31,28 @@ type typedRedaction struct {
 // the timeline's input still sees what was typed. It is a
 // [reel.Concealer].
 //
-// region is a [Text], [Regexp], or [Env] region, or [Any] of them. Regions
-// that find no text, such as [Cells], and a nil region, are errors from
-// Start. It is matched against the text typed since the last key that is
-// not text, such as an arrow key, across input events. Backspace takes back
-// a character, and enter and tab end the text. A [Text] or [Env] region
-// also hides a partly typed secret once [MinPartial] characters of it are
-// typed. [reel.Export] reads every input before the
-// first frame, so it hides those first characters too, where a live
-// [reel.Record] shows them until enough are typed.
+// r is a [region.Text], [region.Regexp], or [region.Env] region, or
+// [region.Any] of them. Regions that find no text, such as [region.Cells],
+// and a nil region, are errors from Start. It is matched against the text
+// typed since the last key that is not text, such as an arrow key, across
+// input events. Backspace takes back a character, and enter and tab end the
+// text. A [region.Text] or [region.Env] region also hides a partly typed
+// secret once [MinPartial] characters of it are typed. [reel.Export] reads
+// every input before the first frame, so it hides those first characters
+// too, where a live [reel.Record] shows them until enough are typed.
 //
 // The text is matched as [vt.DecodeInput] decodes it, so under a keyboard
 // mode that reports keys without their text, such as some kitty keyboard
 // protocol modes, a shifted symbol can decode as its key and no longer
 // match.
-func RedactInputs(region Region, opts ...Matching) reel.Effect {
-	r := redactInputs{region: region, matching: defaultMatching}
+func RedactInputs(r region.Region, opts ...Matching) reel.Effect {
+	e := redactInputs{region: r, matching: defaultMatching}
 	for _, opt := range opts {
 		if opt != nil {
-			opt(&r.matching)
+			opt(&e.matching)
 		}
 	}
-	return r
+	return e
 }
 
 type redactInputs typedRedaction

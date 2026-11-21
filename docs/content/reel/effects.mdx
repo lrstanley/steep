@@ -9,8 +9,8 @@ An effect changes a recording's frames between the renderer and the file. You li
 reel.Profile{
 	Outputs: reel.MustFiles("demo.webp"),
 	Effects: []reel.Effect{
-		effects.Redact(effects.Env("API_TOKEN")),
-		effects.Highlight(effects.Text("Error")),
+		effects.Redact(region.Env("API_TOKEN")),
+		effects.Highlight(region.Text("Error")),
 		effects.Pause(),
 		effects.Keys(time.Second),
 	},
@@ -38,17 +38,17 @@ The gaps are there for [your own effects](/reel/custom-effects#priority).
 
 ## Regions
 
-`Highlight`, `Zoom`, and `Redact` work on a region of the terminal's cells:
+`Highlight`, `Zoom`, and `Redact` work on a region of the terminal's cells. Regions come from package [`region`](https://pkg.go.dev/getsteep.dev/steep/reel/region), and [settle waits](/reel/sessions#waiting) take them too:
 
 | Region | Covers |
 | --- | --- |
-| `effects.Row(y)` | One row, from 0 |
-| `effects.Rows(y0, y1)` | Rows from `y0` up to but not including `y1` |
-| `effects.Cells(image.Rect(x0, y0, x1, y1))` | A rectangle of cells |
-| `effects.Text(s)` | Each cell that shows `s`, wherever it moves |
-| `effects.Regexp(re)` | Each match, on each line |
-| `effects.Env(names...)` | Each cell that shows the value of a variable |
-| `effects.Any(regions...)` | Any of them |
+| `region.Row(y)` | One row, from 0 at the top, or from -1 at the bottom |
+| `region.Rows(y0, y1)` | Rows from `y0` up to but not including `y1`. After a negative `y0`, a `y1` of 0 is the bottom, so `Rows(-2, 0)` is the last two rows |
+| `region.Cells(image.Rect(x0, y0, x1, y1))` | A rectangle of cells |
+| `region.Text(s)` | Each cell that shows `s`, wherever it moves |
+| `region.Regexp(re)` | Each match, on each line |
+| `region.Env(names...)` | Each cell that shows the value of a variable |
+| `region.Any(regions...)` | Any of them |
 
 `Text`, `Regexp`, and `Env` are matched on each frame, so they follow what they find. A `Zoom` holds what it matched when it started. Text is searched line by line, where a line is a row and the rows it soft-wrapped over, so it never matches across a line break a program made itself.
 
@@ -90,7 +90,7 @@ Keys shows what was typed, so add [`RedactInputs`](/reel/redact#typed-secrets) i
 
 ```go
 Effects: []reel.Effect{
-	effects.RedactInputs(effects.Env("PASSWORD")),
+	effects.RedactInputs(region.Env("PASSWORD")),
 	effects.Keys(time.Second),
 },
 ```
@@ -244,7 +244,7 @@ The CLI's flags are `--pause`, `--pause-at MARK`, and `--hold-last DUR`.
 ```go
 Effects: []reel.Effect{
 	effects.Highlight(
-		effects.Regexp(regexp.MustCompile(` Oolong.*3m `)),
+		region.Regexp(regexp.MustCompile(` Oolong.*3m `)),
 		effects.Between("brew:start", "brew:done"),
 		effects.DimOthers(0.6),
 		effects.Ease(200*time.Millisecond),
@@ -270,7 +270,7 @@ The CLI's flag is [`--highlight`](/cli/effects), and [`_examples/reel-highlight`
 ```go
 Effects: []reel.Effect{
 	effects.Zoom(
-		effects.Cells(image.Rect(1, 10, 38, 14)),
+		region.Cells(image.Rect(1, 10, 38, 14)),
 		effects.Between("brew:start", "brew:done"),
 		effects.Ease(250*time.Millisecond),
 	),

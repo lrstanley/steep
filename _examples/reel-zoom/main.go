@@ -20,6 +20,7 @@ import (
 	"getsteep.dev/steep/_examples/internal/showcase"
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/render"
 	"github.com/lrstanley/clix/v2"
 )
@@ -57,7 +58,7 @@ func run(ctx context.Context, dir string) ([]string, error) {
 			// is the mark of the key that deploys billing, and the tests
 			// have failed by "wait:13".
 			effects.Zoom(
-				effects.Cells(image.Rect(64, 11, 109, 22)),
+				region.Cells(image.Rect(64, 11, 109, 22)),
 				effects.Between("input:8", "wait:13"),
 				effects.Ease(300*time.Millisecond),
 			),

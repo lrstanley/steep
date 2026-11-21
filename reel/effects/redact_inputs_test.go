@@ -13,16 +13,17 @@ import (
 
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/internal/testutil"
+	"getsteep.dev/steep/reel/region"
 )
 
 // TestTypedMask checks the presses of typed text, as RedactInputs hides
 // them from Keys, across input events.
 func TestTypedMask(t *testing.T) {
 	t.Parallel()
-	abcdef := Text("abcdef")
+	abcdef := region.Text("abcdef")
 	for _, tc := range []struct {
 		name   string
-		region Region
+		region region.Region
 		// min is the MinPartial, zero for the default.
 		min int
 		// inputs are typed one event each, and those of before are typed
@@ -43,8 +44,8 @@ func TestTypedMask(t *testing.T) {
 		{"key ends", abcdef, 0, nil, []string{"ab\x1b[Acde"}, []string{"ab", "↑", "cde"}},
 		{"paste ends", abcdef, 0, nil, []string{"ab\x1b[200~x\x1b[201~cde"}, []string{"ab", "cde"}},
 		{"before the window", abcdef, 0, []string{"abc"}, []string{"de"}, []string{"••"}},
-		{"regexp", Regexp(regexp.MustCompile(`\d{3}`)), 0, nil, []string{"pin 1234\r"}, []string{"pin •••4⏎"}},
-		{"any", Any(Text("one"), Text("two")), 0, nil, []string{"one two\t"}, []string{"••• •••⇥"}},
+		{"regexp", region.Regexp(regexp.MustCompile(`\d{3}`)), 0, nil, []string{"pin 1234\r"}, []string{"pin •••4⏎"}},
+		{"any", region.Any(region.Text("one"), region.Text("two")), 0, nil, []string{"one two\t"}, []string{"••• •••⇥"}},
 		{"min 1", abcdef, 1, nil, []string{"a", "b", "x a. xf f\r"}, []string{"•", "•", "x •. xf •⏎"}},
 		{"min 5", abcdef, 5, nil, []string{"a", "b", "c", "d", "e", " abcd bcdef"}, []string{"•", "•", "•", "•", "•", " abcd •••••"}},
 		{"min longer", abcdef, 6, nil, []string{"abcde", " bcdef", " abcdef"}, []string{"abcde", " bcdef", " ••••••"}},
@@ -83,7 +84,7 @@ func TestRedactInputsKeys(t *testing.T) {
 	rast := testutil.Rasterizer{Cell: image.Pt(9, 20)}
 	redacted := exportFrames(t, timeline("abcd\r"), reel.Profile{
 		Rasterizer: rast,
-		Effects:    []reel.Effect{RedactInputs(Text("abcd")), Keys(300 * ms)},
+		Effects:    []reel.Effect{RedactInputs(region.Text("abcd")), Keys(300 * ms)},
 	})
 	bullets := exportFrames(t, timeline("••••\r"), reel.Profile{
 		Rasterizer: rast,

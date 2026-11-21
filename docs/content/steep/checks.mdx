@@ -144,7 +144,27 @@ There are three things to know about it:
 
 - **A change can come after the period.** If your program does something slow before it redraws, the screen may look settled before the change arrives. Prefer `Wait` when you know what to look for.
 - **A repaint isn't a change.** Only the screen's text counts, so a color change or a redraw of the same text doesn't restart the period.
-- **It never returns if the program never stops.** A spinner or a clock keeps the text changing, so the wait [fails at the timeout](/steep/failures#a-settle-that-never-settles).
+- **It never returns if the program never stops.** A spinner or a clock keeps the text changing, so the wait [fails at the timeout](/steep/failures#a-settle-that-never-settles), unless you leave it out.
+
+### Settling on part of the screen
+
+When a clock, a countdown, or a spinner is the only thing changing, tell `WaitSettle` which part of the screen to leave out, or which part to watch. Both take [regions](/reel/effects#regions):
+
+```go
+// A status bar on the last row shows "updated 12s ago".
+h := steep.NewHarness(t, newModel(), steep.WithSettleIgnore(region.Row(-1)))
+h.Key("r").WaitSettle()
+
+// Or leave out just the clock, or watch only the results.
+h.Key("r").WaitSettle(steep.WithSettleIgnore(region.Regexp(regexp.MustCompile(`updated \d+s ago`))))
+h.Key("r").WaitSettle(steep.WithSettleOnly(region.Text("results")))
+```
+
+- **`WithSettleIgnore`** leaves out changes to the cells its regions cover. Ignored text that shows up, or grows from `9s` to `10s`, isn't a change either.
+- **`WithSettleOnly`** watches only the cells its regions cover, minus any that `WithSettleIgnore` covers. A watched region that moves counts as a change.
+- **A missing region isn't settled.** While `WithSettleOnly` regions cover no cell, the settle period doesn't start, so a settle on text that never shows fails at the timeout instead of passing.
+
+Both accumulate, and as harness options they apply to every `WaitSettle`.
 
 ### Settling on messages
 
@@ -167,6 +187,7 @@ To wait for a specific message rather than a quiet period, use [`WaitMessage`](/
   A{Do you know what will be on the screen?} -->|Yes| W[Wait or WaitFor]
   A -->|No| B{Does the screen stop changing?}
   B -->|Yes| S[WaitSettle]
+  B -->|Only a clock or spinner does| R[WaitSettle with WithSettleIgnore]
   B -->|No, it animates| C{Do you know the message that ends it?}
   C -->|Yes| M[WaitMessage]
   C -->|No| Q[WaitSettleMessages with WithSettleIgnoreMsgs]

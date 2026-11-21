@@ -16,9 +16,9 @@ import (
 )
 
 // WaitFinished waits for the program to finish. It fails the test if the
-// program failed: it returned an error other than [tea.ErrProgramKilled], or it
-// panicked, which Bubble Tea reports as killed. A command's nonzero exit status
-// is not an error (see [Harness.ExitStatus]).
+// program failed: it returned an error other than [tea.ErrProgramKilled],
+// or it panicked, which Bubble Tea reports as killed. A command's nonzero
+// exit status is not an error (see [Harness.ExitStatus]).
 //
 // See also [Harness.FinalModel].
 func (h *Harness) WaitFinished(opts ...Option) {
@@ -98,7 +98,7 @@ func (h *Harness) WaitSettle(opts ...Option) *Harness {
 	defer w.finish()
 	ctx, cancel := context.WithTimeoutCause(cfg.ctx, cfg.timeout, errWaitTimeout)
 	defer cancel()
-	if _, err := h.session.WaitSettle(ctx, cfg.settleTimeout); err != nil {
+	if _, err := h.session.WaitSettle(ctx, cfg.settleTimeout, cfg.settleScreen...); err != nil {
 		w.ended(doneOutcome(ctx))
 		cfg.Fatalf(h.tb, "%v (for %s)\nlast output:\n%s", err, cfg.settleTimeout, waitLast(err))
 	}
@@ -188,8 +188,8 @@ func (h *Harness) RequireFor(cond reel.Condition, opts ...Option) *Harness {
 	return h
 }
 
-// Assert reports an error unless content appears in view output. content is a
-// string or every string in a []string.
+// Assert reports an error unless content appears in view output. content is
+// a string or every string in a []string.
 func (h *Harness) Assert[T string | []string](content T, opts ...Option) *Harness {
 	h.tb.Helper()
 	n := textNote(AssertKindContains, texts(content), false)
@@ -239,8 +239,8 @@ func (h *Harness) assertScreen(cond reel.Condition, n assertNote, opts []Option)
 	checkAssert(h.tb, collectOptions(h.tb, h.mergedOpts(opts...)...), screen, cond, n)
 }
 
-// AssertHeight reports an error unless view output has height rows. It allows
-// the test to continue.
+// AssertHeight reports an error unless view output has height rows. It
+// allows the test to continue.
 func (h *Harness) AssertHeight(height int, opts ...Option) *Harness {
 	h.tb.Helper()
 	defer h.hook(HookAssert, AssertMeta{Kind: AssertKindHeight})()
@@ -248,7 +248,8 @@ func (h *Harness) AssertHeight(height int, opts ...Option) *Harness {
 	return h
 }
 
-// RequireHeight fails the test immediately unless view output has height rows.
+// RequireHeight fails the test immediately unless view output has height
+// rows.
 func (h *Harness) RequireHeight(height int, opts ...Option) *Harness {
 	h.tb.Helper()
 	defer h.hook(HookAssert, AssertMeta{Kind: AssertKindHeight, Required: true})()
@@ -256,8 +257,8 @@ func (h *Harness) RequireHeight(height int, opts ...Option) *Harness {
 	return h
 }
 
-// AssertWidth reports an error unless view output has width columns. It allows
-// the test to continue.
+// AssertWidth reports an error unless view output has width columns. It
+// allows the test to continue.
 func (h *Harness) AssertWidth(width int, opts ...Option) *Harness {
 	h.tb.Helper()
 	defer h.hook(HookAssert, AssertMeta{Kind: AssertKindWidth})()
@@ -265,7 +266,8 @@ func (h *Harness) AssertWidth(width int, opts ...Option) *Harness {
 	return h
 }
 
-// RequireWidth fails the test immediately unless view output has width columns.
+// RequireWidth fails the test immediately unless view output has width
+// columns.
 func (h *Harness) RequireWidth(width int, opts ...Option) *Harness {
 	h.tb.Helper()
 	defer h.hook(HookAssert, AssertMeta{Kind: AssertKindWidth, Required: true})()
@@ -273,8 +275,8 @@ func (h *Harness) RequireWidth(width int, opts ...Option) *Harness {
 	return h
 }
 
-// AssertDimensions reports an error unless view output has width columns and height
-// rows.
+// AssertDimensions reports an error unless view output has width columns
+// and height rows.
 //
 // See also [Harness.Dimensions].
 func (h *Harness) AssertDimensions(width, height int, opts ...Option) *Harness {
@@ -312,17 +314,17 @@ func (h *Harness) WaitMessage[T uv.Event](opts ...Option) T {
 	return WaitMessage[T](h.tb, h, h.mergedOpts(opts...)...)
 }
 
-// WaitLiveMessage waits until a new message with concrete type T arrives after
-// this call, then returns the first match.
+// WaitLiveMessage waits until a new message with concrete type T arrives
+// after this call, then returns the first match.
 func (h *Harness) WaitLiveMessage[T uv.Event](opts ...Option) T {
 	h.tb.Helper()
 	defer h.hook(HookWait, WaitMeta{Kind: WaitKindMessage, Live: true})()
 	return WaitLiveMessage[T](h.tb, h, h.mergedOpts(opts...)...)
 }
 
-// WaitMessageWhere waits until fn returns true for a message of type T across
-// history and later messages. T is inferred from fn. fn should be quick: a
-// wait that falls 32 messages behind misses the newer ones (see
+// WaitMessageWhere waits until fn returns true for a message of type T
+// across history and later messages. T is inferred from fn. fn should be
+// quick: a wait that falls 32 messages behind misses the newer ones (see
 // [Harness.Messages]).
 func (h *Harness) WaitMessageWhere[T uv.Event](fn func(T) bool, opts ...Option) T {
 	h.tb.Helper()
@@ -331,23 +333,24 @@ func (h *Harness) WaitMessageWhere[T uv.Event](fn func(T) bool, opts ...Option) 
 }
 
 // WaitLiveMessageWhere waits until fn returns true for a message of type T
-// received after this call. T is inferred from fn. fn should be quick, as for
-// [Harness.WaitMessageWhere].
+// received after this call. T is inferred from fn. fn should be quick, as
+// for [Harness.WaitMessageWhere].
 func (h *Harness) WaitLiveMessageWhere[T uv.Event](fn func(T) bool, opts ...Option) T {
 	h.tb.Helper()
 	defer h.hook(HookWait, WaitMeta{Kind: WaitKindMessage, Live: true})()
 	return waitMessage(h.tb, h, true, fn, h.mergedOpts(opts...)...)
 }
 
-// AssertHasMessage reports an error unless history contains a message of type T.
+// AssertHasMessage reports an error unless history contains a message of
+// type T.
 func (h *Harness) AssertHasMessage[T uv.Event](opts ...Option) bool {
 	h.tb.Helper()
 	defer h.hook(HookAssert, AssertMeta{Kind: AssertKindHasMessage})()
 	return AssertHasMessage[T](h.tb, h, h.mergedOpts(opts...)...)
 }
 
-// RequireHasMessage fails the test immediately unless history contains a message
-// of type T.
+// RequireHasMessage fails the test immediately unless history contains a
+// message of type T.
 func (h *Harness) RequireHasMessage[T uv.Event](opts ...Option) *Harness {
 	h.tb.Helper()
 	defer h.hook(HookAssert, AssertMeta{Kind: AssertKindHasMessage, Required: true})()
@@ -361,7 +364,8 @@ func (h *Harness) FilterMessagesType[T uv.Event]() iter.Seq[T] {
 	return FilterMessagesType[T](h.tb, h.MessageHistory())
 }
 
-// FilterMessagesFunc yields history messages of type T for which fn returns true.
+// FilterMessagesFunc yields history messages of type T for which fn returns
+// true.
 func (h *Harness) FilterMessagesFunc[T uv.Event](fn func(T) bool) iter.Seq[T] {
 	h.tb.Helper()
 	return FilterMessagesFunc[T](h.tb, h.MessageHistory(), fn)

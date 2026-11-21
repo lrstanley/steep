@@ -400,7 +400,7 @@
       }
     },
     "reel.effect.region.rows": {
-      "description": "Whole rows of the screen, counted from 0 at the top.",
+      "description": "Whole rows of the screen, counted from 0 at the top. A negative row counts from the bottom, where -1 is the last row, and after a negative \"from\", a \"to\" of 0 is the bottom of the screen.",
       "type": "object",
       "required": ["type", "from", "to"],
       "properties": {

@@ -23,6 +23,7 @@ import (
 
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/internal/testutil"
+	"getsteep.dev/steep/reel/region"
 )
 
 const ms = time.Millisecond
@@ -169,10 +170,10 @@ func readPNG(t *testing.T, path string) *image.NRGBA {
 func TestPriorities(t *testing.T) {
 	t.Parallel()
 	groups := [][]reel.Effect{
-		{Redact(Text("x")), RedactInputs(Text("x"))},
+		{Redact(region.Text("x")), RedactInputs(region.Text("x"))},
 		{Hide(HideBetween("a", "b"))},
-		{Zoom(Row(0))},
-		{Highlight(Row(0))},
+		{Zoom(region.Row(0))},
+		{Highlight(region.Row(0))},
 		{Pause(), HoldLast(time.Second)},
 		{Keys(time.Second), Mouse(), Toasts()},
 		{Intro(time.Second), Outro(time.Second)},

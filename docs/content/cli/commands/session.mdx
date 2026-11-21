@@ -69,7 +69,7 @@ Starts a program in a new session, and prints its name. The name defaults to the
 
 ## wait
 
-`reel s wait` waits for the screen to show, or stop showing, something. It needs one of `--text`, `--regexp`, `--gone`, or `--idle`. See [Waiting](/cli/sessions#waiting).
+`reel s wait` waits for the screen to show, or stop showing, something. It needs one of `--text`, `--regexp`, `--gone`, or `--idle`. `--idle` takes `--ignore REGION` and `--only REGION` to leave out or watch part of the screen, such as `--ignore row=-1` for a status bar with a clock. See [Waiting](/cli/sessions#waiting).
 
 ## screen
 

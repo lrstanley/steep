@@ -2,26 +2,26 @@
 // this source code is governed by the MIT license that can be found in
 // the LICENSE file.
 
-package effects
+package region
 
 import (
+	"errors"
 	"image"
 	"regexp"
 	"slices"
 	"testing"
 
-	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/vt"
 )
 
-// regionRuntime opens the terminals the region tests draw on.
-var regionRuntime = vt.NewRuntime(0)
+// runtime opens the terminals the tests draw on.
+var runtime = vt.NewRuntime(0)
 
-// cellFrame returns the terminal of a cols by rows terminal that out was
+// screenOf returns the screen of a cols by rows terminal that out was
 // written to.
-func cellFrame(t *testing.T, cols, rows int, out string) *reel.CellFrame {
+func screenOf(t *testing.T, cols, rows int, out string) *vt.Buffer {
 	t.Helper()
-	term, err := regionRuntime.Open(t.Context(), cols, rows)
+	term, err := runtime.Open(t.Context(), cols, rows)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,120 @@ func cellFrame(t *testing.T, cols, rows int, out string) *reel.CellFrame {
 	if _, err = term.Write([]byte(out)); err != nil {
 		t.Fatal(err)
 	}
-	return &reel.CellFrame{Screen: term.Screen(), State: term.State()}
+	return term.Screen()
+}
+
+// coveredRects returns the cells r covers on screen, as [Covered] finds
+// them, as [Runs].
+func coveredRects(r Region, screen *vt.Buffer) []image.Rectangle {
+	b := screen.Bounds()
+	return Runs(Covered(screen, r), b.Dx(), b.Dy())
+}
+
+func TestRegionRows(t *testing.T) {
+	t.Parallel()
+	f := screenOf(t, 4, 5, "")
+	rows := func(y0, y1 int) []image.Rectangle { return []image.Rectangle{image.Rect(0, y0, 4, y1)} }
+	for _, tc := range []struct {
+		name   string
+		region Region
+		want   []image.Rectangle
+	}{
+		{"row", Row(1), rows(1, 2)},
+		{"last row", Row(-1), rows(4, 5)},
+		{"row from the bottom", Row(-2), rows(3, 4)},
+		{"rows", Rows(1, 3), rows(1, 3)},
+		{"rows reversed", Rows(3, 1), rows(1, 3)},
+		{"last rows", Rows(-2, 0), rows(3, 5)},
+		{"rows from the bottom", Rows(-3, -1), rows(2, 4)},
+		{"all but the ends", Rows(1, -1), rows(1, 4)},
+		{"rows from the bottom reversed", Rows(-1, -3), rows(2, 4)},
+	} {
+		if got := tc.region.Rects(f); !slices.Equal(got, tc.want) {
+			t.Errorf("%s: rects = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+	// A range from the top to the bottom that ends before it starts covers
+	// nothing.
+	if got := Rows(1, -1).Rects(screenOf(t, 4, 1, "")); got != nil {
+		t.Errorf("Rows(1, -1) on one row = %v, want nothing", got)
+	}
+	// Past the top of the screen, a row from the bottom covers nothing.
+	if got := Covered(f, Row(-6)); got != nil {
+		t.Errorf("Row(-6) covers %v, want nothing", got)
+	}
+}
+
+func TestCovered(t *testing.T) {
+	t.Parallel()
+	// 日 is two cells.
+	f := screenOf(t, 4, 2, "a日b\r\nxy")
+	if got := Covered(f, nil); got != nil {
+		t.Fatalf("a nil region covers %v", got)
+	}
+	if got := Covered(f, Text("nope")); got != nil {
+		t.Fatalf("missing text covers %v", got)
+	}
+	// Half of a wide character covers all of it, and cells off the screen
+	// are clipped.
+	got := Covered(f, Any(Cells(image.Rect(2, 0, 3, 1)), Cells(image.Rect(3, 1, 9, 9))))
+	want := []bool{false, true, true, false, false, false, false, true}
+	if !slices.Equal(got, want) {
+		t.Fatalf("covered = %v, want %v", got, want)
+	}
+}
+
+func TestTextOf(t *testing.T) {
+	t.Setenv("REEL_TEST_SECRET", "s3cr3t\nline2")
+	re := regexp.MustCompile(`k\d+`)
+	rows := Rows(0, 1)
+	literals, patterns, others := TextOf(Any(Text("a"), Text(""), Env("REEL_TEST_SECRET"), Any(Regexp(re), rows), Regexp(nil)))
+	if want := []string{"a", "s3cr3t", "line2"}; !slices.Equal(literals, want) {
+		t.Errorf("literals = %q, want %q", literals, want)
+	}
+	if len(patterns) != 1 || patterns[0] != re {
+		t.Errorf("patterns = %v, want [%v]", patterns, re)
+	}
+	if len(others) != 1 || others[0] != rows {
+		t.Errorf("others = %v, want [%v]", others, rows)
+	}
+}
+
+// customRegion is a region of a caller's own.
+type customRegion struct{}
+
+func (customRegion) Rects(*vt.Buffer) []image.Rectangle { return nil }
+
+func TestMarshal(t *testing.T) {
+	t.Parallel()
+	for _, r := range []Region{
+		Cells(image.Rect(1, 2, 3, 4)),
+		Row(-1),
+		Rows(-2, 0),
+		Text("x"),
+		Regexp(regexp.MustCompile(`a+`)),
+		Env("HOME"),
+		Any(Row(0), Text("y")),
+	} {
+		data, err := Marshal(r)
+		if err != nil {
+			t.Fatalf("Marshal(%#v): %v", r, err)
+		}
+		back, err := Unmarshal(data)
+		if err != nil {
+			t.Fatalf("Unmarshal(%s): %v", data, err)
+		}
+		again, err := Marshal(back)
+		if err != nil || string(again) != string(data) {
+			t.Fatalf("%s reads back as %s, %v", data, again, err)
+		}
+	}
+	if _, err := Marshal(Any(customRegion{})); !errors.Is(err, errors.ErrUnsupported) {
+		t.Fatalf("MarshalRegion of a custom region = %v, want ErrUnsupported", err)
+	}
+	if _, err := Unmarshal([]byte(`{"type":"rows","from":1,"to":2,"extra":true}`)); err == nil {
+		t.Fatal("UnmarshalRegion accepted an unknown member")
+	}
 }
 
 func TestRegions(t *testing.T) {
@@ -39,7 +152,7 @@ func TestRegions(t *testing.T) {
 	// terminal shows apart without grapheme clustering (mode 2027).
 	// Row 1: the same with mode 2027, where "👍🏽" is one wide cell.
 	const screen = "éx日本👍🏽z\r\n\x1b[?2027hé👍🏽a ab ab"
-	f := cellFrame(t, 14, 3, screen)
+	f := screenOf(t, 14, 3, screen)
 	rect := image.Rect
 	for _, tc := range []struct {
 		name   string
@@ -78,7 +191,7 @@ func TestRegions(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := regionCells(tc.region, f); !slices.Equal(got, tc.want) {
+			if got := coveredRects(tc.region, f); !slices.Equal(got, tc.want) {
 				t.Fatalf("cells = %v, want %v", got, tc.want)
 			}
 		})
@@ -86,7 +199,7 @@ func TestRegions(t *testing.T) {
 }
 
 func TestRegionEnv(t *testing.T) {
-	f := cellFrame(t, 20, 3, "token=s3cr3t\r\nkey=line1\r\nline2 x")
+	f := screenOf(t, 20, 3, "token=s3cr3t\r\nkey=line1\r\nline2 x")
 	t.Setenv("REEL_TEST_TOKEN", "s3cr3t")
 	t.Setenv("REEL_TEST_KEY", "line1\r\nline2\n")
 	t.Setenv("REEL_TEST_EMPTY", "")
@@ -105,13 +218,13 @@ func TestRegionEnv(t *testing.T) {
 		{[]string{"REEL_TEST_EMPTY", "REEL_TEST_BLANK", "REEL_TEST_UNSET"}, nil},
 		{nil, nil},
 	} {
-		if got := regionCells(Env(tc.names...), f); !slices.Equal(got, tc.want) {
+		if got := coveredRects(Env(tc.names...), f); !slices.Equal(got, tc.want) {
 			t.Errorf("Env(%q) = %v, want %v", tc.names, got, tc.want)
 		}
 	}
 	// The value is read when the region is matched.
 	t.Setenv("REEL_TEST_TOKEN", "line2")
-	if got, want := regionCells(Env("REEL_TEST_TOKEN"), f), []image.Rectangle{image.Rect(0, 2, 5, 3)}; !slices.Equal(got, want) {
+	if got, want := coveredRects(Env("REEL_TEST_TOKEN"), f), []image.Rectangle{image.Rect(0, 2, 5, 3)}; !slices.Equal(got, want) {
 		t.Errorf("Env after a change = %v, want %v", got, want)
 	}
 }
@@ -146,8 +259,8 @@ func TestRegionWrapped(t *testing.T) {
 		// One that fits ends the row.
 		{"wide at the end", "ab\u4e2dde", Text("\u4e2dd"), []image.Rectangle{rect(2, 0, 4, 1), rect(0, 1, 1, 2)}},
 	} {
-		f := cellFrame(t, 4, 3, tc.out)
-		if got := regionCells(tc.region, f); !slices.Equal(got, tc.want) {
+		f := screenOf(t, 4, 3, tc.out)
+		if got := coveredRects(tc.region, f); !slices.Equal(got, tc.want) {
 			t.Errorf("%s: cells = %v, want %v", tc.name, got, tc.want)
 		}
 	}
@@ -159,22 +272,26 @@ func TestRegionWrapped(t *testing.T) {
 func TestRegionWiden(t *testing.T) {
 	t.Parallel()
 	// 日 and 本 are two cells each.
-	f := cellFrame(t, 6, 2, "日本xx\r\na日bxx")
-	got := regionCells(Cells(image.Rect(3, 0, 5, 2)), f)
+	f := screenOf(t, 6, 2, "日本xx\r\na日bxx")
+	got := coveredRects(Cells(image.Rect(3, 0, 5, 2)), f)
 	want := []image.Rectangle{image.Rect(2, 0, 5, 1), image.Rect(3, 1, 5, 2)}
 	if !slices.Equal(got, want) {
 		t.Fatalf("cells = %v, want %v", got, want)
 	}
 	// The left half of 日 on row 1, and the right half on row 0 of 本.
-	got = regionCells(Cells(image.Rect(1, 0, 2, 2)), f)
+	got = coveredRects(Cells(image.Rect(1, 0, 2, 2)), f)
 	want = []image.Rectangle{image.Rect(0, 0, 2, 1), image.Rect(1, 1, 3, 2)}
 	if !slices.Equal(got, want) {
 		t.Fatalf("cells = %v, want %v", got, want)
 	}
 }
 
-func TestCellRuns(t *testing.T) {
+func TestRuns(t *testing.T) {
 	t.Parallel()
+	// Covered's nil, for a region that covers nothing, has no runs.
+	if got := Runs(nil, 4, 2); got != nil {
+		t.Fatalf("Runs(nil) = %v, want nil", got)
+	}
 	rect := image.Rect
 	const w, h = 6, 4
 	for _, tc := range []struct {
@@ -199,8 +316,8 @@ func TestCellRuns(t *testing.T) {
 				}
 			}
 		}
-		if got := cellRuns(covered, w, h); !slices.Equal(got, tc.want) {
-			t.Errorf("cellRuns(%v) = %v, want %v", tc.in, got, tc.want)
+		if got := Runs(covered, w, h); !slices.Equal(got, tc.want) {
+			t.Errorf("Runs(%v) = %v, want %v", tc.in, got, tc.want)
 		}
 	}
 }

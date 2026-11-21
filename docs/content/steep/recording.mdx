@@ -102,7 +102,7 @@ If a program shows something secret, conceal it first. A profile with `effects.R
 ```go
 steep.WithRecording(reel.Profile{
 	Outputs: reel.MustFiles("{name}.gif"),
-	Effects: []reel.Effect{effects.Redact(effects.Env("API_TOKEN")), effects.Keys(time.Second)},
+	Effects: []reel.Effect{effects.Redact(region.Env("API_TOKEN")), effects.Keys(time.Second)},
 })
 ```
 

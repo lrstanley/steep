@@ -8,9 +8,12 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
+	"getsteep.dev/steep/reel/region"
+	"getsteep.dev/steep/reel/vt"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -172,7 +175,8 @@ type WaitResult struct {
 // because its context was done or the session closed.
 type WaitError struct {
 	// Wait names what was waited for, such as `contains ["$ "]`, "settle",
-	// or "idle".
+	// or "idle". A settle that ends while the regions of [SettleOnly] are
+	// not on the screen says so.
 	Wait string
 	// Last is the screen text the wait saw last, empty for "idle".
 	Last string
@@ -188,12 +192,16 @@ type screenRead struct {
 	ScreenText
 	read bool
 	gen  uint64
+	// screen is a copy of the screen, read in place of the text for a wait
+	// that matches regions on it.
+	screen *vt.Buffer
 }
 
-// readScreen updates r from the terminal, reading the text only when the
-// grid or cursor row changed since r was read, and reports whether it did.
-// It holds s.mu, so the terminal has every recorded event's bytes.
-func (s *Session) readScreen(r *screenRead) (bool, error) {
+// readScreen updates r from the terminal, reading the text, or with
+// withScreen a copy of the screen in place of it, only when the grid or
+// cursor row changed since r was read, and reports whether it did. It holds
+// s.mu, so the terminal has every recorded event's bytes.
+func (s *Session) readScreen(r *screenRead, withScreen bool) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed.Load() {
@@ -203,7 +211,12 @@ func (s *Session) readScreen(r *screenRead) (bool, error) {
 	if r.read && gen == r.gen && row == r.CursorRow {
 		return false, nil
 	}
-	*r = screenRead{ScreenText: ScreenText{Text: s.term.Text(), CursorRow: row}, read: true, gen: gen}
+	*r = screenRead{CursorRow: row, read: true, gen: gen}
+	if withScreen {
+		r.screen = s.term.Screen()
+	} else {
+		r.Text = s.term.Text()
+	}
 	return true, nil
 }
 
@@ -211,7 +224,7 @@ func (s *Session) readScreen(r *screenRead) (bool, error) {
 // check a [Condition] once. It returns [ErrClosed] after [Session.Close].
 func (s *Session) ScreenText() (ScreenText, error) {
 	var r screenRead
-	_, err := s.readScreen(&r)
+	_, err := s.readScreen(&r, false)
 	return r.ScreenText, err
 }
 
@@ -252,7 +265,7 @@ func (s *Session) Wait(ctx context.Context, cond Condition) (WaitResult, error) 
 	var r screenRead
 	var res WaitResult
 	err := s.await(ctx, nil, func(bool) (bool, error) {
-		changed, err := s.readScreen(&r)
+		changed, err := s.readScreen(&r, false)
 		if err != nil || !changed {
 			return false, err
 		}
@@ -271,25 +284,160 @@ func (s *Session) Wait(ctx context.Context, cond Condition) (WaitResult, error) 
 // was, such as a repaint, do not count. It sees changes as [Session.Wait]
 // does, and returns a [*WaitError] when ctx is done or the session closes
 // first.
-func (s *Session) WaitSettle(ctx context.Context, quiet time.Duration) (string, error) {
-	var r screenRead
+//
+// [SettleIgnore] leaves out changes to part of the screen, such as a clock,
+// and [SettleOnly] watches only part of it.
+func (s *Session) WaitSettle(ctx context.Context, quiet time.Duration, opts ...SettleOption) (string, error) {
+	var o settleOptions
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&o)
+		}
+	}
+	watch := settleWatch{ignore: anyRegion(o.ignore), only: anyRegion(o.only)}
+	withScreen := watch.ignore != nil || watch.only != nil
 	timer := time.NewTimer(quiet)
 	defer timer.Stop()
+	// view is the screen as last read, with the cells watch covers on it.
+	var view settleView
 	err := s.await(ctx, timer, func(fired bool) (bool, error) {
-		prev, started := r.Text, r.read
-		if _, err := s.readScreen(&r); err != nil {
-			return false, err
+		was := view
+		changed, err := s.readScreen(&view.screenRead, withScreen)
+		if err != nil || !changed {
+			return fired && watch.shows(view), err
 		}
-		if started && r.Text != prev {
+		watch.cover(&view)
+		switch {
+		case !watch.shows(view):
+			// Nothing to watch is not settled, so the quiet time starts
+			// once something shows.
+			timer.Stop()
+			return false, nil
+		case was.read && (!watch.shows(was) || view.differs(was)):
 			timer.Reset(quiet)
 			return false, nil
 		}
 		return fired, nil
 	})
-	if err != nil {
-		return "", &WaitError{Wait: "settle", Last: r.Text, Err: err}
+	text := view.Text
+	if withScreen {
+		text = view.screen.Text()
 	}
-	return r.Text, nil
+	if err != nil {
+		wait := "settle"
+		if view.read && !watch.shows(view) {
+			wait = "settle, with the regions it watches not on the screen"
+		}
+		return "", &WaitError{Wait: wait, Last: text, Err: err}
+	}
+	return text, nil
+}
+
+// SettleOption is an option of [Session.WaitSettle].
+type SettleOption func(*settleOptions)
+
+// settleOptions are the regions of SettleIgnore and SettleOnly.
+type settleOptions struct{ ignore, only []region.Region }
+
+// SettleIgnore makes [Session.WaitSettle] leave out changes to the cells
+// any of regions covers, such as [region.Row](-1) for a status bar with a
+// clock in it, or [region.Regexp] of the clock itself. A region that covers
+// nothing leaves out nothing. Calls add to the regions.
+func SettleIgnore(regions ...region.Region) SettleOption {
+	return func(o *settleOptions) { o.ignore = append(o.ignore, regions...) }
+}
+
+// SettleOnly makes [Session.WaitSettle] watch only the cells any of regions
+// covers, such as [region.Text] of a result, for changes, and still leave
+// out those [SettleIgnore] covers. The screen is not settled while the
+// regions cover no cell of it: the quiet time starts once they cover some,
+// and starts over each time they come back, so a wait for a region that
+// never shows ends with ctx. Calls add to the regions.
+func SettleOnly(regions ...region.Region) SettleOption {
+	return func(o *settleOptions) { o.only = append(o.only, regions...) }
+}
+
+// anyRegion returns [region.Any] of regions, or nil when they are all nil.
+func anyRegion(regions []region.Region) region.Region {
+	if !slices.ContainsFunc(regions, func(r region.Region) bool { return r != nil }) {
+		return nil
+	}
+	return region.Any(regions...)
+}
+
+// settleWatch is the part of the screen a [Session.WaitSettle] watches: all
+// of it but what ignore covers, or only what only covers, when not nil.
+type settleWatch struct{ ignore, only region.Region }
+
+// settleView is the screen as a [Session.WaitSettle] read it, with the
+// cells the SettleOnly and SettleIgnore regions cover on its screen, nil
+// when they cover none, or there are none.
+type settleView struct {
+	screenRead
+
+	only, ignored []bool
+}
+
+// cover finds the cells w covers on the screen v read.
+func (w settleWatch) cover(v *settleView) {
+	v.only, v.ignored = nil, nil
+	if v.screen != nil {
+		v.only, v.ignored = region.Covered(v.screen, w.only), region.Covered(v.screen, w.ignore)
+	}
+}
+
+// shows reports whether any of what w watches is on the screen v read:
+// without SettleOnly regions, all of it is.
+func (w settleWatch) shows(v settleView) bool { return w.only == nil || v.only != nil }
+
+// differs reports whether v has changed from was, comparing their cells by
+// where they are. A cell either ignores is left out, so ignored text that
+// shows, or grows, does not change it. A cell one watches and the other
+// does not, as when a [SettleOnly] region moves or the screen is resized,
+// has changed.
+func (v settleView) differs(was settleView) bool {
+	if v.screen == nil || was.screen == nil {
+		return v.Text != was.Text
+	}
+	vb, wb := v.screen.Bounds(), was.screen.Bounds()
+	for y := range max(vb.Dy(), wb.Dy()) {
+		for x := range max(vb.Dx(), wb.Dx()) {
+			if v.ignores(x, y) || was.ignores(x, y) {
+				continue
+			}
+			watched := v.watches(x, y)
+			if watched != was.watches(x, y) || (watched && v.content(x, y) != was.content(x, y)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// cell returns the index of the cell at x, y in v's grids, and whether v's
+// screen has it.
+func (v settleView) cell(x, y int) (int, bool) {
+	b := v.screen.Bounds()
+	return y*b.Dx() + x, x < b.Dx() && y < b.Dy()
+}
+
+// ignores reports whether v's SettleIgnore regions cover the cell at x, y.
+func (v settleView) ignores(x, y int) bool {
+	i, ok := v.cell(x, y)
+	return ok && len(v.ignored) > i && v.ignored[i]
+}
+
+// watches reports whether v watches the cell at x, y: whether its screen
+// has it, and without SettleOnly regions, it watches every cell.
+func (v settleView) watches(x, y int) bool {
+	i, ok := v.cell(x, y)
+	return ok && (len(v.only) == 0 || v.only[i])
+}
+
+// content returns the text of the cell at x, y, which v's screen has.
+func (v settleView) content(x, y int) string {
+	b := v.screen.Bounds()
+	return v.screen.CellAt(b.Min.X+x, b.Min.Y+y).Content
 }
 
 // outputState returns the terminal's output count and whether

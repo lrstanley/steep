@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/vt"
 )
 
@@ -43,29 +44,29 @@ func HideBetween(hideLabel, showLabel string) HideRule {
 	return func(h *hide) { h.marks = append(h.marks, markRule{hide: hideLabel, show: showLabel}) }
 }
 
-// HideWhile hides each terminal frame on which region covers a cell, such
-// as a [Text] of a prompt to enter a password. A nil region is an error
-// from Start.
-func HideWhile(region Region) HideRule {
-	return func(h *hide) { h.screens = append(h.screens, screenRule{region: region, while: true}) }
+// HideWhile hides each terminal frame on which r covers a cell, such
+// as a [region.Text] of a prompt to enter a password. A nil region is an
+// error from Start.
+func HideWhile(r region.Region) HideRule {
+	return func(h *hide) { h.screens = append(h.screens, screenRule{region: r, while: true}) }
 }
 
-// HideUnless hides each terminal frame on which region covers no cell,
-// such as until a [Text] of the program's first prompt shows. A nil region
+// HideUnless hides each terminal frame on which r covers no cell, such
+// as until a [region.Text] of the program's first prompt shows. A nil region
 // is an error from Start.
-func HideUnless(region Region) HideRule {
-	return func(h *hide) { h.screens = append(h.screens, screenRule{region: region}) }
+func HideUnless(r region.Region) HideRule {
+	return func(h *hide) { h.screens = append(h.screens, screenRule{region: r}) }
 }
 
 // Hide returns an effect that cuts the parts of the recording its rules
 // hide out of playback, so the recording is shorter by them: [HideBetween]
 // hides the spans between marks, and [HideWhile] and [HideUnless] the
-// frames that show, or do not show, a [Region]. A frame is hidden while any
-// rule hides it. A frame a span starts or ends in is cut on the delay grid:
-// the screen before the span plays until the span starts, and the screen
-// at its end plays from there, as the terminal showed it when the span
-// ended. Frames without a terminal, such as cards, are left alone. Without
-// rules, Hide is an error from Start.
+// frames that show, or do not show, a [region.Region]. A frame is hidden
+// while any rule hides it. A frame a span starts or ends in is cut on the
+// delay grid: the screen before the span plays until the span starts, and
+// the screen at its end plays from there, as the terminal showed it when
+// the span ended. Frames without a terminal, such as cards, are left alone.
+// Without rules, Hide is an error from Start.
 //
 // [Keys] and [Pause] leave out the keys pressed and the marks in what Hide
 // cuts. Effects that run after Hide see the frames left, and time jumps over
@@ -98,7 +99,7 @@ type markRule struct{ hide, show string }
 
 // screenRule is a [HideWhile] rule, or a [HideUnless] rule without while.
 type screenRule struct {
-	region Region
+	region region.Region
 	while  bool
 }
 
@@ -106,7 +107,7 @@ type screenRule struct {
 func (r screenRule) hides(f *reel.CellFrame) bool {
 	b := f.Screen.Bounds()
 	grid := image.Rect(0, 0, b.Dx(), b.Dy())
-	covers := slices.ContainsFunc(r.region.Rects(f), func(rect image.Rectangle) bool {
+	covers := slices.ContainsFunc(r.region.Rects(f.Screen), func(rect image.Rectangle) bool {
 		return rect.Canon().Overlaps(grid)
 	})
 	return covers == r.while

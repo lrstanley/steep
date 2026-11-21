@@ -20,8 +20,8 @@ import (
 	"github.com/lrstanley/clix/v2"
 )
 
-// Release builds set these with -ldflags. Left empty, as with go install, clix
-// reads them from the binary's build info.
+// Release builds set these with -ldflags. Left empty, as with go install,
+// clix reads them from the binary's build info.
 var (
 	version string
 	commit  string
@@ -85,7 +85,7 @@ func main() {
 }
 
 // specHelp describes the SPEC of the region effects (see package spec).
-const specHelp = "SPEC is REGION[;KEY=VALUE]..., with REGION one of row=Y, rows=Y0-Y1, cells=X0,Y0,X1,Y1, " +
+const specHelp = "SPEC is REGION[;KEY=VALUE]..., with REGION one of row=Y, rows=Y0-Y1 (negative rows count from -1 at the bottom), cells=X0,Y0,X1,Y1, " +
 	"text=TEXT, re=PATTERN, or env=NAME; every effect takes between=FROM,TO (marks), and highlight takes " +
 	"ease=DUR dim=FACTOR outline=#RRGGBB[:PX] padding=PX, zoom ease=DUR scale=FACTOR anchor=X,Y, " +
 	"and redact style=blur|block|replace:CHAR. Captions and callouts take pause=DUR|auto for=DUR " +

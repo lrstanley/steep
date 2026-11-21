@@ -20,6 +20,7 @@ import (
 
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/internal/testutil"
+	"getsteep.dev/steep/reel/region"
 	"getsteep.dev/steep/reel/render"
 	"getsteep.dev/steep/reel/vt"
 )
@@ -99,7 +100,7 @@ func TestRedactModes(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			in, out := redactFrames(t, testutil.Rasterizer{}, tl, Redact(Text("hunter2"), tc.opts...))
+			in, out := redactFrames(t, testutil.Rasterizer{}, tl, Redact(region.Text("hunter2"), tc.opts...))
 			if len(out) != 1 || out[0].Cells == in[0].Cells || out[0].Image == in[0].Image {
 				t.Fatalf("%d frames, want one redacted frame", len(out))
 			}
@@ -135,15 +136,15 @@ func TestRedactRegions(t *testing.T) {
 	)
 	for _, tc := range []struct {
 		name   string
-		region Region
+		region region.Region
 		want   string
 	}{
-		{"text", Text("5678"), "id 1234-**** x\nenv s3cr3t\nab"},
-		{"regexp", Regexp(regexp.MustCompile(`\d{4}-\d{4}`)), "id ********* x\nenv s3cr3t\nab"},
-		{"env", Env("REEL_REDACT_TEST", "REEL_REDACT_EMPTY"), "id 1234-5678 x\nenv ******\nab"},
-		{"cells", Cells(image.Rect(0, 1, 3, 3)), "id 1234-5678 x\n*** s3cr3t\n***"},
-		{"row", Row(2), "id 1234-5678 x\nenv s3cr3t\n****************"},
-		{"any", Any(Text("id"), nil, Env("REEL_REDACT_TEST")), "** 1234-5678 x\nenv ******\nab"},
+		{"text", region.Text("5678"), "id 1234-**** x\nenv s3cr3t\nab"},
+		{"regexp", region.Regexp(regexp.MustCompile(`\d{4}-\d{4}`)), "id ********* x\nenv s3cr3t\nab"},
+		{"env", region.Env("REEL_REDACT_TEST", "REEL_REDACT_EMPTY"), "id 1234-5678 x\nenv ******\nab"},
+		{"cells", region.Cells(image.Rect(0, 1, 3, 3)), "id 1234-5678 x\n*** s3cr3t\n***"},
+		{"row", region.Row(2), "id 1234-5678 x\nenv s3cr3t\n****************"},
+		{"any", region.Any(region.Text("id"), nil, region.Env("REEL_REDACT_TEST")), "** 1234-5678 x\nenv ******\nab"},
 	} {
 		got := redactedScreens(t, tl, Redact(tc.region, Replace('*')))
 		if len(got) != 1 || got[0] != tc.want {
@@ -168,7 +169,7 @@ func TestRedactTyping(t *testing.T) {
 		output(700, "ab abcdef\r\n"),
 		output(800, "abcz\x1b[D"),
 	)
-	got := redactedScreens(t, tl, Redact(Text("abcdef"), Replace('*')))
+	got := redactedScreens(t, tl, Redact(region.Text("abcdef"), Replace('*')))
 	want := []string{
 		"Token:",
 		"Token: a",
@@ -186,7 +187,7 @@ func TestRedactTyping(t *testing.T) {
 	}
 	// Three characters or fewer are hidden only whole.
 	tl = buildTimeline(t, 10, 1, "", output(0, "ab abc"))
-	if short := redactedScreens(t, tl, Redact(Text("abc"), Replace('*'))); !slices.Equal(short, []string{"ab ***"}) {
+	if short := redactedScreens(t, tl, Redact(region.Text("abc"), Replace('*'))); !slices.Equal(short, []string{"ab ***"}) {
 		t.Fatalf("screens %q", short)
 	}
 }
@@ -207,7 +208,7 @@ func TestRedactMinPartial(t *testing.T) {
 		{6, []string{"a ab abx f. ef def ****** ghi", "a ab abx f. ef def ****** ghi\na"}},
 		{100, []string{"a ab abx f. ef def ****** ghi", "a ab abx f. ef def ****** ghi\na"}},
 	} {
-		got := redactedScreens(t, tl, Redact(Text("abcdef"), Replace('*'), MinPartial(tc.n)))
+		got := redactedScreens(t, tl, Redact(region.Text("abcdef"), Replace('*'), MinPartial(tc.n)))
 		if !slices.Equal(got, tc.want) {
 			t.Errorf("MinPartial(%d): screens\n got %q\nwant %q", tc.n, got, tc.want)
 		}
@@ -219,12 +220,12 @@ func TestRedactMinPartial(t *testing.T) {
 func TestRedactSuffix(t *testing.T) {
 	t.Parallel()
 	tl := buildTimeline(t, 12, 3, "", output(0, "token: ghp_abcdefghij0123456789\r\nx"))
-	got := redactedScreens(t, tl, Redact(Text("ghp_abcdefghij0123456789"), Replace('*')))
+	got := redactedScreens(t, tl, Redact(region.Text("ghp_abcdefghij0123456789"), Replace('*')))
 	if want := []string{"************\n*******\nx"}; !slices.Equal(got, want) {
 		t.Fatalf("screens %q, want %q", got, want)
 	}
 	tl = buildTimeline(t, 30, 1, "", output(0, "[…nter2] xnter2 ter2"))
-	got = redactedScreens(t, tl, Redact(Text("hunter2"), Replace('*')))
+	got = redactedScreens(t, tl, Redact(region.Text("hunter2"), Replace('*')))
 	if want := []string{"[…*****] xnter2 ****"}; !slices.Equal(got, want) {
 		t.Fatalf("screens %q, want %q", got, want)
 	}
@@ -249,7 +250,7 @@ func TestRedactRenderer(t *testing.T) {
 	err := reel.Export(t.Context(), tl, reel.Profile{
 		Outputs: reel.MustFiles(filepath.Join(t.TempDir(), "out.gif")),
 		Render:  opts,
-		Effects: []reel.Effect{Redact(Text("hunter2")), recordFrames{frames: &frames}},
+		Effects: []reel.Effect{Redact(region.Text("hunter2")), recordFrames{frames: &frames}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -282,7 +283,7 @@ func TestRedactRenderer(t *testing.T) {
 func TestRedactWrappedWide(t *testing.T) {
 	t.Parallel()
 	tl := buildTimeline(t, 8, 3, "", output(0, "key=hunter2\r\n日本語x"))
-	got := redactedScreens(t, tl, Redact(Any(Text("hunter2"), Regexp(regexp.MustCompile(`本.`))), Replace('*')))
+	got := redactedScreens(t, tl, Redact(region.Any(region.Text("hunter2"), region.Regexp(regexp.MustCompile(`本.`))), Replace('*')))
 	want := []string{"key=****\n***\n日****x"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("screens %q, want %q", got, want)
@@ -297,7 +298,7 @@ func TestRedactTitleStatus(t *testing.T) {
 		output(0, "\x1b]2;login hunter2\x07\x1b]7501;state=working:app=hunter2\x1b\\x"+osc777("hunter2", "pw hunter2")+osc9("ok")),
 	)
 	var title string
-	_, out := redactFrames(t, testutil.Rasterizer{}, tl, Redact(Text("hunter2")), titleOf{&title})
+	_, out := redactFrames(t, testutil.Rasterizer{}, tl, Redact(region.Text("hunter2")), titleOf{&title})
 	if title != "deploy •••••••" {
 		t.Errorf("context title %q", title)
 	}
@@ -313,7 +314,7 @@ func TestRedactTitleStatus(t *testing.T) {
 		t.Fatalf("notifications %+v, want %+v", st.Notifications, want)
 	}
 	// Cells regions hide no title.
-	_, out = redactFrames(t, testutil.Rasterizer{}, tl, Redact(Row(1)))
+	_, out = redactFrames(t, testutil.Rasterizer{}, tl, Redact(region.Row(1)))
 	if len(out) != 1 || out[0].Cells.State.Title != "login hunter2" {
 		t.Fatalf("frames %+v", infoOf(out))
 	}
@@ -332,7 +333,7 @@ func TestRedactNotificationsAfterWindow(t *testing.T) {
 		output(400, "y"),
 		mark(1000, "end"),
 	)
-	in, out := redactFrames(t, testutil.Rasterizer{}, tl, Redact(Text("hunter2"), Between("a", "b")))
+	in, out := redactFrames(t, testutil.Rasterizer{}, tl, Redact(region.Text("hunter2"), Between("a", "b")))
 	var after int
 	for i, f := range out {
 		ns := f.Cells.State.Notifications
@@ -370,8 +371,8 @@ func TestRedactBlur(t *testing.T) {
 	r := testutil.Rasterizer{Cell: image.Pt(4, 4), Pad: 2}
 	// The cursor is on the first e, so the cells do not all look alike.
 	tl := buildTimeline(t, 8, 2, "", output(0, "a secret\r\nzz\x1b[1;4H"))
-	_, blurred := redactFrames(t, r, tl, Redact(Text("secret"), Blur()))
-	_, replaced := redactFrames(t, r, tl, Redact(Text("secret"), Replace('x')))
+	_, blurred := redactFrames(t, r, tl, Redact(region.Text("secret"), Blur()))
+	_, replaced := redactFrames(t, r, tl, Redact(region.Text("secret"), Replace('x')))
 	if len(blurred) != 1 || len(replaced) != 1 {
 		t.Fatalf("%d and %d frames, want 1", len(blurred), len(replaced))
 	}
@@ -409,7 +410,7 @@ func TestRedactBetween(t *testing.T) {
 		mark(345, "off"),
 		output(400, "!"),
 	)
-	in, out := redactFrames(t, testutil.Rasterizer{}, tl, Redact(Text("abcd"), Replace('*'), Between("on", "off")))
+	in, out := redactFrames(t, testutil.Rasterizer{}, tl, Redact(region.Text("abcd"), Replace('*'), Between("on", "off")))
 	type piece struct {
 		at, delay time.Duration
 		screen    string
@@ -445,16 +446,16 @@ func TestRedactErrors(t *testing.T) {
 		effect reel.Effect
 	}{
 		{"nil region", Redact(nil)},
-		{"ease", Redact(Row(0), Ease(10*ms))},
-		{"ease in", Redact(Row(0), EaseIn(10*ms))},
-		{"ease out", Redact(Row(0), EaseOut(10*ms))},
-		{"negative ease", Redact(Row(0), Ease(-ms))},
-		{"wide replacement", Redact(Row(0), Replace('日'))},
-		{"control replacement", Redact(Row(0), Replace('\t'))},
+		{"ease", Redact(region.Row(0), Ease(10*ms))},
+		{"ease in", Redact(region.Row(0), EaseIn(10*ms))},
+		{"ease out", Redact(region.Row(0), EaseOut(10*ms))},
+		{"negative ease", Redact(region.Row(0), Ease(-ms))},
+		{"wide replacement", Redact(region.Row(0), Replace('日'))},
+		{"control replacement", Redact(region.Row(0), Replace('\t'))},
 		{"inputs nil region", RedactInputs(nil)},
-		{"inputs cells", RedactInputs(Any(Text("a"), Row(0)))},
-		{"min partial", Redact(Text("a"), MinPartial(0))},
-		{"inputs min partial", RedactInputs(Text("a"), MinPartial(-1))},
+		{"inputs cells", RedactInputs(region.Any(region.Text("a"), region.Row(0)))},
+		{"min partial", Redact(region.Text("a"), MinPartial(0))},
+		{"inputs min partial", RedactInputs(region.Text("a"), MinPartial(-1))},
 	} {
 		st, err := tc.effect.Start(ctx)
 		if err == nil || st != nil {
@@ -474,9 +475,9 @@ func TestRedactOutputs(t *testing.T) {
 		effects []reel.Effect
 		is      error
 	}{
-		{"cast", reel.MustFiles("out.gif", "out.cast"), []reel.Effect{Redact(Text("hunter2"))}, reel.ErrRawOutput},
-		{"cast only", reel.MustFiles("out.cast"), []reel.Effect{Redact(Text("hunter2"))}, reel.ErrRawOutput},
-		{"inputs cast", reel.MustFiles("out.gif", "out.cast"), []reel.Effect{RedactInputs(Text("hunter2"))}, reel.ErrRawOutput},
+		{"cast", reel.MustFiles("out.gif", "out.cast"), []reel.Effect{Redact(region.Text("hunter2"))}, reel.ErrRawOutput},
+		{"cast only", reel.MustFiles("out.cast"), []reel.Effect{Redact(region.Text("hunter2"))}, reel.ErrRawOutput},
+		{"inputs cast", reel.MustFiles("out.gif", "out.cast"), []reel.Effect{RedactInputs(region.Text("hunter2"))}, reel.ErrRawOutput},
 	} {
 		dir := t.TempDir()
 		var outputs []reel.File
@@ -500,7 +501,7 @@ func TestRedactOutputs(t *testing.T) {
 	_, err = reel.Record(t.Context(), s, reel.Profile{
 		Outputs:    reel.MustFiles(filepath.Join(t.TempDir(), "out.cast")),
 		Rasterizer: testutil.Rasterizer{},
-		Effects:    []reel.Effect{Redact(Text("hunter2"))},
+		Effects:    []reel.Effect{Redact(region.Text("hunter2"))},
 	})
 	if !errors.Is(err, reel.ErrRawOutput) {
 		t.Fatalf("Record = %v, want an error wrapping reel.ErrRawOutput", err)
@@ -522,7 +523,7 @@ func TestRedactRecord(t *testing.T) {
 		Outputs:    reel.MustFiles(filepath.Join(t.TempDir(), "out.gif")),
 		Rasterizer: testutil.Rasterizer{},
 		FPS:        100,
-		Effects:    []reel.Effect{Redact(Text("hunter2"), Between("secret", "")), recordFrames{frames: &frames}},
+		Effects:    []reel.Effect{Redact(region.Text("hunter2"), Between("secret", "")), recordFrames{frames: &frames}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -574,7 +575,7 @@ func TestRedactUnreachedMarks(t *testing.T) {
 			Outputs:    reel.MustFiles(filepath.Join(t.TempDir(), "out.gif")),
 			Rasterizer: testutil.Rasterizer{},
 			FPS:        100,
-			Effects:    []reel.Effect{Redact(Text("hunter2"), Between(tc.from, tc.to)), recordFrames{frames: &frames}},
+			Effects:    []reel.Effect{Redact(region.Text("hunter2"), Between(tc.from, tc.to)), recordFrames{frames: &frames}},
 		})
 		if labels, rest := reel.MissingMarks(err); rest != nil || !slices.Equal(labels, []string{"nope"}) {
 			t.Errorf("between %q and %q: Export = %v, want a NoMarkError for \"nope\"", tc.from, tc.to, err)
@@ -602,7 +603,7 @@ func TestRedactStills(t *testing.T) {
 		p := reel.Profile{
 			Outputs:    []reel.File{{Path: filepath.Join(dir, "{mark}.png"), Marks: labels}},
 			Rasterizer: testutil.Rasterizer{},
-			Effects:    []reel.Effect{Redact(Text("hunter2"), Between(between[0], between[1])), Keys(time.Second), cardOf{paint}},
+			Effects:    []reel.Effect{Redact(region.Text("hunter2"), Between(between[0], between[1])), Keys(time.Second), cardOf{paint}},
 		}
 		if recording {
 			p.Outputs = append(p.Outputs, reel.File{Path: filepath.Join(dir, "out.gif")})

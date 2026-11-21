@@ -14,6 +14,8 @@ import (
 
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/effects"
+	"getsteep.dev/steep/reel/region"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // captionNotes describes each caption annotation in tl: its kind and its
@@ -35,7 +37,7 @@ func TestCaptions(t *testing.T) {
 	h := NewHarness(t, rootTestModel{}, WithWindowSize(20, 4), WithIgnoreEnv(true))
 	h.Wait("size=20x4").
 		Caption("first").
-		Callout(effects.Text("size"), "the size", effects.Spotlight()).
+		Callout(region.Text("size"), "the size", effects.Spotlight()).
 		Caption("second", effects.CaptionPause(time.Second)).
 		EndCaption().
 		EndCallout()
@@ -56,7 +58,7 @@ func TestCaptions(t *testing.T) {
 // describe.
 type emptyRegion struct{}
 
-func (emptyRegion) Rects(*reel.CellFrame) []image.Rectangle { return nil }
+func (emptyRegion) Rects(*vt.Buffer) []image.Rectangle { return nil }
 
 // TestCaptionErrors checks that captions that cannot be placed are test
 // errors, and leave no annotation.
