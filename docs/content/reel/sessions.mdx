@@ -24,9 +24,10 @@ A program writes output with `s.Write` and reads input with `s.Read`, which make
 | `Paste(text)` | A paste, bracketed if the program enabled it |
 | `Click(button, x, y, opts...)` | A press and release at a cell |
 | `Drag(button, from, to, opts...)` | A press, motion through each cell, and a release |
+| `Wheel(button, x, y, opts...)` | A turn of the mouse wheel at a cell, as a press of a wheel button |
 | `Mouse(action, button, x, y)` | A single mouse event, if the program asked for them |
 
-Keys are encoded for the keyboard mode the program set. `reel.Delay` pauses after each key press, and `reel.Repeat` repeats it.
+Keys are encoded for the keyboard mode the program set. `reel.Delay` pauses after each key press, click, drag step, or wheel turn, and `reel.Repeat` repeats a key, text, click, or wheel turn.
 
 ## The terminal
 

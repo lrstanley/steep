@@ -462,7 +462,7 @@ func enableEmulatorMouseReporting(tb testing.TB, h *Harness) {
 
 // mouseStep is a normalized mouse line from [tea] for ordered assertions.
 type mouseStep struct {
-	kind string // "click", "motion", or "release"
+	kind string // "click", "motion", "release", or "wheel"
 	tea.Mouse
 }
 
@@ -481,6 +481,8 @@ func collectMouseTail(tb testing.TB, h *Harness, nBefore int) []mouseStep {
 			out = append(out, mouseStep{"motion", m.Mouse()})
 		case tea.MouseReleaseMsg:
 			out = append(out, mouseStep{"release", m.Mouse()})
+		case tea.MouseWheelMsg:
+			out = append(out, mouseStep{"wheel", m.Mouse()})
 		}
 	}
 	return out

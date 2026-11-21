@@ -32,6 +32,9 @@ const (
 	// InputKindDrag is a press of a mouse button, motion, and its release
 	// ([Harness.MouseDrag]).
 	InputKindDrag InputKind = "drag"
+	// InputKindWheel is one or more turns of the mouse wheel
+	// ([Harness.Wheel]).
+	InputKindWheel InputKind = "wheel"
 )
 
 // InputMeta is the metadata of [HookInput] events.
@@ -44,10 +47,13 @@ type InputMeta struct {
 	// Mouse is the mouse event of [InputKindMouse]: "press", "release", or
 	// "motion".
 	Mouse string `json:"mouse,omitzero"`
-	// Button is the mouse button of [InputKindMouse], [InputKindClick], and
-	// [InputKindDrag]: "left", "right", "middle", or "none" for motion
-	// without one.
+	// Button is the mouse button of [InputKindMouse], [InputKindClick],
+	// [InputKindDrag], and [InputKindWheel]: "left", "right", "middle",
+	// "wheel_up", "wheel_down", "wheel_left", "wheel_right", or "none" for
+	// motion without one.
 	Button string `json:"button,omitzero"`
+	// Count is how many notches [InputKindWheel] turns the wheel.
+	Count int `json:"count,omitzero"`
 }
 
 func (m InputMeta) LogValue() slog.Value {
@@ -61,6 +67,9 @@ func (m InputMeta) LogValue() slog.Value {
 		if a.Value.String() != "" {
 			attrs = append(attrs, a)
 		}
+	}
+	if m.Count != 0 {
+		attrs = append(attrs, slog.Int("count", m.Count))
 	}
 	return slog.GroupValue(attrs...)
 }
@@ -324,6 +333,8 @@ func inputResponses(metadata any) (want int, match func(uv.Event) int) {
 		}
 	case InputKindMouse, InputKindClick, InputKindDrag:
 		return 1, responseTo[tea.MouseMsg]
+	case InputKindWheel:
+		return max(meta.Count, 1), responseTo[tea.MouseWheelMsg]
 	}
 	return 0, nil
 }
@@ -369,10 +380,7 @@ func (h *Harness) waitForPaint(start uint64, watch *paintWatch) {
 // it is marked. The floor covers settle intervals shorter than a scheduler
 // delay.
 func (h *Harness) paintWait() time.Duration {
-	wait := h.cfg.settleTimeout
-	if wait < 50*time.Millisecond {
-		wait = 50 * time.Millisecond
-	}
+	wait := max(h.cfg.settleTimeout, 50*time.Millisecond)
 	return wait
 }
 

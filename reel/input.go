@@ -15,45 +15,68 @@ import (
 )
 
 // InputOption configures one call to [Session.Type], [Session.Key],
-// [Session.Click], or [Session.Drag].
-type InputOption func(*inputConfig)
+// [Session.Click], [Session.Drag], or [Session.Wheel]. [NewInputConfig]
+// reads what a call's options set.
+type InputOption func(*InputConfig)
 
-type inputConfig struct {
-	delay  time.Duration
-	repeat int
+// InputConfig is what a call's [InputOption] values set, as
+// [NewInputConfig] reads them, such as for a caller that records how many
+// times its input is sent.
+type InputConfig struct {
+	// Delay is the pause after each key press, click, drag step, or wheel
+	// turn, when DelaySet. Zero or less is no pause.
+	Delay time.Duration
+	// DelaySet is whether an option set Delay. Without one, a call pauses
+	// for its default: the [WithTypingDelay] delay for keys, and none for
+	// the mouse.
+	DelaySet bool
+	// Repeat is how many times the call sends its input, at least 1.
+	Repeat int
 }
 
-// Delay pauses for d after each key press, click, or drag step of the call,
-// instead of the [WithTypingDelay] delay (for keys) or none (for the
-// mouse). Zero or less sends the input with no pause. The pause is a
-// [time.Sleep].
-func Delay(d time.Duration) InputOption {
-	return func(cfg *inputConfig) { cfg.delay = d }
-}
-
-// Repeat sends the call's input n times, such as a key pressed 5 times or a
-// double click, each followed by the call's delay. It does not apply to
-// [Session.Drag]. Less than 1 sends it once.
-func Repeat(n int) InputOption {
-	return func(cfg *inputConfig) { cfg.repeat = n }
-}
-
-// newInputConfig returns opts applied to a delay of d and one repeat.
-func newInputConfig(d time.Duration, opts []InputOption) inputConfig {
-	cfg := inputConfig{delay: d, repeat: 1}
+// NewInputConfig returns what opts set, applied in order to no delay and one
+// repeat, so the last of each wins. A Repeat of less than 1 is 1, as a call
+// sends its input at least once.
+func NewInputConfig(opts ...InputOption) InputConfig {
+	cfg := InputConfig{Repeat: 1}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&cfg)
 		}
 	}
-	cfg.repeat = max(cfg.repeat, 1)
+	cfg.Repeat = max(cfg.Repeat, 1)
+	return cfg
+}
+
+// Delay pauses for d after each key press, click, drag step, or wheel turn of
+// the call, instead of the [WithTypingDelay] delay (for keys) or none (for
+// the mouse). Zero or less sends the input with no pause. The pause is a
+// [time.Sleep].
+func Delay(d time.Duration) InputOption {
+	return func(cfg *InputConfig) { cfg.Delay, cfg.DelaySet = d, true }
+}
+
+// Repeat sends the call's input n times, such as a key pressed 5 times, a
+// double click, or 10 turns of the wheel, each followed by the call's delay.
+// It does not apply to [Session.Drag]. Less than 1 sends it once.
+func Repeat(n int) InputOption {
+	return func(cfg *InputConfig) { cfg.Repeat = n }
+}
+
+// newInputConfig returns what opts set, with a delay of d when none of them
+// sets one.
+func newInputConfig(d time.Duration, opts []InputOption) InputConfig {
+	cfg := NewInputConfig(opts...)
+	if !cfg.DelaySet {
+		cfg.Delay = d
+	}
 	return cfg
 }
 
 // pause sleeps for the call's delay, if any.
-func (cfg inputConfig) pause() {
-	if cfg.delay > 0 {
-		time.Sleep(cfg.delay)
+func (cfg InputConfig) pause() {
+	if cfg.Delay > 0 {
+		time.Sleep(cfg.Delay)
 	}
 }
 
@@ -90,8 +113,8 @@ func (s *Session) send(encode func() ([]byte, error), snap bool) error {
 // encode have been sent.
 func (s *Session) Type(text string, opts ...InputOption) error {
 	cfg := newInputConfig(s.typingDelay, opts)
-	text = strings.Repeat(text, cfg.repeat)
-	if cfg.delay <= 0 {
+	text = strings.Repeat(text, cfg.Repeat)
+	if cfg.Delay <= 0 {
 		return s.send(func() ([]byte, error) { return s.encodeText(text) }, true)
 	}
 	for _, r := range text {
@@ -131,7 +154,7 @@ func (s *Session) Key(name string, opts ...InputOption) error {
 		return err
 	}
 	cfg := newInputConfig(s.typingDelay, opts)
-	for range cfg.repeat {
+	for range cfg.Repeat {
 		err = s.send(func() ([]byte, error) {
 			data, eerr := s.term.EncodeKey(key)
 			if eerr == nil && len(data) == 0 {
@@ -168,7 +191,7 @@ func (s *Session) Mouse(action vt.MouseAction, button vt.MouseButton, x, y int) 
 // clicks that many times, such as 2 for a double click.
 func (s *Session) Click(button vt.MouseButton, x, y int, opts ...InputOption) error {
 	cfg := newInputConfig(0, opts)
-	for range cfg.repeat {
+	for range cfg.Repeat {
 		if err := s.Mouse(vt.MousePress, button, x, y); err != nil {
 			return err
 		}
@@ -190,7 +213,7 @@ func (s *Session) Drag(button vt.MouseButton, from, to image.Point, opts ...Inpu
 	if err := s.Mouse(vt.MousePress, button, from.X, from.Y); err != nil {
 		return err
 	}
-	for _, p := range dragPath(from, to) {
+	for _, p := range DragPath(from, to) {
 		if err := s.Mouse(vt.MouseMotion, button, p.X, p.Y); err != nil {
 			return err
 		}
@@ -199,9 +222,35 @@ func (s *Session) Drag(button vt.MouseButton, from, to image.Point, opts ...Inpu
 	return s.Mouse(vt.MouseRelease, button, to.X, to.Y)
 }
 
-// dragPath returns the cells of the line from from to to, after from, by
-// Bresenham's algorithm: each step moves to one of the 8 neighboring cells.
-func dragPath(from, to image.Point) []image.Point {
+// Wheel turns the mouse wheel one notch at zero-based cell (x, y), as a
+// press of button, as [Session.Mouse] does. button must be
+// [vt.MouseWheelUp], [vt.MouseWheelDown], [vt.MouseWheelLeft], or
+// [vt.MouseWheelRight], or Wheel is an error and sends nothing. [Repeat]
+// turns it that many notches, each its own [Input] event followed by the
+// call's [Delay].
+//
+// Wheel scrolls whatever the program scrolls, and leaves the terminal's own
+// viewport where it is. To scroll that, see [Session.ScrollUp].
+func (s *Session) Wheel(button vt.MouseButton, x, y int, opts ...InputOption) error {
+	// The wheel's buttons are 4 through 7 (see [vt.MouseButton]).
+	if button < vt.MouseWheelUp || button > vt.MouseWheelRight {
+		return fmt.Errorf("reel: mouse button %d is not a wheel button", button)
+	}
+	cfg := newInputConfig(0, opts)
+	for range cfg.Repeat {
+		if err := s.Mouse(vt.MousePress, button, x, y); err != nil {
+			return err
+		}
+		cfg.pause()
+	}
+	return nil
+}
+
+// DragPath returns the cells [Session.Drag] moves the pointer through from
+// from to to: the straight line between them in cells, after from and
+// ending at to, by Bresenham's algorithm, so each step moves to one of the 8
+// neighboring cells. It is empty when from is to.
+func DragPath(from, to image.Point) []image.Point {
 	dx, dy := abs(to.X-from.X), -abs(to.Y-from.Y)
 	sx, sy := cmp.Compare(to.X, from.X), cmp.Compare(to.Y, from.Y)
 	path := make([]image.Point, 0, max(dx, -dy))

@@ -165,6 +165,7 @@ type cell struct {
 // inputNote is a "steep.input" annotation.
 type inputNote struct {
 	InputMeta
+
 	At        *cell `json:"at,omitzero"`
 	To        *cell `json:"to,omitzero"`
 	Truncated bool  `json:"truncated,omitzero"`
@@ -179,7 +180,11 @@ func (n *inputNote) clip()      { n.Text = reel.ClipText(n.Text, &n.Truncated) }
 //nolint:exhaustive // Only the actions and buttons steep sends have names.
 var (
 	mouseNames  = map[vt.MouseAction]string{vt.MousePress: "press", vt.MouseRelease: "release", vt.MouseMotion: "motion"}
-	buttonNames = map[vt.MouseButton]string{vt.MouseLeft: "left", vt.MouseRight: "right", vt.MouseMiddle: "middle"}
+	buttonNames = map[vt.MouseButton]string{
+		vt.MouseLeft: "left", vt.MouseRight: "right", vt.MouseMiddle: "middle",
+		vt.MouseWheelUp: "wheel_up", vt.MouseWheelDown: "wheel_down",
+		vt.MouseWheelLeft: "wheel_left", vt.MouseWheelRight: "wheel_right",
+	}
 )
 
 // mouseName returns the annotation name of action, or "unknown".
@@ -381,6 +386,7 @@ type dims struct {
 // assertNote is a "steep.assert" annotation.
 type assertNote struct {
 	AssertMeta
+
 	Pass      bool         `json:"pass"`
 	Text      []string     `json:"text,omitzero"`
 	Condition string       `json:"condition,omitzero"`
@@ -411,6 +417,7 @@ func (o options) noteAssert(n assertNote) {
 // snapshotNote is a "steep.snapshot" annotation.
 type snapshotNote struct {
 	CaptureMeta
+
 	Path      string `json:"path"`
 	Pass      bool   `json:"pass"`
 	Updated   bool   `json:"updated,omitzero"`

@@ -371,6 +371,25 @@ func (h *Harness) LeftDrag(x1, y1, x2, y2 int, opts ...reel.InputOption) *Harnes
 	return h.MouseDrag(vt.MouseLeft, x1, y1, x2, y2, opts...)
 }
 
+// Wheel turns the mouse wheel one notch at (x, y), toward button, which is
+// [vt.MouseWheelUp], [vt.MouseWheelDown], [vt.MouseWheelLeft], or
+// [vt.MouseWheelRight] (see [reel.Session.Wheel]). Another button fails the
+// test. Pass [reel.Repeat] to turn it more notches, and [reel.Delay] to
+// pause after each.
+//
+// The program scrolls what it draws, if it listens. To scroll the
+// terminal's own viewport instead, see [Harness.ScrollUp].
+func (h *Harness) Wheel(button vt.MouseButton, x, y int, opts ...reel.InputOption) *Harness {
+	h.tb.Helper()
+	// Options are read once, so the count recorded is the count sent.
+	cfg := reel.NewInputConfig(opts...)
+	meta := InputMeta{Kind: InputKindWheel, Button: buttonName(button), Count: cfg.Repeat}
+	defer h.hook(HookInput, meta)()
+	h.annotate(&inputNote{InputMeta: meta, At: &cell{Row: y, Col: x}})
+	h.check(h.session.Wheel(button, x, y, func(c *reel.InputConfig) { *c = cfg }))
+	return h
+}
+
 // Locate waits until cond holds for the screen, as [Harness.WaitFor] does,
 // and returns the cell where cond's first match starts, so a test can click
 // what the program drew without knowing where it drew it:
@@ -389,7 +408,7 @@ func (h *Harness) LeftDrag(x1, y1, x2, y2 int, opts ...reel.InputOption) *Harnes
 // [reel.ScreenFunc], fails the test.
 func (h *Harness) Locate(cond reel.Condition, opts ...Option) Location {
 	h.tb.Helper()
-	note := waitNote{WaitMeta: WaitMeta{Kind: WaitKindCondition}, Condition: cond.String()}
+	note := waitNote{Kind: WaitKindCondition, Condition: cond.String()}
 	defer h.hook(HookWait, note.WaitMeta)()
 	matches := h.waitScreen(cond, note, opts)
 	if len(matches) == 0 {
@@ -414,13 +433,21 @@ func (l Location) Offset(x, y int) Location {
 	return l
 }
 
-// MouseClick is [Harness.MouseClick] at l. It fails the test if l is off the
-// screen, where the program would only see a release at the screen's edge.
-func (l Location) MouseClick(button vt.MouseButton, opts ...reel.InputOption) *Harness {
+// onScreen fails the test if l is off the screen, where the program would
+// see the event at the screen's edge, if at all. what names the event, such
+// as "click at".
+func (l Location) onScreen(what string) {
 	l.h.tb.Helper()
 	if bounds := l.h.Bounds(); !image.Pt(l.X, l.Y).In(bounds) {
-		l.h.tb.Fatalf("steep: click at (%d, %d) is off the %dx%d screen", l.X, l.Y, bounds.Dx(), bounds.Dy())
+		l.h.tb.Fatalf("steep: %s (%d, %d) is off the %dx%d screen", what, l.X, l.Y, bounds.Dx(), bounds.Dy())
 	}
+}
+
+// MouseClick is [Harness.MouseClick] at l. It fails the test if l is off the
+// screen.
+func (l Location) MouseClick(button vt.MouseButton, opts ...reel.InputOption) *Harness {
+	l.h.tb.Helper()
+	l.onScreen("click at")
 	return l.h.MouseClick(button, l.X, l.Y, opts...)
 }
 
@@ -437,6 +464,47 @@ func (l Location) MiddleClick(opts ...reel.InputOption) *Harness {
 // RightClick is [Location.MouseClick] with the right mouse button.
 func (l Location) RightClick(opts ...reel.InputOption) *Harness {
 	return l.MouseClick(vt.MouseRight, opts...)
+}
+
+// Hover moves the pointer to l with no button held, as one motion event
+// (see [Harness.Mouse]). The program hears of it only if it enabled
+// tracking of all motion, such as [tea.MouseModeAllMotion]. It fails the
+// test if l is off the screen.
+func (l Location) Hover() *Harness {
+	l.h.tb.Helper()
+	l.onScreen("hover at")
+	return l.h.Mouse(vt.MouseMotion, vt.MouseUnknown, l.X, l.Y)
+}
+
+// MouseDrag is [Harness.MouseDrag] from l to to, such as to select text or
+// to drop one located thing onto another:
+//
+//	at := h.Locate(reel.Contains("Name:"))
+//	at.Offset(6, 0).LeftDrag(at.Offset(16, 0))
+//
+// It fails the test if either end is off the screen.
+func (l Location) MouseDrag(button vt.MouseButton, to Location, opts ...reel.InputOption) *Harness {
+	l.h.tb.Helper()
+	l.onScreen("drag from")
+	to.h = l.h
+	to.onScreen("drag to")
+	return l.h.MouseDrag(button, l.X, l.Y, to.X, to.Y, opts...)
+}
+
+// LeftDrag is [Location.MouseDrag] with the left mouse button.
+func (l Location) LeftDrag(to Location, opts ...reel.InputOption) *Harness {
+	return l.MouseDrag(vt.MouseLeft, to, opts...)
+}
+
+// Wheel is [Harness.Wheel] at l, such as to scroll a list ten rows:
+//
+//	h.Locate(reel.Contains("Sencha")).Wheel(vt.MouseWheelDown, reel.Repeat(10))
+//
+// It fails the test if l is off the screen.
+func (l Location) Wheel(button vt.MouseButton, opts ...reel.InputOption) *Harness {
+	l.h.tb.Helper()
+	l.onScreen("wheel at")
+	return l.h.Wheel(button, l.X, l.Y, opts...)
 }
 
 // Progress returns the latest OSC 9;4 progress report.

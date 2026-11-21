@@ -5,6 +5,7 @@
 package steep
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -13,7 +14,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/vt"
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // locateProbe draws its view, which [setTextMsg] replaces.
@@ -109,6 +112,115 @@ func TestHarness_Locate_buttons(t *testing.T) {
 	}
 }
 
+// mouseSteps is a compact form of steps for test failures.
+func mouseSteps(steps []mouseStep) string {
+	var b strings.Builder
+	for _, st := range steps {
+		fmt.Fprintf(&b, "%s %v (%d, %d); ", st.kind, st.Button, st.X, st.Y)
+	}
+	return b.String()
+}
+
+func TestHarness_Locate_hover(t *testing.T) {
+	t.Parallel()
+	h := newLocateHarness(t, "\n  [ OK ]")
+	// Motion with no button held is only reported with any-event tracking.
+	_ = writeString(h, ansi.SetModeMouseAnyEvent)
+	n := len(slices.Collect(h.MessageHistory()))
+
+	h.Locate(reel.Contains("OK")).Hover()
+	WaitSettleMessages(t, h)
+
+	got := collectMouseTail(t, h, n)
+	want := mouseStep{"motion", tea.Mouse{X: 4, Y: 1, Button: tea.MouseNone}}
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("got %s, want %s", mouseSteps(got), mouseSteps([]mouseStep{want}))
+	}
+}
+
+func TestHarness_Locate_drag(t *testing.T) {
+	t.Parallel()
+	tests := map[string]struct {
+		view string
+		drag func(*Harness) *Harness
+		want []mouseStep
+	}{
+		"offset": {"\n  [ OK ]", func(h *Harness) *Harness {
+			at := h.Locate(reel.Contains("OK"))
+			return at.LeftDrag(at.Offset(2, 1))
+		}, []mouseStep{
+			{"click", tea.Mouse{X: 4, Y: 1, Button: tea.MouseLeft}},
+			{"motion", tea.Mouse{X: 5, Y: 2, Button: tea.MouseLeft}},
+			{"motion", tea.Mouse{X: 6, Y: 2, Button: tea.MouseLeft}},
+			{"release", tea.Mouse{X: 6, Y: 2, Button: tea.MouseLeft}},
+		}},
+		"onto another": {"card\n   bin", func(h *Harness) *Harness {
+			return h.Locate(reel.Contains("card")).MouseDrag(vt.MouseRight, h.Locate(reel.Contains("bin")))
+		}, []mouseStep{
+			{"click", tea.Mouse{X: 0, Y: 0, Button: tea.MouseRight}},
+			{"motion", tea.Mouse{X: 1, Y: 0, Button: tea.MouseRight}},
+			{"motion", tea.Mouse{X: 2, Y: 1, Button: tea.MouseRight}},
+			{"motion", tea.Mouse{X: 3, Y: 1, Button: tea.MouseRight}},
+			{"release", tea.Mouse{X: 3, Y: 1, Button: tea.MouseRight}},
+		}},
+		"backward": {"  OK", func(h *Harness) *Harness {
+			at := h.Locate(reel.Contains("OK"))
+			return at.LeftDrag(at.Offset(-2, 0))
+		}, []mouseStep{
+			{"click", tea.Mouse{X: 2, Y: 0, Button: tea.MouseLeft}},
+			{"motion", tea.Mouse{X: 1, Y: 0, Button: tea.MouseLeft}},
+			{"motion", tea.Mouse{X: 0, Y: 0, Button: tea.MouseLeft}},
+			{"release", tea.Mouse{X: 0, Y: 0, Button: tea.MouseLeft}},
+		}},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := newLocateHarness(t, tt.view)
+			n := len(slices.Collect(h.MessageHistory()))
+
+			tt.drag(h)
+			WaitSettleMessages(t, h)
+
+			if got := collectMouseTail(t, h, n); !slices.Equal(got, tt.want) {
+				t.Fatalf("got %s\nwant %s", mouseSteps(got), mouseSteps(tt.want))
+			}
+		})
+	}
+}
+
+func TestHarness_Locate_wheel(t *testing.T) {
+	t.Parallel()
+	tests := map[string]struct {
+		button vt.MouseButton
+		opts   []reel.InputOption
+		want   tea.MouseButton
+		count  int
+	}{
+		"down":     {vt.MouseWheelDown, nil, tea.MouseWheelDown, 1},
+		"up":       {vt.MouseWheelUp, []reel.InputOption{reel.Repeat(3)}, tea.MouseWheelUp, 3},
+		"left":     {vt.MouseWheelLeft, nil, tea.MouseWheelLeft, 1},
+		"right":    {vt.MouseWheelRight, nil, tea.MouseWheelRight, 1},
+		"repeated": {vt.MouseWheelDown, []reel.InputOption{reel.Repeat(40)}, tea.MouseWheelDown, 40},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := newLocateHarness(t, "\n  [ OK ]")
+			n := len(slices.Collect(h.MessageHistory()))
+
+			h.Locate(reel.Contains("OK")).Wheel(tt.button, tt.opts...)
+			WaitSettleMessages(t, h)
+
+			got := collectMouseTail(t, h, n)
+			want := slices.Repeat([]mouseStep{{"wheel", tea.Mouse{X: 4, Y: 1, Button: tt.want}}}, tt.count)
+			if !slices.Equal(got, want) {
+				t.Fatalf("got %s\nwant %d of %s", mouseSteps(got), tt.count, mouseSteps(want[:1]))
+			}
+		})
+	}
+}
+
 func TestHarness_Locate_waits(t *testing.T) {
 	t.Parallel()
 	h := newLocateHarness(t, "loading")
@@ -165,7 +277,33 @@ func TestHarness_Locate_fails(t *testing.T) {
 		},
 		"off the bottom": {
 			func(h *Harness) { h.Locate(reel.Contains("OK")).Offset(0, 4).LeftClick() },
-			"off the 20x4 screen",
+			"click at (0, 4) is off the 20x4 screen",
+		},
+		"hover off": {
+			func(h *Harness) { h.Locate(reel.Contains("OK")).Offset(-1, 0).Hover() },
+			"hover at (-1, 0) is off the 20x4 screen",
+		},
+		"drag from off": {
+			func(h *Harness) {
+				at := h.Locate(reel.Contains("OK"))
+				at.Offset(0, -1).LeftDrag(at)
+			},
+			"drag from (0, -1) is off the 20x4 screen",
+		},
+		"drag to off": {
+			func(h *Harness) {
+				at := h.Locate(reel.Contains("OK"))
+				at.MouseDrag(vt.MouseRight, at.Offset(20, 0))
+			},
+			"drag to (20, 0) is off the 20x4 screen",
+		},
+		"wheel off": {
+			func(h *Harness) { h.Locate(reel.Contains("OK")).Offset(0, 4).Wheel(vt.MouseWheelDown) },
+			"wheel at (0, 4) is off the 20x4 screen",
+		},
+		"not a wheel button": {
+			func(h *Harness) { h.Locate(reel.Contains("OK")).Wheel(vt.MouseLeft) },
+			"not a wheel button",
 		},
 	}
 	for name, tt := range tests {

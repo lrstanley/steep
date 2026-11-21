@@ -7,6 +7,7 @@ package reel
 import (
 	"image"
 	"slices"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -238,9 +239,9 @@ func TestDragPath(t *testing.T) {
 		"steep":      {pt(0, 0), pt(1, 3), []image.Point{pt(0, 1), pt(1, 2), pt(1, 3)}},
 		"steep back": {pt(2, 4), pt(1, 0), []image.Point{pt(2, 3), pt(1, 2), pt(1, 1), pt(1, 0)}},
 	} {
-		got := dragPath(tc.from, tc.to)
+		got := DragPath(tc.from, tc.to)
 		if !slices.Equal(got, tc.want) {
-			t.Errorf("%s: dragPath(%v, %v) = %v, want %v", name, tc.from, tc.to, got, tc.want)
+			t.Errorf("%s: DragPath(%v, %v) = %v, want %v", name, tc.from, tc.to, got, tc.want)
 		}
 		for i, p := range got {
 			prev := tc.from
@@ -272,6 +273,12 @@ func TestSessionMouseGestures(t *testing.T) {
 		if err := s.Type("bc", Repeat(2)); err != nil {
 			t.Fatal(err)
 		}
+		if err := s.Wheel(vt.MouseWheelDown, 4, 3, Repeat(2), Delay(time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Wheel(vt.MouseWheelUp, 0, 0); err != nil {
+			t.Fatal(err)
+		}
 		assertEvents(t, s.Timeline(),
 			`0 output "\x1b[?1002h\x1b[?1006h"`,
 			`0 input "\x1b[<0;2;1M"`,
@@ -286,6 +293,58 @@ func TestSessionMouseGestures(t *testing.T) {
 			`2200 input "a"`,
 			`2200 input "a"`,
 			`2200 input "bcbc"`,
+			`2200 input "\x1b[<65;5;4M"`,
+			`3200 input "\x1b[<65;5;4M"`,
+			`4200 input "\x1b[<64;1;1M"`,
 		)
 	})
+}
+
+func TestSessionWheel(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		s := openTest(t, 20, 4)
+		// SGR mouse reports of presses, which is all a wheel turn is.
+		write(t, s, "\x1b[?1000h\x1b[?1006h")
+		for _, button := range []vt.MouseButton{vt.MouseWheelUp, vt.MouseWheelDown, vt.MouseWheelLeft, vt.MouseWheelRight} {
+			if err := s.Wheel(button, 2, 1); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, button := range []vt.MouseButton{vt.MouseUnknown, vt.MouseLeft, vt.MouseMiddle, vt.MouseBackward} {
+			if err := s.Wheel(button, 2, 1); err == nil || !strings.Contains(err.Error(), "not a wheel button") {
+				t.Errorf("Wheel(%d) = %v, want a not-a-wheel-button error", button, err)
+			}
+		}
+		assertEvents(t, s.Timeline(),
+			`0 output "\x1b[?1000h\x1b[?1006h"`,
+			`0 input "\x1b[<64;3;2M"`,
+			`0 input "\x1b[<65;3;2M"`,
+			`0 input "\x1b[<66;3;2M"`,
+			`0 input "\x1b[<67;3;2M"`,
+		)
+	})
+}
+
+func TestNewInputConfig(t *testing.T) {
+	t.Parallel()
+	tests := map[string]struct {
+		opts []InputOption
+		want InputConfig
+	}{
+		"none":     {nil, InputConfig{Repeat: 1}},
+		"repeat":   {[]InputOption{Repeat(40)}, InputConfig{Repeat: 40}},
+		"delay":    {[]InputOption{Delay(time.Second)}, InputConfig{Delay: time.Second, DelaySet: true, Repeat: 1}},
+		"no delay": {[]InputOption{Delay(0)}, InputConfig{DelaySet: true, Repeat: 1}},
+		"last":     {[]InputOption{Repeat(2), Delay(time.Second), Repeat(3), Delay(time.Millisecond)}, InputConfig{Delay: time.Millisecond, DelaySet: true, Repeat: 3}},
+		"zero":     {[]InputOption{Repeat(0)}, InputConfig{Repeat: 1}},
+		"negative": {[]InputOption{Repeat(-2)}, InputConfig{Repeat: 1}},
+		"nil":      {[]InputOption{nil}, InputConfig{Repeat: 1}},
+		"custom":   {[]InputOption{func(cfg *InputConfig) { cfg.Repeat *= 5 }}, InputConfig{Repeat: 5}},
+	}
+	for name, tt := range tests {
+		if got := NewInputConfig(tt.opts...); got != tt.want {
+			t.Errorf("%s: NewInputConfig = %+v, want %+v", name, got, tt.want)
+		}
+	}
 }

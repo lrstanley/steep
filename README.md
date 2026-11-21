@@ -76,8 +76,8 @@ keys, text, mouse events, and resizes, and checks what it draws, all from `go te
   pseudo-terminal, with the same inputs, waits, assertions, snapshots, and recordings.
 - :heavy_check_mark: **Waits, not sleeps**: wait on what's on the screen, a regular expression, or a message your model
   received, so tests don't depend on how fast the machine is.
-- :heavy_check_mark: **Real input**: keys, paste, clicks, and drags go through the terminal as bytes, encoded for whatever
-  keyboard and mouse modes your program asked for. `Locate` clicks what's on the screen rather than a coordinate.
+- :heavy_check_mark: **Real input**: keys, paste, clicks, drags, and the wheel go through the terminal as bytes, encoded for
+  whatever keyboard and mouse modes your program asked for. `Locate` clicks what's on the screen rather than a coordinate.
 - :heavy_check_mark: **Snapshots**: golden files of the screen's text, or of every cell and its style.
 - :heavy_check_mark: **Terminal state**: check the title, cursor, clipboard, progress, notifications, and more.
 - :heavy_check_mark: **Recordings of failures**: export a GIF, WebP, video, or `.cast` of any test, with no code changes,

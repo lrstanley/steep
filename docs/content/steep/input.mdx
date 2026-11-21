@@ -1,6 +1,6 @@
 ---
 title: Keyboard and mouse
-description: Press keys, type, paste, click what is on the screen, and drag.
+description: Press keys, type, paste, and click, hover, drag, or scroll what is on the screen.
 ---
 
 ## Keyboard and text
@@ -67,8 +67,8 @@ h.Paste("line one\nline two")
 
 | Option | Does |
 | --- | --- |
-| `reel.Repeat(n)` | Presses the key, or types the text, `n` times |
-| `reel.Delay(d)` | Pauses for `d` after each key press |
+| `reel.Repeat(n)` | Presses the key, types the text, clicks, or turns the wheel `n` times |
+| `reel.Delay(d)` | Pauses for `d` after each key press, click, drag step, or wheel turn |
 
 A delay only matters for recordings that should show text being typed, and for programs that need real time between keys. To set one for a whole test without editing it, use `STEEP_TYPING_DELAY`. A call's own `reel.Delay` wins.
 
@@ -104,6 +104,35 @@ h.Locate(reel.Below(reel.Contains("ACCESS"), reel.Contains("more"))).LeftClick()
 
 A condition has to locate something. `reel.NotContains` and `reel.ScreenFunc` hold without pointing at any cell, so they [fail the test](/steep/failures#a-condition-that-locates-nothing). Clicking a location off the screen fails too.
 
+### Hover, drag, and scroll what's on the screen
+
+A location does more than click:
+
+```go
+// Show a tooltip.
+h.Locate(reel.Contains("[?]")).Hover()
+
+// Select ten cells of text, starting one past the label.
+at := h.Locate(reel.Contains("Name:"))
+at.Offset(1, 0).LeftDrag(at.Offset(11, 0))
+
+// Drop one thing onto another.
+h.Locate(reel.Contains("report.pdf")).LeftDrag(h.Locate(reel.Contains("Trash")))
+
+// Scroll the list under the pointer 40 rows down.
+h.Locate(reel.Contains("Sencha")).Wheel(vt.MouseWheelDown, reel.Repeat(40))
+```
+
+| Method | Sends |
+| --- | --- |
+| `Hover()` | One motion event with no button held |
+| `LeftDrag(to, opts...)`, `MouseDrag(button, to, opts...)` | A drag from this location to another, as `LeftDrag` on cells does |
+| `Wheel(button, opts...)` | A wheel turn, as `Wheel` on a cell does |
+
+Each fails the test if its location is off the screen, and a drag checks both ends.
+
+Your program only hears a hover if it tracks all motion, `tea.MouseModeAllMotion` in Bubble Tea. `tea.MouseModeCellMotion` reports motion only while a button is held, so a hover is dropped.
+
 ### Click a cell
 
 Cells are numbered from 0, with `(0, 0)` at the top left.
@@ -124,6 +153,17 @@ h.MouseClick(vt.MouseLeft, 10, 4)  // any button
 h.LeftDrag(5, 2, 40, 2)
 h.MouseDrag(vt.MouseRight, 5, 2, 40, 2)
 ```
+
+### Turn the wheel
+
+`Wheel` turns the mouse wheel one notch at a cell, which your program gets as a `tea.MouseWheelMsg`. The button is the direction: `vt.MouseWheelUp`, `vt.MouseWheelDown`, `vt.MouseWheelLeft`, or `vt.MouseWheelRight`. Any other button fails the test.
+
+```go
+h.Wheel(vt.MouseWheelDown, 10, 4)
+h.Wheel(vt.MouseWheelUp, 10, 4, reel.Repeat(5)) // five notches
+```
+
+`Wheel` scrolls whatever your program scrolls. It isn't the same as [`ScrollUp` and `ScrollDown`](/steep/terminal#scrolling), which move the terminal's own viewport through its scrollback and don't tell your program.
 
 ### One event
 

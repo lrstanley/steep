@@ -638,21 +638,23 @@
       "properties": {
         "kind": {"const": "steep.input"},
         "action": {
-          "description": "The input: \"type\" text typed as key presses, \"key\" a key press, \"paste\" a paste, \"mouse\" a mouse event, \"click\" a press and release of a mouse button, and \"drag\" a press of a mouse button, motion one cell at a time, and its release.",
-          "type": "string", "examples": ["type", "key", "paste", "mouse", "click", "drag"]
+          "description": "The input: \"type\" text typed as key presses, \"key\" a key press, \"paste\" a paste, \"mouse\" a mouse event, \"click\" a press and release of a mouse button, \"drag\" a press of a mouse button, motion one cell at a time, and its release, and \"wheel\" turns of the mouse wheel, each a press of a wheel button.",
+          "type": "string", "examples": ["type", "key", "paste", "mouse", "click", "drag", "wheel"]
         },
         "text": {"description": "For \"type\" and \"paste\": the text. Left out when it is empty.", "type": "string"},
         "key": {"description": "For \"key\": the key's name, with its modifiers, such as \"enter\" or \"ctrl+c\".", "type": "string"},
         "mouse": {"description": "For \"mouse\": the mouse event.", "type": "string", "examples": ["press", "release", "motion"]},
-        "button": {"description": "For \"mouse\", \"click\", and \"drag\": the mouse button, or \"none\" for motion without one.", "type": "string", "examples": ["none", "left", "right", "middle"]},
-        "at": {"description": "For \"mouse\" and \"click\": the cell of the event. For \"drag\": the cell it starts at.", "$ref": "#/$defs/steep.cell"},
+        "button": {"description": "For \"mouse\", \"click\", \"drag\", and \"wheel\": the mouse button, or \"none\" for motion without one. The wheel's buttons are the directions it turns.", "type": "string", "examples": ["none", "left", "right", "middle", "wheel_up", "wheel_down", "wheel_left", "wheel_right"]},
+        "at": {"description": "For \"mouse\", \"click\", and \"wheel\": the cell of the event. For \"drag\": the cell it starts at.", "$ref": "#/$defs/steep.cell"},
         "to": {"description": "For \"drag\": the cell it ends at.", "$ref": "#/$defs/steep.cell"},
+        "count": {"description": "For \"wheel\": how many notches the wheel turns, each its own input event.", "type": "integer", "minimum": 1},
         "truncated": {"$ref": "#/$defs/steep.truncated"}
       },
       "allOf": [
         {"if": {"properties": {"action": {"const": "mouse"}}, "required": ["action"]}, "then": {"required": ["mouse", "button", "at"]}},
         {"if": {"properties": {"action": {"const": "click"}}, "required": ["action"]}, "then": {"required": ["button", "at"]}},
-        {"if": {"properties": {"action": {"const": "drag"}}, "required": ["action"]}, "then": {"required": ["button", "at", "to"]}}
+        {"if": {"properties": {"action": {"const": "drag"}}, "required": ["action"]}, "then": {"required": ["button", "at", "to"]}},
+        {"if": {"properties": {"action": {"const": "wheel"}}, "required": ["action"]}, "then": {"required": ["button", "at", "count"]}}
       ]
     },
     "steep.terminal": {
