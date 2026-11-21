@@ -246,11 +246,13 @@ func TestWaitSettleRegions(t *testing.T) {
 		})
 	}
 
-	// Without them, the clock keeps the screen from settling.
+	// Without them, the clock keeps the screen from settling. The quiet time
+	// is many ticks long, which makes a scheduling stall under -race on a busy
+	// machine much less likely to pass for a settled screen.
 	tb := &fakeTB{TB: t}
 	h := NewComponentHarness(tb, &clockModel{}, WithWindowSize(40, 2), WithIgnoreEnv(true))
 	h.Wait("updated")
-	runFailing(func() { h.WaitSettle(WithSettle(50*time.Millisecond), WithTimeout(300*time.Millisecond)) })
+	runFailing(func() { h.WaitSettle(WithSettle(250*time.Millisecond), WithTimeout(time.Second)) })
 	if errs := strings.Join(tb.errors(), "\n"); !strings.Contains(errs, "wait for settle") {
 		t.Fatalf("errors = %q, want a settle that timed out", errs)
 	}
