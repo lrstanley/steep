@@ -95,6 +95,13 @@ h.Locate(reel.Contains("Name:")).Offset(6, 0).LeftClick()
 
 `Locate` waits the same way `WaitFor` does, so a test doesn't have to wait first. It finds the first match, and the location doesn't update if the program redraws afterward.
 
+When the text is on the screen more than once, [`reel.Nth`, `reel.After`, and `reel.Below`](/steep/checks#the-same-text-more-than-once) pick the right one:
+
+```go
+h.Locate(reel.Nth(2, reel.Contains("revoke"))).LeftClick()
+h.Locate(reel.Below(reel.Contains("ACCESS"), reel.Contains("more"))).LeftClick()
+```
+
 A condition has to locate something. `reel.NotContains` and `reel.ScreenFunc` hold without pointing at any cell, so they [fail the test](/steep/failures#a-condition-that-locates-nothing). Clicking a location off the screen fails too.
 
 ### Click a cell

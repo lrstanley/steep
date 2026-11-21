@@ -5,10 +5,12 @@
 package reel
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,11 +40,13 @@ type Match struct {
 }
 
 // Condition is what [Session.Wait] waits for on the screen. The conditions
-// reel provides are [Contains], [NotContains], [Matches], [NotMatches],
-// [ScreenFunc], and [OnCursorLine].
+// reel provides are [Contains], [NotContains], [Matches], [NotMatches], and
+// [ScreenFunc]. [OnCursorLine], [Nth], [After], and [Below] narrow another
+// condition.
 type Condition interface {
 	// Check reports whether screen satisfies the condition, and where on
-	// it the condition found what it looked for, if it locates anything.
+	// it the condition found what it looked for, if it locates anything,
+	// in reading order: by row, then by column.
 	Check(screen ScreenText) (matches []Match, ok bool)
 	// String describes the condition, such as `contains ["$ "]`, for a
 	// [WaitError].
@@ -50,7 +54,8 @@ type Condition interface {
 }
 
 // Contains is a [Condition] that holds when every one of texts is on the
-// screen. Its matches are where each first appears.
+// screen. Its matches are every place each appears, as [strings.Count]
+// counts them: "aa" is once in "aaa".
 func Contains(texts ...string) Condition { return contains{texts: texts, present: true} }
 
 // NotContains is a [Condition] that holds when none of texts is on the
@@ -63,15 +68,28 @@ type contains struct {
 }
 
 func (c contains) Check(screen ScreenText) ([]Match, bool) {
-	var matches []Match
 	for _, text := range c.texts {
-		i := strings.Index(screen.Text, text)
-		if (i >= 0) != c.present {
+		if strings.Contains(screen.Text, text) != c.present {
 			return nil, false
 		}
-		if i >= 0 && text != "" {
-			matches = append(matches, matchAt(screen.Text, i, i+len(text)))
+	}
+	if !c.present {
+		return nil, true
+	}
+	var matches []Match
+	for _, text := range c.texts {
+		loc := locator{text: screen.Text}
+		for i := 0; text != ""; i += len(text) {
+			j := strings.Index(screen.Text[i:], text)
+			if j < 0 {
+				break
+			}
+			i += j
+			matches = append(matches, loc.match(i, i+len(text)))
 		}
+	}
+	if len(c.texts) > 1 {
+		slices.SortStableFunc(matches, compareMatches)
 	}
 	return matches, true
 }
@@ -84,8 +102,9 @@ func (c contains) String() string {
 	return fmt.Sprintf("%s %q", name, c.texts)
 }
 
-// Matches is a [Condition] that holds when re matches the screen. Its match
-// is where re first matches.
+// Matches is a [Condition] that holds when re matches the screen. Its
+// matches are every place re matches, as [regexp.Regexp.FindAllString]
+// finds them.
 func Matches(re *regexp.Regexp) Condition { return pattern{re: re, match: true} }
 
 // NotMatches is a [Condition] that holds when re does not match the screen.
@@ -97,14 +116,19 @@ type pattern struct {
 }
 
 func (p pattern) Check(screen ScreenText) ([]Match, bool) {
-	loc := p.re.FindStringIndex(screen.Text)
-	if (loc != nil) != p.match {
+	if !p.match {
+		return nil, !p.re.MatchString(screen.Text)
+	}
+	spans := p.re.FindAllStringIndex(screen.Text, -1)
+	if spans == nil {
 		return nil, false
 	}
-	if loc == nil {
-		return nil, true
+	loc := locator{text: screen.Text}
+	matches := make([]Match, len(spans))
+	for k, span := range spans {
+		matches[k] = loc.match(span[0], span[1])
 	}
-	return []Match{matchAt(screen.Text, loc[0], loc[1])}, true
+	return matches, true
 }
 
 func (p pattern) String() string {
@@ -136,31 +160,186 @@ func (l cursorLine) Check(screen ScreenText) ([]Match, bool) {
 	if screen.CursorRow < 0 {
 		return nil, false
 	}
-	line := screen.Text
-	for range screen.CursorRow {
-		var ok bool
-		if _, line, ok = strings.Cut(line, "\n"); !ok {
-			return nil, false
-		}
+	line, ok := rowsFrom(screen.Text, screen.CursorRow)
+	if !ok {
+		return nil, false
 	}
 	line, _, _ = strings.Cut(line, "\n")
 	matches, ok := l.c.Check(ScreenText{Text: line})
-	for i := range matches {
-		matches[i].Row += screen.CursorRow
-	}
-	return matches, ok
+	return shift(matches, screen.CursorRow, 0), ok
 }
 
 func (l cursorLine) String() string { return l.c.String() + " on the cursor line" }
 
-// matchAt returns the match of text[i:j].
-func matchAt(text string, i, j int) Match {
-	line := strings.LastIndexByte(text[:i], '\n') + 1
-	return Match{
-		Text: text[i:j],
-		Row:  strings.Count(text[:line], "\n"),
-		Col:  ansi.StringWidth(text[line:i]),
+// Nth is a [Condition] that holds when c holds and locates at least n
+// things, so a wait for it waits for the nth to appear. It counts c's
+// matches in reading order, from 1, or back from the last when n is
+// negative, so Nth(-1, c) is c's last match. Its match is that one. It
+// panics if n is 0.
+//
+//	reel.Nth(2, reel.Contains("revoke")) // the second "revoke"
+func Nth(n int, c Condition) Condition {
+	if n == 0 {
+		panic("reel: Nth counts from 1")
 	}
+	return nth{n: n, c: c}
+}
+
+type nth struct {
+	n int
+	c Condition
+}
+
+func (m nth) Check(screen ScreenText) ([]Match, bool) {
+	matches, ok := m.c.Check(screen)
+	if !ok {
+		return nil, false
+	}
+	i := m.n - 1
+	if m.n < 0 {
+		i = len(matches) + m.n
+	}
+	if i < 0 || i >= len(matches) {
+		return nil, false
+	}
+	return []Match{matches[i]}, true
+}
+
+func (m nth) String() string { return fmt.Sprintf("%s match of %s", ordinal(m.n), m.c) }
+
+// ordinal returns n as Nth counts: "2nd", or "last" and "2nd-last" when n
+// is negative.
+func ordinal(n int) string {
+	if n == -1 {
+		return "last"
+	}
+	digits := strings.TrimPrefix(strconv.Itoa(n), "-")
+	last, _ := strconv.Atoi(digits[max(0, len(digits)-2):])
+	suffix := "th"
+	if last < 11 || last > 13 {
+		switch last % 10 {
+		case 1:
+			suffix = "st"
+		case 2:
+			suffix = "nd"
+		case 3:
+			suffix = "rd"
+		}
+	}
+	if n < 0 {
+		return digits + suffix + "-last"
+	}
+	return digits + suffix
+}
+
+// After is a [Condition] that holds when c holds for the part of the
+// screen after where anchor's first match ends, in reading order: the rest
+// of that row, and the rows below it. It does not hold while anchor does
+// not locate anything, so a wait for it waits for both. Its matches are
+// what c locates, where they are on the whole screen.
+//
+//	// Every "more" past the ACCESS heading, the first of which Locate finds.
+//	reel.After(reel.Contains("ACCESS"), reel.Contains("more"))
+func After(anchor, c Condition) Condition { return past{anchor: anchor, c: c} }
+
+// Below is [After] from the row below the one anchor's first match ends
+// on, leaving out the rest of that row.
+func Below(anchor, c Condition) Condition { return past{anchor: anchor, c: c, below: true} }
+
+type past struct {
+	anchor, c Condition
+	below     bool
+}
+
+func (r past) Check(screen ScreenText) ([]Match, bool) {
+	anchors, ok := r.anchor.Check(screen)
+	if !ok || len(anchors) == 0 {
+		return nil, false
+	}
+	row, col := matchEnd(anchors[0])
+	if r.below {
+		row, col = row+1, 0
+	}
+	text, onScreen := rowsFrom(screen.Text, row)
+	line, _, _ := strings.Cut(text, "\n")
+	// Where col is inside a wide character, the part starts at it.
+	prefix := ansi.Truncate(line, col, "")
+	cursor := screen.CursorRow - row
+	if screen.CursorRow < 0 || cursor < 0 {
+		cursor = -1
+	}
+	matches, ok := r.c.Check(ScreenText{Text: text[len(prefix):], CursorRow: cursor})
+	if !onScreen {
+		// Below the last row, c sees no text, and finds nothing on the screen.
+		return nil, ok
+	}
+	return shift(matches, row, ansi.StringWidth(prefix)), ok
+}
+
+func (r past) String() string {
+	where := "after"
+	if r.below {
+		where = "below"
+	}
+	return fmt.Sprintf("%s %s %s", r.c, where, r.anchor)
+}
+
+// matchEnd returns the row and column, in cells, just past where m ends.
+func matchEnd(m Match) (row, col int) {
+	i := strings.LastIndexByte(m.Text, '\n')
+	if i < 0 {
+		return m.Row, m.Col + ansi.StringWidth(m.Text)
+	}
+	return m.Row + strings.Count(m.Text, "\n"), ansi.StringWidth(m.Text[i+1:])
+}
+
+// rowsFrom returns text from the start of row on, and whether text has that
+// row.
+func rowsFrom(text string, row int) (string, bool) {
+	for range row {
+		var ok bool
+		if _, text, ok = strings.Cut(text, "\n"); !ok {
+			return "", false
+		}
+	}
+	return text, true
+}
+
+// shift returns matches found in part of a screen, whose first row starts
+// at row and col of the screen, moved to where they are on the screen. It
+// copies them, since a condition may return the same matches each time.
+func shift(matches []Match, row, col int) []Match {
+	matches = slices.Clone(matches)
+	for i := range matches {
+		if matches[i].Row == 0 {
+			matches[i].Col += col
+		}
+		matches[i].Row += row
+	}
+	return matches
+}
+
+// compareMatches orders matches in reading order: by row, then by column.
+func compareMatches(a, b Match) int {
+	return cmp.Or(cmp.Compare(a.Row, b.Row), cmp.Compare(a.Col, b.Col))
+}
+
+// locator makes matches of text at ascending byte offsets, counting rows
+// from one match to the next rather than from the start of text each time.
+type locator struct {
+	text            string
+	row, line, last int
+}
+
+// match returns the match of text[i:j], where i is at or past the last
+// match's start.
+func (l *locator) match(i, j int) Match {
+	if n := strings.Count(l.text[l.last:i], "\n"); n > 0 {
+		l.row += n
+		l.line = strings.LastIndexByte(l.text[:i], '\n') + 1
+	}
+	l.last = i
+	return Match{Text: l.text[i:j], Row: l.row, Col: ansi.StringWidth(l.text[l.line:i])}
 }
 
 // WaitResult is the screen a [Session.Wait] condition held on.

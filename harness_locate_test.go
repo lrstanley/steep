@@ -48,10 +48,18 @@ func TestHarness_Locate_clicksWhereConditionMatched(t *testing.T) {
 		loc  func(*Harness) Location
 		x, y int
 	}{
-		"text":         {"\n  [ OK ]", func(h *Harness) Location { return h.Locate(reel.Contains("OK")) }, 4, 1},
-		"regexp":       {"\n  [ OK ]", func(h *Harness) Location { return h.Locate(reel.Matches(re)) }, 2, 1},
-		"after wide":   {"世界 OK", func(h *Harness) Location { return h.Locate(reel.Contains("OK")) }, 5, 0},
-		"first match":  {"OK\nOK", func(h *Harness) Location { return h.Locate(reel.Contains("OK")) }, 0, 0},
+		"text":        {"\n  [ OK ]", func(h *Harness) Location { return h.Locate(reel.Contains("OK")) }, 4, 1},
+		"regexp":      {"\n  [ OK ]", func(h *Harness) Location { return h.Locate(reel.Matches(re)) }, 2, 1},
+		"after wide":  {"世界 OK", func(h *Harness) Location { return h.Locate(reel.Contains("OK")) }, 5, 0},
+		"first match": {"OK\nOK", func(h *Harness) Location { return h.Locate(reel.Contains("OK")) }, 0, 0},
+		"nth match":   {"OK\nOK", func(h *Harness) Location { return h.Locate(reel.Nth(2, reel.Contains("OK"))) }, 0, 1},
+		"last match":  {"OK OK\nOK", func(h *Harness) Location { return h.Locate(reel.Nth(-1, reel.Contains("OK"))) }, 0, 1},
+		"after": {"OK\nA  OK\nB OK", func(h *Harness) Location {
+			return h.Locate(reel.After(reel.Contains("A"), reel.Contains("OK")))
+		}, 3, 1},
+		"below": {"A OK\nB OK", func(h *Harness) Location {
+			return h.Locate(reel.Below(reel.Contains("A"), reel.Contains("OK")))
+		}, 2, 1},
 		"offset":       {"Name:\n", func(h *Harness) Location { return h.Locate(reel.Contains("Name:")).Offset(6, 1) }, 6, 1},
 		"offset back":  {"\n  OK", func(h *Harness) Location { return h.Locate(reel.Contains("OK")).Offset(-2, -1) }, 0, 0},
 		"offset chain": {"OK", func(h *Harness) Location { return h.Locate(reel.Contains("OK")).Offset(1, 0).Offset(1, 2) }, 2, 2},
@@ -113,6 +121,18 @@ func TestHarness_Locate_waits(t *testing.T) {
 	loc.LeftClick().Require("ready")
 }
 
+// A wait for the nth match waits for it to be drawn, not just the first.
+func TestHarness_Locate_waitsForNth(t *testing.T) {
+	t.Parallel()
+	h := newLocateHarness(t, "revoke")
+	time.AfterFunc(20*time.Millisecond, func() { h.SendProgram(setTextMsg("revoke\n  revoke")) })
+
+	loc := h.Locate(reel.Nth(2, reel.Contains("revoke")))
+	if loc.X != 2 || loc.Y != 1 {
+		t.Fatalf("located (%d, %d), want (2, 1)", loc.X, loc.Y)
+	}
+}
+
 func TestHarness_Locate_fails(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct {
@@ -122,6 +142,10 @@ func TestHarness_Locate_fails(t *testing.T) {
 		"timeout": {
 			func(h *Harness) { h.Locate(reel.Contains("missing"), WithTimeout(10*time.Millisecond)) },
 			"missing",
+		},
+		"no nth": {
+			func(h *Harness) { h.Locate(reel.Nth(2, reel.Contains("OK")), WithTimeout(10*time.Millisecond)) },
+			`2nd match of contains ["OK"]`,
 		},
 		"locates nothing": {
 			func(h *Harness) { h.Locate(reel.NotContains("missing")) },

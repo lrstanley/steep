@@ -50,7 +50,7 @@ defer cancel()
 res, err := s.Wait(ctx, reel.Contains("ready"))
 ```
 
-The [conditions](/steep/checks#conditions) are `Contains`, `NotContains`, `Matches`, `NotMatches`, `ScreenFunc`, and `OnCursorLine`. A failed wait returns a `*WaitError`, which has the screen it last saw.
+The [conditions](/steep/checks#conditions) are `Contains`, `NotContains`, `Matches`, `NotMatches`, and `ScreenFunc`. `OnCursorLine`, `Nth`, `After`, and `Below` narrow another condition. A failed wait returns a `*WaitError`, which has the screen it last saw.
 
 | Method | Waits until |
 | --- | --- |

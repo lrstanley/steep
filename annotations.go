@@ -238,10 +238,21 @@ func valueNote(v any) (typ, value string) {
 	return typ, fmt.Sprintf("%+v", v)
 }
 
-func clipMatches(matches []reel.Match, truncated *bool) {
+// noteMatchesMax is the most matches an annotation keeps, since a
+// condition such as reel.Contains("│") can match all over the screen.
+const noteMatchesMax = 64
+
+// clipMatches returns the first [noteMatchesMax] of matches, each with its
+// text cut with [reel.ClipText], marking the note truncated when it cut any.
+func clipMatches(matches []reel.Match, truncated *bool) []reel.Match {
+	if len(matches) > noteMatchesMax {
+		*truncated = true
+		matches = matches[:noteMatchesMax]
+	}
 	for i := range matches {
 		matches[i].Text = reel.ClipText(matches[i].Text, truncated)
 	}
+	return matches
 }
 
 func typeName[T any]() string {
@@ -280,7 +291,7 @@ type waitEndNote struct {
 }
 
 func (*waitEndNote) kind() string { return kindWaitEnd }
-func (n *waitEndNote) clip()      { clipMatches(n.Matches, &n.Truncated) }
+func (n *waitEndNote) clip()      { n.Matches = clipMatches(n.Matches, &n.Truncated) }
 
 // waitRecord is a wait being recorded. A wait sets its outcome before it
 // fails the test, and defers [waitRecord.finish] to record the end. A nil
@@ -385,7 +396,7 @@ func (*assertNote) kind() string { return kindAssert }
 func (n *assertNote) clip() {
 	n.Text = clipAll(n.Text, &n.Truncated)
 	n.Condition = reel.ClipText(n.Condition, &n.Truncated)
-	clipMatches(n.Matches, &n.Truncated)
+	n.Matches = clipMatches(n.Matches, &n.Truncated)
 }
 
 // noteAssert records n for the options' harness, if any.

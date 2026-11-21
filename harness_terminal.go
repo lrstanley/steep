@@ -378,6 +378,12 @@ func (h *Harness) LeftDrag(x1, y1, x2, y2 int, opts ...reel.InputOption) *Harnes
 //	h.Locate(reel.Contains("[ Save ]")).LeftClick()
 //	h.Locate(reel.Contains("Name:")).Offset(6, 0).LeftClick()
 //
+// Where the same text is on the screen more than once, [reel.Nth] picks
+// one, and [reel.After] and [reel.Below] look past another match:
+//
+//	h.Locate(reel.Nth(2, reel.Contains("revoke"))).LeftClick()
+//	h.Locate(reel.Below(reel.Contains("ACCESS"), reel.Contains("more"))).LeftClick()
+//
 // The location is not updated if the program redraws afterward. A condition
 // that holds without locating anything, such as [reel.NotContains] or
 // [reel.ScreenFunc], fails the test.

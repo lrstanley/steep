@@ -8,8 +8,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -30,11 +32,23 @@ func TestConditions(t *testing.T) {
 			Contains("world", "ls"), true,
 			[]Match{{Text: "world", Row: 0, Col: 6}, {Text: "ls", Row: 1, Col: 2}},
 		},
+		"contains every": {
+			Contains("l"), true,
+			[]Match{{Text: "l", Row: 0, Col: 2}, {Text: "l", Row: 0, Col: 3}, {Text: "l", Row: 0, Col: 9}, {Text: "l", Row: 1, Col: 2}},
+		},
+		"contains in reading order": {
+			Contains("ls", "o"), true,
+			[]Match{{Text: "o", Row: 0, Col: 4}, {Text: "o", Row: 0, Col: 7}, {Text: "ls", Row: 1, Col: 2}},
+		},
 		"contains missing":  {Contains("world", "nope"), false, nil},
 		"contains none":     {Contains(), true, nil},
 		"not contains":      {NotContains("nope"), true, nil},
 		"not contains some": {NotContains("nope", "ls"), false, nil},
 		"matches":           {Matches(regexp.MustCompile(`w\w+`)), true, []Match{{Text: "world", Row: 0, Col: 6}}},
+		"matches every": {
+			Matches(regexp.MustCompile(`l+`)), true,
+			[]Match{{Text: "ll", Row: 0, Col: 2}, {Text: "l", Row: 0, Col: 9}, {Text: "l", Row: 1, Col: 2}},
+		},
 		"matches not":       {Matches(regexp.MustCompile(`\d`)), false, nil},
 		"not matches":       {NotMatches(regexp.MustCompile(`\d`)), true, nil},
 		"not matches some":  {NotMatches(regexp.MustCompile(`l+`)), false, nil},
@@ -57,6 +71,97 @@ func TestConditions(t *testing.T) {
 		t.Errorf("name = %q", got)
 	}
 }
+
+func TestNarrowingConditions(t *testing.T) {
+	t.Parallel()
+	// "世" is two cells wide, so the second "more" starts at column 3.
+	screen := ScreenText{Text: "ACCESS  more\n 世more\nSECRETS\n  more x", CursorRow: 3}
+	more := Contains("more")
+	at := func(row, col int) Match { return Match{Text: "more", Row: row, Col: col} }
+	for name, tc := range map[string]struct {
+		cond    Condition
+		ok      bool
+		matches []Match
+	}{
+		"nth":                {Nth(2, more), true, []Match{at(1, 3)}},
+		"nth first":          {Nth(1, more), true, []Match{at(0, 8)}},
+		"nth last":           {Nth(-1, more), true, []Match{at(3, 2)}},
+		"nth from last":      {Nth(-3, more), true, []Match{at(0, 8)}},
+		"nth too many":       {Nth(4, more), false, nil},
+		"nth too many back":  {Nth(-4, more), false, nil},
+		"nth not holding":    {Nth(1, Contains("more", "nope")), false, nil},
+		"nth locates none":   {Nth(1, NotContains("nope")), false, nil},
+		"nth reading order":  {Nth(2, Contains("SECRETS", "ACCESS")), true, []Match{{Text: "SECRETS", Row: 2, Col: 0}}},
+		"after":              {After(Contains("ACCESS"), more), true, []Match{at(0, 8), at(1, 3), at(3, 2)}},
+		"after later row":    {After(Contains("SECRETS"), more), true, []Match{at(3, 2)}},
+		"after wide":         {After(Contains("世"), more), true, []Match{at(1, 3), at(3, 2)}},
+		"after multi-row":    {After(Matches(regexp.MustCompile(`TS\n `)), more), true, []Match{at(3, 2)}},
+		"after first anchor": {After(Contains("more"), Contains("x")), true, []Match{{Text: "x", Row: 3, Col: 7}}},
+		"after nth":          {After(Nth(2, more), more), true, []Match{at(3, 2)}},
+		"after nothing":      {After(Contains("x"), NotContains("more")), true, nil},
+		"after not holding":  {After(Contains("SECRETS"), Contains("ACCESS")), false, nil},
+		"after no anchor":    {After(Contains("nope"), NotContains("nope")), false, nil},
+		"after anchor none":  {After(NotContains("nope"), more), false, nil},
+		"below":              {Below(Contains("ACCESS"), more), true, []Match{at(1, 3), at(3, 2)}},
+		"below last row":     {Below(Contains("x"), Contains(" ")), false, nil},
+		"below nothing":      {Below(Contains("x"), NotContains("more")), true, nil},
+		"after cursor line":  {After(Contains("SECRETS"), OnCursorLine(Contains("x"))), true, []Match{{Text: "x", Row: 3, Col: 7}}},
+		"below cursor line":  {Below(Contains("x"), OnCursorLine(NotContains("nope"))), false, nil},
+	} {
+		matches, ok := tc.cond.Check(screen)
+		if ok != tc.ok || !reflect.DeepEqual(matches, tc.matches) {
+			t.Errorf("%s: Check = %+v, %v, want %+v, %v", name, matches, ok, tc.matches, tc.ok)
+		}
+	}
+
+	// An anchor that ends inside a wide character leaves all of it after.
+	inside := located{{Text: "x", Row: 1, Col: 1}}
+	if got, ok := After(inside, Contains("世")).Check(screen); !ok || !reflect.DeepEqual(got, []Match{{Text: "世", Row: 1, Col: 1}}) {
+		t.Errorf("After inside a wide character = %+v, %v", got, ok)
+	}
+	// A condition may return the same matches each time.
+	for range 2 {
+		if got, _ := Below(Contains("ACCESS"), inside).Check(screen); !reflect.DeepEqual(got, []Match{{Text: "x", Row: 2, Col: 1}}) {
+			t.Errorf("Below a reused match = %+v", got)
+		}
+	}
+	// An empty match below the last row isn't on the screen.
+	if got, ok := Below(Contains("x"), Matches(regexp.MustCompile(`^$`))).Check(screen); !ok || got != nil {
+		t.Errorf("Below the last row = %+v, %v", got, ok)
+	}
+
+	for _, tc := range []struct {
+		cond Condition
+		want string
+	}{
+		{Nth(2, more), `2nd match of contains ["more"]`},
+		{Nth(11, more), `11th match of contains ["more"]`},
+		{Nth(23, more), `23rd match of contains ["more"]`},
+		{Nth(-1, more), `last match of contains ["more"]`},
+		{Nth(-2, more), `2nd-last match of contains ["more"]`},
+		{Nth(-112, more), `112th-last match of contains ["more"]`},
+		{Nth(math.MinInt, more), strconv.FormatUint(math.MaxInt+1, 10) + `th-last match of contains ["more"]`},
+		{After(Contains("ACCESS"), more), `contains ["more"] after contains ["ACCESS"]`},
+		{Below(Contains("ACCESS"), more), `contains ["more"] below contains ["ACCESS"]`},
+	} {
+		if got, want := tc.cond.String(), tc.want; got != want {
+			t.Errorf("name = %q, want %q", got, want)
+		}
+	}
+
+	defer func() {
+		if recover() == nil {
+			t.Error("Nth(0, c) didn't panic")
+		}
+	}()
+	Nth(0, more)
+}
+
+// located is a [Condition] that always holds, locating itself.
+type located []Match
+
+func (l located) Check(ScreenText) ([]Match, bool) { return l, true }
+func (located) String() string                     { return "located" }
 
 // writeLater writes out to s after d, in the background.
 func writeLater(t *testing.T, s *Session, d time.Duration, out ...string) {

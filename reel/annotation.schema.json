@@ -559,7 +559,7 @@
       }
     },
     "steep.truncated": {
-      "description": "True when a text field of the annotation was longer than 4 KiB, and cut to it, on a character boundary. Left out otherwise.",
+      "description": "True when a text field of the annotation was longer than 4 KiB, and cut to it, on a character boundary, or when a list of matches was longer than 64, and cut to its first 64. Left out otherwise.",
       "const": true
     },
     "steep.cell": {
@@ -724,7 +724,7 @@
         },
         "elapsed_ms": {"description": "How long the wait took, in wall-clock time.", "type": "integer", "minimum": 0},
         "matches": {
-          "description": "For a satisfied \"text\" wait: where each of the text first appears on the screen it was satisfied by. For a satisfied \"condition\" wait: what the condition found, such as where a regular expression first matched. Left out otherwise.",
+          "description": "For a satisfied \"text\" wait: every place each of the text appears on the screen it was satisfied by. For a satisfied \"condition\" wait: what the condition found, such as every place a regular expression matched. In reading order, at most 64. Left out otherwise.",
           "type": "array",
           "items": {"$ref": "#/$defs/steep.match"}
         },
@@ -750,7 +750,7 @@
         "expected": {"description": "For \"width\", \"height\", and \"dimensions\": the size asserted.", "$ref": "#/$defs/steep.dims"},
         "actual": {"description": "For \"width\", \"height\", and \"dimensions\": the size of the screen's text, both width and height.", "$ref": "#/$defs/steep.dims"},
         "matches": {
-          "description": "For a passing \"contains\": where each of the text first appears on the screen. For a passing \"condition\": what the condition found, such as where a regular expression first matched. Left out otherwise.",
+          "description": "For a passing \"contains\": every place each of the text appears on the screen. For a passing \"condition\": what the condition found, such as every place a regular expression matched. In reading order, at most 64. Left out otherwise.",
           "type": "array",
           "items": {"$ref": "#/$defs/steep.match"}
         },

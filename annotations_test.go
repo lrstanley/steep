@@ -552,6 +552,20 @@ func TestNoteClip(t *testing.T) {
 	}
 }
 
+func TestNoteClipMatches(t *testing.T) {
+	t.Parallel()
+	n := &waitEndNote{ID: 1, Matches: make([]reel.Match, noteMatchesMax+1)}
+	n.clip()
+	if !n.Truncated || len(n.Matches) != noteMatchesMax {
+		t.Fatalf("clipped note = %d matches, truncated %v", len(n.Matches), n.Truncated)
+	}
+	n = &waitEndNote{ID: 1, Matches: make([]reel.Match, noteMatchesMax)}
+	n.clip()
+	if n.Truncated || len(n.Matches) != noteMatchesMax {
+		t.Fatalf("unclipped note = %d matches, truncated %v", len(n.Matches), n.Truncated)
+	}
+}
+
 // TestAnnotationSchema checks an example of each kind the harness records
 // against reel's schema, and that the schema rejects what it must.
 func TestAnnotationSchema(t *testing.T) {

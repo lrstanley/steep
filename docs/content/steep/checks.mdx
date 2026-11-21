@@ -234,12 +234,42 @@ h.Locate(reel.Contains("[ Save ]")).LeftClick()
 
 | Condition | Holds when | Locates |
 | --- | --- | --- |
-| `reel.Contains(texts...)` | Every text is on the screen | Where each first appears |
+| `reel.Contains(texts...)` | Every text is on the screen | Every place each appears, without overlapping |
 | `reel.NotContains(texts...)` | None of them is | Nothing |
-| `reel.Matches(re)` | The regular expression matches | Where it first matches |
+| `reel.Matches(re)` | The regular expression matches | Every place it matches |
 | `reel.NotMatches(re)` | It doesn't match | Nothing |
 | `reel.ScreenFunc(fn)` | `fn` returns true for the screen's text | Nothing |
 | `reel.OnCursorLine(c)` | `c` holds for the cursor's line alone | What `c` locates |
+| `reel.Nth(n, c)` | `c` locates at least `n` things | The `n`th of them |
+| `reel.After(anchor, c)` | `c` holds for the screen after `anchor`'s first match | What `c` locates there |
+| `reel.Below(anchor, c)` | `c` holds for the rows below `anchor`'s first match | What `c` locates there |
+
+Matches are in reading order: top to bottom, then left to right.
+
+### The same text more than once
+
+When a screen shows the same text more than once, such as a list where two rows say "revoke" or a sidebar with a "more" row in each section, pick one by its place rather than by counting rows:
+
+```go
+// The second "revoke" on the screen, and the last.
+h.Locate(reel.Nth(2, reel.Contains("revoke"))).LeftClick()
+h.Locate(reel.Nth(-1, reel.Contains("revoke"))).LeftClick()
+
+// The first "more" under the ACCESS heading.
+h.Locate(reel.Below(reel.Contains("ACCESS"), reel.Contains("more"))).LeftClick()
+```
+
+`After` looks from just past the anchor, so it includes the rest of the anchor's row. `Below` starts on the next row. Both hold only once the anchor is on the screen, so waiting for one waits for both. They work in any check, not only `Locate`:
+
+```go
+// Wait for a second row to appear.
+h.WaitFor(reel.Nth(2, reel.Contains("revoke")))
+
+// Nothing below the footer's divider says "Error".
+h.AssertFor(reel.Below(reel.Contains("────"), reel.NotContains("Error")))
+```
+
+Conditions nest, so `h.Locate(reel.After(reel.Nth(2, reel.Contains("Name:")), reel.Contains("[ Edit ]")))` finds the first edit button past the second name.
 
 ### The cursor's line
 
