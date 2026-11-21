@@ -39,6 +39,9 @@ type SessionCmd struct {
 	Key        SessionKeyCmd        `cmd:"" help:"Press keys, such as enter, ctrl+c, shift+tab, f5, or a."`
 	Paste      SessionPasteCmd      `cmd:"" help:"Paste text."`
 	Click      SessionClickCmd      `cmd:"" help:"Click a cell."`
+	Hover      SessionHoverCmd      `cmd:"" help:"Move the pointer to a cell, with no button held."`
+	Drag       SessionDragCmd       `cmd:"" help:"Drag from one cell to another."`
+	Wheel      SessionWheelCmd      `cmd:"" help:"Turn the mouse wheel over a cell."`
 	Scroll     SessionScrollCmd     `cmd:"" help:"Scroll the viewport through the scrollback."`
 	Resize     SessionResizeCmd     `cmd:"" help:"Resize the terminal."`
 	Mark       SessionMarkCmd       `cmd:"" help:"Mark this moment in the recording."`
@@ -371,6 +374,49 @@ type SessionClickCmd struct {
 // Run clicks.
 func (c *SessionClickCmd) Run(ctx context.Context, sc *SessionCmd) error {
 	_, err := sc.call(ctx, live.Request{Op: live.OpClick, X: c.X, Y: c.Y, Button: c.Button})
+	return err
+}
+
+// SessionHoverCmd moves the pointer to a cell.
+type SessionHoverCmd struct {
+	X int `arg:"" help:"Column, from 0."`
+	Y int `arg:"" help:"Row, from 0."`
+}
+
+// Run hovers.
+func (c *SessionHoverCmd) Run(ctx context.Context, sc *SessionCmd) error {
+	_, err := sc.call(ctx, live.Request{Op: live.OpHover, X: c.X, Y: c.Y})
+	return err
+}
+
+// SessionDragCmd drags from one cell to another.
+type SessionDragCmd struct {
+	X1     int           `arg:"" help:"Column to press at, from 0."`
+	Y1     int           `arg:"" help:"Row to press at, from 0."`
+	X2     int           `arg:"" help:"Column to release at, from 0."`
+	Y2     int           `arg:"" help:"Row to release at, from 0."`
+	Button string        `name:"button" default:"left" enum:"left,middle,right" help:"Button to hold."`
+	Delay  time.Duration `name:"delay" placeholder:"DUR" help:"Pause after each step of the motion."`
+}
+
+// Run drags.
+func (c *SessionDragCmd) Run(ctx context.Context, sc *SessionCmd) error {
+	_, err := sc.call(ctx, live.Request{Op: live.OpDrag, X: c.X1, Y: c.Y1, ToX: c.X2, ToY: c.Y2, Button: c.Button, Delay: c.Delay})
+	return err
+}
+
+// SessionWheelCmd turns the mouse wheel over a cell.
+type SessionWheelCmd struct {
+	Direction string        `arg:"" enum:"up,down,left,right" help:"Way to turn it: up, down, left, or right."`
+	X         int           `arg:"" help:"Column, from 0."`
+	Y         int           `arg:"" help:"Row, from 0."`
+	Repeat    int           `name:"repeat" short:"r" default:"1" help:"Turn it this many notches."`
+	Delay     time.Duration `name:"delay" placeholder:"DUR" help:"Pause after each notch."`
+}
+
+// Run turns the wheel.
+func (c *SessionWheelCmd) Run(ctx context.Context, sc *SessionCmd) error {
+	_, err := sc.call(ctx, live.Request{Op: live.OpWheel, Button: c.Direction, X: c.X, Y: c.Y, Repeat: c.Repeat, Delay: c.Delay})
 	return err
 }
 

@@ -35,55 +35,92 @@
 //     screen's text), and .json; .png only with ?marks=. ?match= is an
 //     error, as the outputs are written as the tape runs, and so are
 //     VHS's directory of frames, .txt, .ascii, and .test.
+//
 //   - Require <program>: the program must be on PATH, checked before the
 //     run starts.
+//
 //   - Source <path.tape>: the commands of another tape, in place. As in
 //     VHS, its Output commands are dropped, and it cannot Source another.
 //     See [WithSourceRoot].
+//
 //   - Env <name> <value>: an environment variable for the shell.
+//
 //   - Set <setting> <value>: see Settings.
+//
 //   - Type[@<time>] <string>...: types the strings, joined by spaces,
 //     pausing after each key for the time or Set TypingSpeed.
+//
 //   - Enter, Backspace, Delete, Insert, Tab, Escape, Space, Up, Down, Left,
 //     Right, PageUp, PageDown, Home, End, each [@<time>] [count]: presses
 //     the key count times, pausing as Type does.
+//
 //   - Ctrl[+Alt][+Shift]+<key>, Alt+<key>, Shift+<key>: presses a key with
 //     modifiers. Alt+<string> presses each of its characters with alt.
+//
 //   - ScrollUp, ScrollDown, each [@<time>] [count]: scrolls the viewport
 //     through the scrollback a row at a time, pausing as Type does.
+//
+//   - Click[+Left|+Middle|+Right][@<time>] <target> [count] (reel): clicks
+//     count times, pausing for the time after each, or not without one.
+//
+//   - Hover <target> (reel): moves the pointer with no button held.
+//
+//   - Drag[+Left|+Middle|+Right][@<time>] <target> <target> (reel): presses
+//     at the first, moves one cell at a time to the second, pausing for
+//     the time after each step, and releases there.
+//
+//   - Wheel+Up|+Down|+Left|+Right[@<time>] <target> [count] (reel): turns
+//     the mouse wheel count notches, pausing for the time after each.
+//
+//     A <target> of the mouse commands is a cell, X Y from 0, or a string
+//     or /regexp/ to find on the screen, waiting for it for up to Set
+//     WaitTimeout, with the cell its first match starts at moved by an
+//     optional signed number of columns, then of rows, such as "Name:" +6
+//     or "Name:" +1 -1. A target off the screen, or not found in time, is
+//     an error. The left button is the default.
+//
 //   - Sleep <time>: waits.
+//
 //   - Wait[+Line|+Screen][@<timeout>] [/<regexp>/|<string>]: waits until
 //     the regexp, or (reel) the string as is (Set WaitPattern's without
 //     either), matches the cursor's line (+Line,
 //     the default) or the screen, each line without trailing spaces, for
 //     up to the timeout (Set WaitTimeout's without one). A timeout is an
 //     error that reports the screen.
+//
 //   - Hide, Show: Hide cuts what follows out of the recording, until Show
 //     (see [effects.Hide]). A tape that is hidden from its start to its end
 //     is an error, as is Hide with a .cast output, which holds the
 //     recording uncut.
+//
 //   - Screenshot <path.png>: writes a PNG of the screen. As each is the
 //     still of a mark labeled with its file name without ".png", file names
 //     must be unique, and hold none of <>:"|?* or "{".
+//
 //   - Copy <string>..., Paste: Copy copies the strings, joined by spaces,
 //     to the run's own clipboard (not the host's, as VHS uses), and Paste
 //     sends them as a paste ([reel.Session.Paste]).
+//
 //   - Mark <label> (reel): appends a [reel.Mark], such as for an output's
 //     marks or a [effects.Pause]. Labels starting with "tape:" are the
 //     run's own.
+//
 //   - Highlight, Zoom, Redact <spec> (reel): the effect the spec describes
 //     (see package spec), such as Zoom "re=ERROR.*;scale=2;between=a,b",
 //     for the whole recording or the window of its between=, wherever the
 //     command is in the tape.
+//
 //   - Caption <text> [<options>] (reel): a caption from here in the
 //     recording, a pill at the top or bottom of the terminal, until the
 //     next Caption or EndCaption (see [effects.NewCaption]). The options
 //     are package spec's, such as "pause=auto;for=3s".
+//
 //   - Callout <region[;options]> <text> (reel): a callout from here in the
 //     recording, a box with a caret pointing at the first cells the region
 //     matches, until the next Callout or EndCallout (see
 //     [effects.NewCallout]), such as Callout "text=Save;spotlight" "Saves
 //     the file".
+//
 //   - EndCaption, EndCallout (reel): end the caption or callout that shows.
 //
 // # Settings
@@ -137,6 +174,8 @@
 //	KeyOverlay <bool>     the keys pressed, as [effects.Keys] shows them
 //	Toasts <bool>         notifications and clipboard writes, as
 //	                      [effects.Toasts] shows them
+//	MouseOverlay <bool>   the pointer, clicks, and drags of the mouse
+//	                      commands, as [effects.Mouse] draws them
 //	CaptionPause <pause>  a pause at each caption that sets none of its
 //	                      own: a time, or auto for a reading time; none
 //	                      leaves out every pause (see [effects.Captions])

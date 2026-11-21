@@ -28,11 +28,17 @@ import (
 
 // Ops are what a [Request] asks of a session.
 const (
-	OpInfo   = "info"   // The session's [Info].
-	OpType   = "type"   // Type Text, with Delay after each key.
-	OpKey    = "key"    // Press each of Keys, Repeat times, with Delay after each.
-	OpPaste  = "paste"  // Paste Text.
-	OpClick  = "click"  // Click Button at X, Y.
+	OpInfo  = "info"  // The session's [Info].
+	OpType  = "type"  // Type Text, with Delay after each key.
+	OpKey   = "key"   // Press each of Keys, Repeat times, with Delay after each.
+	OpPaste = "paste" // Paste Text.
+	OpClick = "click" // Click Button at X, Y.
+	OpHover = "hover" // Move the pointer to X, Y with no button held.
+	// OpDrag drags Button from X, Y to ToX, ToY, with Delay after each step.
+	OpDrag = "drag"
+	// OpWheel turns the wheel toward Button (up, down, left, or right) at
+	// X, Y, Repeat notches, with Delay after each.
+	OpWheel  = "wheel"
 	OpScroll = "scroll" // Scroll the viewport Repeat rows up, or down when negative.
 	OpResize = "resize" // Resize to Cols by Rows.
 	OpMark   = "mark"   // Mark Label.
@@ -59,6 +65,8 @@ type Request struct {
 	Button  string        `json:"button,omitempty"`
 	X       int           `json:"x,omitempty"`
 	Y       int           `json:"y,omitempty"`
+	ToX     int           `json:"to_x,omitempty"`
+	ToY     int           `json:"to_y,omitempty"`
 	Cols    int           `json:"cols,omitempty"`
 	Rows    int           `json:"rows,omitempty"`
 	Label   string        `json:"label,omitempty"`

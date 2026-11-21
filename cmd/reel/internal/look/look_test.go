@@ -19,6 +19,28 @@ func TestMerge(t *testing.T) {
 	}
 }
 
+// TestEffects checks the effects a look turns on, and that a flag set to
+// false turns off what the tape turns on.
+func TestEffects(t *testing.T) {
+	names := func(l Look) []string {
+		var out []string
+		for _, e := range l.Effects() {
+			out = append(out, fmt.Sprintf("%T", e))
+		}
+		return out
+	}
+	tape := Look{KeyOverlay: new(true), Toasts: new(true), MouseOverlay: new(true)}
+	if got := names(tape); len(got) != 3 {
+		t.Errorf("effects = %q, want keys, toasts, and the mouse", got)
+	}
+	if got := names(tape.Merge(Look{KeyOverlay: new(false), Toasts: new(false), MouseOverlay: new(false)})); len(got) != 0 {
+		t.Errorf("effects with the flags off = %q, want none", got)
+	}
+	if got := names(Look{}); len(got) != 0 {
+		t.Errorf("effects of no look = %q, want none", got)
+	}
+}
+
 func TestValidate(t *testing.T) {
 	for l, want := range map[*Look]string{
 		{FontSize: new(0.0)}:                 "font size must be above 0",

@@ -133,7 +133,7 @@ func (c *compiler) set(s *settings, name syntax.Token) (string, error) {
 	strs := map[string]**string{"FontFamily": &s.FontFamily, "Title": &s.Title}
 	flags := map[string]**bool{
 		"Scrollbar": &s.Scrollbar, "PromptMarks": &s.PromptMarks, "LinkUnderline": &s.LinkUnderline,
-		"Bell": &s.Bell, "KeyOverlay": &s.KeyOverlay, "Toasts": &s.Toasts,
+		"Bell": &s.Bell, "KeyOverlay": &s.KeyOverlay, "Toasts": &s.Toasts, "MouseOverlay": &s.MouseOverlay,
 	}
 	s.sizeSet = s.sizeSet || name.Text == "Width" || name.Text == "Height"
 	if n, ok := ints[name.Text]; ok {

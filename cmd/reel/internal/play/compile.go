@@ -289,6 +289,8 @@ func (c *compiler) add(pos syntax.Pos, s step) {
 
 // keyNames are the key commands, by the [vt.ParseKey] names they press.
 // Home is not a VHS command, though End is.
+//
+//nolint:goconst // Command and modifier names, as the mouse commands' are written too.
 var keyNames = map[string]string{
 	"Enter": "enter", "Backspace": "backspace", "Delete": "delete",
 	"Insert": "insert", "Tab": "tab", "Escape": "esc", "Space": "space",
@@ -297,7 +299,7 @@ var keyNames = map[string]string{
 }
 
 // builtins are the commands of a tape: VHS's, and reel's Mark, Home,
-// Highlight, Zoom, and Redact.
+// Highlight, Zoom, Redact, captions and callouts, and the mouse's.
 func builtins() map[string]command {
 	cmds := map[string]command{
 		"Output":     {setup: true, compile: (*compiler).output},
@@ -326,6 +328,10 @@ func builtins() map[string]command {
 		"Callout":    {compile: (*compiler).calloutCmd},
 		"EndCaption": {compile: (*compiler).endCaption},
 		"EndCallout": {compile: (*compiler).endCaption},
+		"Click":      {mods: true, at: true, compile: (*compiler).click},
+		"Hover":      {compile: (*compiler).hover},
+		"Drag":       {mods: true, at: true, compile: (*compiler).drag},
+		"Wheel":      {mods: true, at: true, compile: (*compiler).wheel},
 	}
 	for name := range keyNames {
 		cmds[name] = command{at: true, compile: (*compiler).key}
@@ -371,7 +377,7 @@ func (c *compiler) env(cmd syntax.Command) error {
 }
 
 func (c *compiler) typeText(cmd syntax.Command) error {
-	delay, err := c.speed()
+	delay, err := c.speed(c.tape.settings.typingSpeed)
 	if err != nil {
 		return err
 	}
@@ -854,11 +860,11 @@ func (c *compiler) duration(cmd syntax.Token) (time.Duration, error) {
 	return v, err
 }
 
-// speed reads the command's optional @<duration>, or returns Set
-// TypingSpeed's.
-func (c *compiler) speed() (time.Duration, error) {
+// speed reads the command's optional @<duration>, or returns def, such as
+// Set TypingSpeed's.
+func (c *compiler) speed(def time.Duration) (time.Duration, error) {
 	if c.cmd.At == nil {
-		return c.tape.settings.typingSpeed, nil
+		return def, nil
 	}
 	d, err := c.cmd.At.Duration()
 	if err != nil {
@@ -869,13 +875,20 @@ func (c *compiler) speed() (time.Duration, error) {
 
 // speedRepeat reads a key command's optional @<duration> and count.
 func (c *compiler) speedRepeat() (time.Duration, int, error) {
-	speed, err := c.speed()
+	speed, err := c.speed(c.tape.settings.typingSpeed)
 	if err != nil {
 		return 0, 0, err
 	}
-	n := 1
-	if c.peek().Kind == syntax.Number {
-		err = c.intArg(syntax.Token{Text: "a repeat count"}, 1, &n)
-	}
+	n, err := c.count()
 	return speed, n, err
+}
+
+// count reads the command's optional repeat count, at least 1.
+func (c *compiler) count() (int, error) {
+	n := 1
+	if c.peek().Kind != syntax.Number {
+		return n, nil
+	}
+	err := c.intArg(syntax.Token{Text: "a repeat count"}, 1, &n)
+	return n, err
 }

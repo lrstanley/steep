@@ -43,6 +43,22 @@ Starts a program in a new session, and prints its name. The name defaults to the
 
 `reel s click <x> <y> [--button left|middle|right]` clicks a cell, from 0.
 
+To click text rather than a cell, pipe the tape command to [`do`](#do): `echo 'Click "[ Save ]"' | reel s do -`. The same goes for `hover`, `drag`, and `wheel`, and the [tape commands](/cli/tapes#mouse) can move from where the text is.
+
+## hover
+
+`reel s hover <x> <y>` moves the pointer to a cell with no button held. The program only hears it if it tracks all motion.
+
+## drag
+
+`reel s drag <x1> <y1> <x2> <y2> [--button left|middle|right] [--delay DUR]` presses at the first cell, moves through each cell of the line to the second, and releases there. `--delay` pauses after each step.
+
+## wheel
+
+`reel s wheel <up|down|left|right> <x> <y> [--repeat N] [--delay DUR]` turns the mouse wheel over a cell, `N` notches, pausing after each for `--delay`. It scrolls what the program draws, unlike [`scroll`](#scroll), which moves the viewport.
+
+A cell off the screen is an error for each of the mouse commands.
+
 ## scroll
 
 `reel s scroll <rows> [--down]` scrolls the viewport up into the scrollback, or with `--down`, toward the screen.

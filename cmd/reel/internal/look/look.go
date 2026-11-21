@@ -49,6 +49,7 @@ type Look struct {
 	Title         *string  `name:"title" placeholder:"TEXT" help:"Recording title, for the window bar, intro card, and asciicast header (tape: Title)."`
 	KeyOverlay    *bool    `name:"keys" env:"REEL_KEYS" negatable:"" help:"Overlay the keys pressed (tape: KeyOverlay)."`
 	Toasts        *bool    `name:"toasts" env:"REEL_TOASTS" negatable:"" help:"Show notifications and clipboard writes as toasts (tape: Toasts)."`
+	MouseOverlay  *bool    `name:"mouse" env:"REEL_MOUSE" negatable:"" help:"Draw the mouse pointer, clicks, and drags (tape: MouseOverlay)."`
 	CaptionPause  *string  `name:"caption-pause" env:"REEL_CAPTION_PAUSE" placeholder:"DUR|auto|none" help:"Pause at each caption that sets no pause of its own: for a duration, or a reading time with auto; none leaves out every caption's pause (tape: CaptionPause)."`
 }
 
@@ -74,6 +75,7 @@ func (l Look) Merge(o Look) Look {
 	l.Title = cmp.Or(o.Title, l.Title)
 	l.KeyOverlay = cmp.Or(o.KeyOverlay, l.KeyOverlay)
 	l.Toasts = cmp.Or(o.Toasts, l.Toasts)
+	l.MouseOverlay = cmp.Or(o.MouseOverlay, l.MouseOverlay)
 	l.CaptionPause = cmp.Or(o.CaptionPause, l.CaptionPause)
 	return l
 }
@@ -228,6 +230,9 @@ func (l Look) Effects() []reel.Effect {
 	}
 	if l.Toasts != nil && *l.Toasts {
 		fx = append(fx, effects.Toasts(effects.WithClipboardToasts()))
+	}
+	if l.MouseOverlay != nil && *l.MouseOverlay {
+		fx = append(fx, effects.Mouse())
 	}
 	return fx
 }

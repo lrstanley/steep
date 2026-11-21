@@ -122,6 +122,60 @@ func TestSession(t *testing.T) {
 	}
 }
 
+// TestSessionMouse checks the mouse ops, against a shell that has turned on
+// SGR reports of every mouse event, and that they reject cells off the
+// screen.
+func TestSessionMouse(t *testing.T) {
+	dir, done := serve(t, 0)
+	call(t, dir, Request{Op: OpWait, Wait: &Wait{Text: "$ ", Timeout: 5 * time.Second}})
+	call(t, dir, Request{Op: OpType, Text: `printf '\033[?1003h\033[?1006hmouse-on\n'` + "\r"})
+	call(t, dir, Request{Op: OpWait, Wait: &Wait{Regexp: "(?m)^mouse-on", Timeout: 5 * time.Second}})
+
+	call(t, dir, Request{Op: OpClick, Button: "right", X: 1, Y: 2})
+	call(t, dir, Request{Op: OpHover, X: 3, Y: 0})
+	call(t, dir, Request{Op: OpDrag, X: 0, Y: 4, ToX: 2, ToY: 4})
+	call(t, dir, Request{Op: OpWheel, Button: "down", X: 39, Y: 4, Repeat: 2})
+	call(t, dir, Request{Op: OpWheel, Button: "left", X: 0, Y: 0})
+	for _, req := range []Request{
+		{Op: OpClick, X: 40, Y: 0},
+		{Op: OpHover, X: 0, Y: -1},
+		{Op: OpDrag, X: 0, Y: 0, ToX: 0, ToY: 5},
+		{Op: OpWheel, Button: "down", X: -1, Y: 0},
+		{Op: OpWheel, Button: "sideways"},
+		{Op: OpDrag, Button: "thumb"},
+	} {
+		var lerr *Error
+		if _, err := Call(t.Context(), dir, "sh", req); !errors.As(err, &lerr) || lerr.Code != CodeInvalid {
+			t.Errorf("%+v: error = %v, want invalid", req, err)
+		}
+	}
+
+	tl, err := reel.ReadTimeline(bytes.NewReader(call(t, dir, Request{Op: OpCast}).Cast))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for in := range tl.Inputs() {
+		if rest, ok := strings.CutPrefix(string(in.Data), "\x1b[<"); ok {
+			got = append(got, rest)
+		}
+	}
+	want := []string{
+		"2;2;3M", "2;2;3m",
+		"35;4;1M",
+		"0;1;5M", "32;2;5M", "32;3;5M", "0;3;5m",
+		"65;40;5M", "65;40;5M",
+		"66;1;1M",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("mouse input:\n got %q\nwant %q", got, want)
+	}
+	call(t, dir, Request{Op: OpStop})
+	if err = <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestSessionWaitIdleRegions checks idle waits on a screen whose last row
 // ticks, as a status bar's clock would.
 func TestSessionWaitIdleRegions(t *testing.T) {

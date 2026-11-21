@@ -62,7 +62,6 @@ type EffectFlags struct {
 	Pause        bool          `name:"pause" help:"Pause for a second at the end, with a badge."`
 	PauseAt      []string      `name:"pause-at" placeholder:"MARK" help:"Pause for a second at a mark, repeatable."`
 	HoldLast     time.Duration `name:"hold-last" placeholder:"DUR" help:"Hold the last frame for this long."`
-	Mouse        bool          `name:"mouse" help:"Draw the mouse pointer, clicks, and drags."`
 	Hide         []string      `sep:"none" name:"hide" placeholder:"FROM,TO" help:"Cut the window between two marks, repeatable; either may be empty for the start or end."`
 	Highlight    []string      `sep:"none" name:"highlight" placeholder:"SPEC" help:"Highlight a region, repeatable, such as 'rows=2-4;dim=0.4;between=a,b'. ${spec}"`
 	Zoom         []string      `sep:"none" name:"zoom" placeholder:"SPEC" help:"Zoom into a region, repeatable, such as 're=ERROR.*;scale=2'; see --highlight for SPEC."`
@@ -91,9 +90,6 @@ func (e EffectFlags) effects() ([]reel.Effect, error) {
 	}
 	if e.HoldLast > 0 {
 		fx = append(fx, effects.HoldLast(e.HoldLast))
-	}
-	if e.Mouse {
-		fx = append(fx, effects.Mouse())
 	}
 	if len(e.Hide) > 0 {
 		rules := make([]effects.HideRule, 0, len(e.Hide))

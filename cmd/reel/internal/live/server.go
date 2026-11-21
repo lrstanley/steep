@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
 	"io"
 	"net"
 	"os"
@@ -197,10 +198,55 @@ func (srv *server) serve(ctx context.Context, conn net.Conn) {
 
 // inputOps are the ops that send the program input, and so need it not to
 // have exited, and run one at a time.
-var inputOps = map[string]bool{OpType: true, OpKey: true, OpPaste: true, OpClick: true, OpDo: true}
+var inputOps = map[string]bool{
+	OpType: true, OpKey: true, OpPaste: true, OpClick: true, OpHover: true, OpDrag: true, OpWheel: true, OpDo: true,
+}
 
-// buttons are the mouse buttons a click names.
-var buttons = map[string]vt.MouseButton{"": vt.MouseLeft, "left": vt.MouseLeft, "middle": vt.MouseMiddle, "right": vt.MouseRight}
+// buttons are the mouse buttons a click or drag names, and wheelButtons the
+// directions a wheel turn does.
+var (
+	buttons      = map[string]vt.MouseButton{"": vt.MouseLeft, "left": vt.MouseLeft, "middle": vt.MouseMiddle, "right": vt.MouseRight}
+	wheelButtons = map[string]vt.MouseButton{
+		"up": vt.MouseWheelUp, "down": vt.MouseWheelDown, "left": vt.MouseWheelLeft, "right": vt.MouseWheelRight,
+	}
+)
+
+// mouse answers a click, drag, hover, or wheel op.
+func mouse(ctx context.Context, s *reel.Session, req Request) *Response {
+	at, to := image.Pt(req.X, req.Y), image.Pt(req.ToX, req.ToY)
+	cells := []image.Point{at}
+	if req.Op == OpDrag {
+		cells = append(cells, to)
+	}
+	button, ok := buttons[req.Button]
+	if req.Op == OpWheel {
+		button, ok = wheelButtons[req.Button]
+	}
+	switch {
+	case req.Op == OpWheel && !ok:
+		return &Response{Error: fmt.Sprintf("unknown wheel direction %q, want up, down, left, or right", req.Button), Code: CodeInvalid}
+	case req.Op != OpHover && !ok:
+		return &Response{Error: fmt.Sprintf("unknown button %q, want left, middle, or right", req.Button), Code: CodeInvalid}
+	}
+	if err := play.OnScreen(s, req.Op, cells...); err != nil {
+		return &Response{Error: err.Error(), Code: CodeInvalid}
+	}
+	var err error
+	switch req.Op {
+	case OpClick:
+		err = s.Click(button, at.X, at.Y)
+	case OpDrag:
+		err = play.Drag(ctx, s, button, at, to, req.Delay)
+	case OpWheel:
+		err = play.Wheel(ctx, s, button, at.X, at.Y, max(req.Repeat, 1), req.Delay)
+	default:
+		err = s.Mouse(vt.MouseMotion, vt.MouseUnknown, at.X, at.Y)
+	}
+	if err != nil {
+		return failed(err)
+	}
+	return &Response{}
+}
 
 func (srv *server) handle(ctx context.Context, req Request) *Response {
 	s := srv.s
@@ -232,12 +278,8 @@ func (srv *server) handle(ctx context.Context, req Request) *Response {
 		}
 	case OpPaste:
 		err = s.Paste(req.Text)
-	case OpClick:
-		button, ok := buttons[req.Button]
-		if !ok {
-			return &Response{Error: fmt.Sprintf("unknown button %q, want left, middle, or right", req.Button), Code: CodeInvalid}
-		}
-		err = s.Click(button, req.X, req.Y)
+	case OpClick, OpDrag, OpHover, OpWheel:
+		return mouse(ctx, s, req)
 	case OpScroll:
 		if req.Repeat < 0 {
 			err = s.ScrollDown(-req.Repeat)
