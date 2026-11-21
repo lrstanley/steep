@@ -65,7 +65,7 @@ func TestWriter(t *testing.T) {
 	}
 	h := Header{
 		Cols: 2, Rows: 1, Term: "xterm-test", Timestamp: time.Unix(1700000000, 0), Title: "t",
-		Theme:        &Theme{Colors: Colors{Fg: gray(0xd0), Bg: gray(0x21), Cursor: gray(0xff)}, Palette: p},
+		Theme:        &Theme{Fg: gray(0xd0), Bg: gray(0x21), Cursor: gray(0xff), Palette: p},
 		SkipPristine: true,
 	}
 	events := []Event{

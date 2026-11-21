@@ -400,7 +400,7 @@ func TestWaitNewMessageWhere(t *testing.T) {
 func TestIgnoreMessagesReflect(t *testing.T) {
 	t.Parallel()
 	msgs := []uv.Event{appendMsg("a"), otherMsg{}, appendMsg("b")}
-	got := slices.Collect(IgnoreMessagesReflect(t, slices.Values(msgs), reflect.TypeOf(otherMsg{})))
+	got := slices.Collect(IgnoreMessagesReflect(t, slices.Values(msgs), reflect.TypeFor[otherMsg]()))
 	if len(got) != 2 || got[0] != appendMsg("a") || got[1] != appendMsg("b") {
 		t.Fatalf("got %#v", got)
 	}

@@ -7,6 +7,7 @@ package reel
 import (
 	"errors"
 	"image"
+	"slices"
 	"time"
 
 	"getsteep.dev/steep/reel/render"
@@ -282,8 +283,8 @@ func (c *Context) OnClose(fn func() error) {
 // close runs the [Context.OnClose] functions, newest first, once.
 func (c *Context) close() error {
 	var errs []error
-	for i := len(c.closers) - 1; i >= 0; i-- {
-		errs = append(errs, c.closers[i]())
+	for _, v := range slices.Backward(c.closers) {
+		errs = append(errs, v())
 	}
 	c.closers = nil
 	return errors.Join(errs...)

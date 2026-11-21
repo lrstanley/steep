@@ -46,16 +46,14 @@ func TestLoadFace_concurrent(t *testing.T) {
 	var wg sync.WaitGroup
 	for _, style := range []Style{StyleRegular, StyleBold, StyleItalic, StyleBoldItalic} {
 		for range 16 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				for range 24 {
 					if _, err := LoadFace(embeddedFixture, style); err != nil {
 						t.Error(err)
 						return
 					}
 				}
-			}()
+			})
 		}
 	}
 	wg.Wait()

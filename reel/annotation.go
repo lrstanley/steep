@@ -58,6 +58,7 @@ const annotationCode = "R"
 // Other asciicast readers ignore it.
 type Annotation struct {
 	event
+
 	// Kind is dot-separated lower case words, such as "reel.effect".
 	Kind string
 	// Source is where in Go source the annotation was made, or nil (see

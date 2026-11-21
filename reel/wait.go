@@ -369,6 +369,7 @@ func (e *WaitError) Unwrap() error { return e.Err }
 // screenRead is the screen as a wait last read it.
 type screenRead struct {
 	ScreenText
+
 	read bool
 	gen  uint64
 	// screen is a copy of the screen, read in place of the text for a wait

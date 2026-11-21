@@ -229,9 +229,7 @@ func TestLiveInstancesNeverExceedCap(t *testing.T) {
 	open := 0
 	maxOpen := 0
 	for range capN {
-		live.Add(1)
-		go func() {
-			defer live.Done()
+		live.Go(func() {
 			term, err := rt.Open(ctx, 8, 2)
 			if err != nil {
 				errCh <- err
@@ -248,7 +246,7 @@ func TestLiveInstancesNeverExceedCap(t *testing.T) {
 			open--
 			mu.Unlock()
 			term.Close()
-		}()
+		})
 	}
 	waitUntil(t, func() bool {
 		mu.Lock()

@@ -16,6 +16,7 @@ import (
 
 type codepointRange struct {
 	codepoints.Range
+
 	family fonts.FontFamily
 	faces  [4]xfont.Face
 }

@@ -136,10 +136,7 @@ func (t *Terminal) decodeRow(y int) bool {
 		return true
 	}
 	ptr := t.mod.I32(view, 0)
-	n := int(t.mod.U32(view, 4))
-	if n > t.cols {
-		n = t.cols
-	}
+	n := min(int(t.mod.U32(view, 4)), t.cols)
 	if cap(t.rawRow) < n*8 {
 		t.rawRow = make([]byte, n*8)
 	}

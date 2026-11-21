@@ -143,6 +143,7 @@ func (e zoom) Start(ctx *reel.Context) (reel.Stage, error) {
 // zoomStage is the zoom for one recording.
 type zoomStage struct {
 	zoom
+
 	window *window
 	rast   reel.Rasterizer
 

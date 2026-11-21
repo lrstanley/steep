@@ -23,7 +23,7 @@ type Screen struct {
 	Cols          int             `json:"cols"`
 	AltScreen     bool            `json:"alt_screen,omitempty"`
 	Focused       bool            `json:"focused,omitempty"`
-	Cursor        ScreenCursor    `json:"cursor,omitempty"`
+	Cursor        ScreenCursor    `json:"cursor"`
 	FgColor       ScreenColor     `json:"fg_color,omitzero"`
 	BgColor       ScreenColor     `json:"bg_color,omitzero"`
 	ReverseColors bool            `json:"reverse_colors,omitempty"`

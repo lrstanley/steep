@@ -94,11 +94,11 @@ func RequireNot[T string | []string](tb testing.TB, view Viewable, content T, op
 // conditionNote and textNote are the records of an assertion of a
 // condition, and of text appearing or not.
 func conditionNote(cond reel.Condition, required bool) assertNote {
-	return assertNote{AssertMeta: AssertMeta{Kind: AssertKindCondition, Required: required}, Condition: cond.String()}
+	return assertNote{Kind: AssertKindCondition, Required: required, Condition: cond.String()}
 }
 
 func textNote(kind AssertKind, parts []string, required bool) assertNote {
-	return assertNote{AssertMeta: AssertMeta{Kind: kind, Required: required}, Text: parts}
+	return assertNote{Kind: kind, Required: required, Text: parts}
 }
 
 // assertView is [checkAssert] of view's output, which has no cursor.
@@ -150,9 +150,9 @@ func assertHeight(tb testing.TB, view Viewable, n int, required bool, opts []Opt
 	cfg := collectOptions(tb, opts...)
 	gotw, goth := xansi.Dimensions(renderedView(view, cfg.stripANSI))
 	return finishAssert(tb, cfg, assertNote{
-		AssertMeta: AssertMeta{Kind: AssertKindHeight, Required: required},
-		Pass:       goth == n,
-		Expected:   &dims{Height: &n}, Actual: &dims{Width: &gotw, Height: &goth},
+		Kind: AssertKindHeight, Required: required,
+		Pass:     goth == n,
+		Expected: &dims{Height: &n}, Actual: &dims{Width: &gotw, Height: &goth},
 	}, "expected output height %d, got %d", n, goth)
 }
 
@@ -174,9 +174,9 @@ func assertWidth(tb testing.TB, view Viewable, n int, required bool, opts []Opti
 	cfg := collectOptions(tb, opts...)
 	gotw, goth := xansi.Dimensions(renderedView(view, cfg.stripANSI))
 	return finishAssert(tb, cfg, assertNote{
-		AssertMeta: AssertMeta{Kind: AssertKindWidth, Required: required},
-		Pass:       gotw == n,
-		Expected:   &dims{Width: &n}, Actual: &dims{Width: &gotw, Height: &goth},
+		Kind: AssertKindWidth, Required: required,
+		Pass:     gotw == n,
+		Expected: &dims{Width: &n}, Actual: &dims{Width: &gotw, Height: &goth},
 	}, "expected output width %d, got %d", n, gotw)
 }
 
@@ -198,9 +198,9 @@ func assertDimensions(tb testing.TB, view Viewable, width, height int, required 
 	cfg := collectOptions(tb, opts...)
 	gotw, goth := xansi.Dimensions(renderedView(view, cfg.stripANSI))
 	return finishAssert(tb, cfg, assertNote{
-		AssertMeta: AssertMeta{Kind: AssertKindDimensions, Required: required},
-		Pass:       gotw == width && goth == height,
-		Expected:   &dims{Width: &width, Height: &height}, Actual: &dims{Width: &gotw, Height: &goth},
+		Kind: AssertKindDimensions, Required: required,
+		Pass:     gotw == width && goth == height,
+		Expected: &dims{Width: &width, Height: &height}, Actual: &dims{Width: &gotw, Height: &goth},
 	}, "expected output dimensions %dx%d, got %dx%d", width, height, gotw, goth)
 }
 
@@ -245,8 +245,8 @@ func assertHasMessage[T uv.Event](tb testing.TB, log MessageCollector, required 
 	}
 	var zero T
 	return finishAssert(tb, collectOptions(tb, opts...), assertNote{
-		AssertMeta: AssertMeta{Kind: AssertKindHasMessage, Required: required},
-		Type:       typeName[T](), Pass: found,
+		Kind: AssertKindHasMessage, Required: required,
+		Type: typeName[T](), Pass: found,
 	}, "no message with type %T found", zero)
 }
 
@@ -286,7 +286,7 @@ func waitMessage[T uv.Event](tb testing.TB, log MessageCollector, live bool, fn 
 	tb.Helper()
 
 	cfg := collectOptions(tb, opts...)
-	w := cfg.startWait(waitNote{WaitMeta: WaitMeta{Kind: WaitKindMessage, Live: live}, Type: typeName[T]()})
+	w := cfg.startWait(waitNote{Kind: WaitKindMessage, Live: live, Type: typeName[T]()})
 	defer w.finish()
 	ctx, cancel := context.WithTimeoutCause(cfg.ctx, cfg.timeout, errWaitTimeout)
 	defer cancel()
@@ -324,7 +324,7 @@ func WaitSettleMessages(tb testing.TB, log MessageCollector, opts ...Option) {
 	tb.Helper()
 
 	cfg := collectOptions(tb, opts...)
-	w := cfg.startWait(waitNote{WaitMeta: WaitMeta{Kind: WaitKindSettleMessages}, SettleMS: cfg.settleTimeout.Milliseconds()})
+	w := cfg.startWait(waitNote{Kind: WaitKindSettleMessages, SettleMS: cfg.settleTimeout.Milliseconds()})
 	defer w.finish()
 
 	ctx, cancel := context.WithTimeoutCause(cfg.ctx, cfg.timeout, errWaitTimeout)

@@ -366,10 +366,7 @@ func (t *Terminal) selectionTextLocked(sel Selection) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	wrote := int(t.mod.U32(lenPtr, 0))
-	if wrote > need {
-		wrote = need
-	}
+	wrote := min(int(t.mod.U32(lenPtr, 0)), need)
 	return string(append([]byte(nil), t.mod.Slice(buf, wrote)...)), nil
 }
 

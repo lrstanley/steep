@@ -586,6 +586,6 @@ func (s *Session) setColor(set func(color.Color) error, c color.Color) error {
 			return nil, err
 		}
 		fg, bg, cursor := s.term.HostColors()
-		return Theme{Colors: Colors{Fg: fg, Bg: bg, Cursor: cursor}}, nil
+		return Theme{Fg: fg, Bg: bg, Cursor: cursor}, nil
 	})
 }

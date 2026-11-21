@@ -149,6 +149,7 @@ func (e redact) Start(ctx *reel.Context) (reel.Stage, error) {
 // redactStage is the redaction of one recording.
 type redactStage struct {
 	redact
+
 	window *window
 	rast   reel.Rasterizer
 

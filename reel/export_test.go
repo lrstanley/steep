@@ -87,8 +87,8 @@ func TestExportReplayRules(t *testing.T) {
 		// change is a frame, and setting them again is not.
 		Focus{event: at(600), On: false},
 		Focus{event: at(620), On: false},
-		Theme{event: at(650), Colors: Colors{Bg: bg}},
-		Theme{event: at(680), Colors: Colors{Bg: bg}},
+		Theme{event: at(650), Bg: bg},
+		Theme{event: at(680), Bg: bg},
 		// So does a program setting a color, a palette color, or reverse
 		// video.
 		outAt(690, "\x1b]12;rgb:ff/00/00\x1b\\"),

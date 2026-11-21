@@ -113,7 +113,7 @@ func (h *Harness) WaitSettle(opts ...Option) *Harness {
 // changes.
 func (h *Harness) WaitFor(cond reel.Condition, opts ...Option) *Harness {
 	h.tb.Helper()
-	note := waitNote{WaitMeta: WaitMeta{Kind: WaitKindCondition}, Condition: cond.String()}
+	note := waitNote{Kind: WaitKindCondition, Condition: cond.String()}
 	defer h.hook(HookWait, note.WaitMeta)()
 	h.waitScreen(cond, note, opts)
 	return h
@@ -123,7 +123,7 @@ func (h *Harness) WaitFor(cond reel.Condition, opts ...Option) *Harness {
 // []byte sequence, or every string in a []string.
 func (h *Harness) Wait[T string | []byte | []string](contents T, opts ...Option) *Harness {
 	h.tb.Helper()
-	note := waitNote{WaitMeta: WaitMeta{Kind: WaitKindText}, Text: texts(contents)}
+	note := waitNote{Kind: WaitKindText, Text: texts(contents)}
 	defer h.hook(HookWait, note.WaitMeta)()
 	h.waitScreen(reel.Contains(note.Text...), note, append(opts, withReason("Wait(%q)", contents)))
 	return h
@@ -133,7 +133,7 @@ func (h *Harness) Wait[T string | []byte | []string](contents T, opts ...Option)
 // string, a []byte sequence, or any string in a []string.
 func (h *Harness) WaitNot[T string | []byte | []string](contents T, opts ...Option) *Harness {
 	h.tb.Helper()
-	note := waitNote{WaitMeta: WaitMeta{Kind: WaitKindNotText}, Text: texts(contents)}
+	note := waitNote{Kind: WaitKindNotText, Text: texts(contents)}
 	defer h.hook(HookWait, note.WaitMeta)()
 	h.waitScreen(reel.NotContains(note.Text...), note, append(opts, withReason("WaitNot(%q)", contents)))
 	return h
@@ -160,8 +160,7 @@ func (h *Harness) waitScreen(cond reel.Condition, note waitNote, opts []Option) 
 
 // waitLast returns the last screen a failed [reel.Session] wait saw.
 func waitLast(err error) string {
-	var werr *reel.WaitError
-	if errors.As(err, &werr) {
+	if werr, ok := errors.AsType[*reel.WaitError](err); ok {
 		return werr.Last
 	}
 	return ""

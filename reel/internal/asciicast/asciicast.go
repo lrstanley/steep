@@ -67,6 +67,7 @@ type Header struct {
 // reel's own, which other readers ignore, and may be nil.
 type Theme struct {
 	Colors
+
 	// Palette is the 16 ANSI colors, the 8 normal colors and then their
 	// bright variants. A [Writer] writes each of them, so none may be nil. A
 	// [Reader] leaves nil the colors a file leaves out: all 16, or the

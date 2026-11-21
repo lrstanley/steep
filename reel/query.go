@@ -105,8 +105,8 @@ func queryAnnotation(q Query) Annotation {
 }
 
 func lastIndexFunc[E any](s []E, f func(E) bool) int {
-	for i := len(s) - 1; i >= 0; i-- {
-		if f(s[i]) {
+	for i, v := range slices.Backward(s) {
+		if f(v) {
 			return i
 		}
 	}

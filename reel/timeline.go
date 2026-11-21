@@ -180,6 +180,7 @@ func (e event) At() time.Duration { return e.at }
 // Output is bytes the program wrote to its terminal.
 type Output struct {
 	event
+
 	// Data is the bytes, as written. It must not be modified.
 	Data []byte
 }
@@ -189,6 +190,7 @@ type Output struct {
 // decodes it.
 type Input struct {
 	event
+
 	// Data is the bytes, as sent. It must not be modified.
 	Data []byte
 }
@@ -196,6 +198,7 @@ type Input struct {
 // Resize is the terminal changing size.
 type Resize struct {
 	event
+
 	// Cols and Rows are the new size in cells.
 	Cols, Rows int
 }
@@ -206,6 +209,7 @@ type Resize struct {
 // when it has a Source, by a [MarkKind] annotation of its label and source.
 type Mark struct {
 	event
+
 	// Label is never empty, unless read from a file with an unlabeled
 	// marker. By convention it is "category:value", such as "login:done" or
 	// "step:3", so marks can be grouped by category (see [SplitLabel]).
@@ -230,6 +234,7 @@ func SplitLabel(label string) (category, value string) {
 // focused.
 type Focus struct {
 	event
+
 	// On is true when the window gained focus.
 	On bool
 }
@@ -238,6 +243,7 @@ type Focus struct {
 // It is not sent to the program.
 type Scroll struct {
 	event
+
 	// Offset is how many rows the viewport is scrolled up from the bottom,
 	// after the change. Zero is the live screen.
 	Offset int
@@ -247,6 +253,7 @@ type Scroll struct {
 // keeps. It is not sent to the program.
 type ScrollbackSize struct {
 	event
+
 	// Lines is the most lines of history kept after the change. Zero keeps
 	// none.
 	Lines int
@@ -264,6 +271,7 @@ type Theme struct {
 // Exit is the program exiting.
 type Exit struct {
 	event
+
 	Status int
 }
 
@@ -418,7 +426,7 @@ func (t *Timeline) fixed(h Header, n int) *Timeline {
 func (t *Timeline) snapshot() []Event {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return t.events[:len(t.events):len(t.events)]
+	return slices.Clip(t.events)
 }
 
 // started returns the wall time offsets count from, or zero. When called

@@ -497,8 +497,7 @@ func TestVideoMissingEncoder(t *testing.T) {
 
 	dir := t.TempDir()
 	_, err := CreateVideo(filepath.Join(dir, "out.webp"), FormatWebP, fake)
-	var missing *MissingEncoderError
-	if !errors.As(err, &missing) {
+	if _, ok := errors.AsType[*MissingEncoderError](err); !ok {
 		t.Fatalf("CreateVideo = %v, want MissingEncoderError", err)
 	}
 	msg := err.Error()

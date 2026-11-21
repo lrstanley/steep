@@ -176,8 +176,8 @@ func TestFrameSnapTracksState(t *testing.T) {
 	// A progress report, so a report that hides it shows.
 	base := vt.State{Progress: vt.Progress{State: vt.ProgressSet, Percent: 5}}
 	typ := reflect.TypeFor[vt.State]()
-	for i := range typ.NumField() {
-		name := typ.Field(i).Name
+	for field := range typ.Fields() {
+		name := field.Name
 		change, ok := changes[name]
 		if !ok {
 			if !ignored[name] {

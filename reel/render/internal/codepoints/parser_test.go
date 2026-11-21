@@ -156,8 +156,7 @@ func TestParseRange_reversedError(t *testing.T) {
 
 func TestParseRange_parseErrorPropagates(t *testing.T) {
 	_, _, err := ParseRange("U+0041-U+ZZZZ")
-	var got *MalformedError
-	if !errors.As(err, &got) {
+	if _, ok := errors.AsType[*MalformedError](err); !ok {
 		t.Fatalf("want *MalformedError, got %T: %v", err, err)
 	}
 }
@@ -180,16 +179,14 @@ func TestParseRanges_ok(t *testing.T) {
 func TestParseRanges_errors(t *testing.T) {
 	t.Run("empty segment", func(t *testing.T) {
 		_, err := ParseRanges("U+0041,,U+0042")
-		var got *EmptyRangeError
-		if !errors.As(err, &got) {
+		if _, ok := errors.AsType[*EmptyRangeError](err); !ok {
 			t.Fatalf("want *EmptyRangeError, got %T: %v", err, err)
 		}
 	})
 
 	t.Run("only commas", func(t *testing.T) {
 		_, err := ParseRanges(",")
-		var got *EmptyRangeError
-		if !errors.As(err, &got) {
+		if _, ok := errors.AsType[*EmptyRangeError](err); !ok {
 			t.Fatalf("want *EmptyRangeError, got %T: %v", err, err)
 		}
 	})

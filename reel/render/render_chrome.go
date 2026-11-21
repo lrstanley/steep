@@ -87,6 +87,7 @@ func (d *Renderer) buildChromeFonts() error {
 // without window chrome or prompt marks.
 type chromeText struct {
 	*renderFrame
+
 	fonts   *fontset.Set
 	metrics types.Metrics
 	capH    float64 // cap height of the chrome faces, in pixels

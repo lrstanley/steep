@@ -138,6 +138,7 @@ var systemColorIndex = sync.OnceValue(func() []*colorFace {
 // cluster is first looked up in it.
 type colorFace struct {
 	face
+
 	open func() *openColorFace // Nil if the face can't draw color glyphs.
 }
 

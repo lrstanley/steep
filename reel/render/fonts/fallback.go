@@ -69,6 +69,7 @@ func hasInk(font *opentype.Font, r rune) bool {
 
 type fallbackFace struct {
 	face
+
 	cov coverage
 }
 
