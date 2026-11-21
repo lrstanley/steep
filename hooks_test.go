@@ -20,7 +20,7 @@ var harnessHookExcluded = func() map[string]bool {
 		"View", "Title", "Bell", "Bounds", "IsAltScreen", "ModeSetting",
 		"Width", "Height", "Dimensions", "IsFocused", "FgColor", "BgColor",
 		"CursorColor", "CursorPosition", "CursorVisible", "CursorBlink", "CursorStyle",
-		"ProgramStatuses",
+		"ProgramStatuses", "ControlStrings",
 		"Progress", "Notifications", "Clipboard", "WorkingDirectory", "Prompt", "ResizeRequest",
 		"Scrollback", "ScrollbackCount", "ScrollbackOffset", "MessageHistory", "Messages", "LiveMessages",
 		"FinalModel", "FinalModelAs", "mergedOpts", "waitStarted", "snapshotOpts", "textSnapshotOpts",

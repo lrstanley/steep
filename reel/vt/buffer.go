@@ -43,6 +43,10 @@ type Buffer struct {
 	// layer first. They are replaced, never changed in place, so clones
 	// share them. A change to them advances gen.
 	images []Placement
+	// imagesGen is the render state's image list generation images were
+	// read at, once imagesRead, so a new grid reads the list again.
+	imagesGen  uint64
+	imagesRead bool
 	// cellSize is the terminal's pixel size of one cell, which images are
 	// measured in.
 	cellSize image.Point

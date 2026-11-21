@@ -38,6 +38,10 @@ const xtversion = "reel"
 // [Terminal.Read] blocks until the emulator writes a pty reply or Close
 // returns EOF. Query answers are written there so a program does not stall.
 type Terminal struct {
+	// termState is what a [Snapshot] keeps of the terminal besides the
+	// emulator's own snapshot.
+	termState
+
 	// rt is the pool this instance returns to on Close. The Wasm module
 	// stays allocated across checkouts.
 	rt *Runtime
@@ -74,26 +78,6 @@ type Terminal struct {
 	// version is the [xtversion] bytes returned for XTVERSION.
 	version int32
 
-	// cols and rows are the grid size in cells.
-	cols, rows int
-	// cellW and cellH are the pixel size of one cell. Mouse encoding and
-	// in-band size reports use them. They are not changed by Resize.
-	cellW, cellH uint32
-	// scrollbackLines is the history cap applied with
-	// TerminalOptionScrollbackMaxLines. Zero disables history.
-	scrollbackLines int
-	// scrollbackOff is true after a zero cap sets the byte limit to
-	// zero. libghostty keeps that screen in no-scrollback mode until
-	// the byte limit is cleared, even if a line cap is set later.
-	scrollbackOff bool
-	// checksumReport is the host DECRQCRA reply switch. A new checkout
-	// starts off. Reset keeps the current value.
-	checksumReport bool
-	// checksumFlags is the XTCHECKSUM variant restored by a full reset.
-	checksumFlags ChecksumFlags
-	// cursorBlink is [WithCursorBlink]'s default, which a full reset keeps.
-	cursorBlink bool
-
 	// replies is the pty response stream drained by Read. The VT-write
 	// callback appends to it and must not block.
 	replies *replyBuf
@@ -101,69 +85,19 @@ type Terminal struct {
 	// returns, which the VT-write callback then also appends each reply to.
 	captured *[]byte
 
-	// title is the last OSC 0 or OSC 2 window title.
-	title string
-	// pwd is the last OSC 7 working directory.
-	pwd string
 	// clock stamps program events. See [WithClock].
 	clock func() time.Duration
 	// unknown is [WithUnknownSequence], or nil.
 	unknown func(UnknownSequence)
-	// bell is the latest BEL.
-	bell Bell
-	// alt is true when the alternate screen is active.
-	alt bool
-	// held is true during synchronized output (mode 2026).
-	held bool
-	// frozen is the grid captured when the current hold started. Reads
-	// return it instead of a partial update. frozenCur is its caret.
-	frozen    *Buffer
-	frozenCur Cursor
-
-	// progress is the latest OSC 9;4 report.
-	progress Progress
-	// notifications are OSC 9 and OSC 777 messages, oldest first. Only
-	// appended to, and replaced on reset, so a [State] can share it.
-	notifications []Notification
-	// clipRead is the host clipboard returned for an OSC 52 read.
-	clipRead string
-	// clipWrote is the last plain text the program wrote to the clipboard.
-	clipWrote ClipboardWrite
-	// prompt is the latest OSC 133 semantic-prompt step.
-	prompt Prompt
+	// controls is [WithControlStrings], or nil.
+	controls func(ControlString)
+	// snapshots is [WithSnapshots]: the terminal keeps unfinished input.
+	snapshots bool
+	// writeStop is the GhosttyTerminalWriteStop that writes which stop at
+	// boundaries fill in.
+	writeStop int32
 	// prompts are the OSC 133 primary prompts the shell started.
 	prompts promptMarks
-	// statuses are OSC 7501 program-status records in update order, least
-	// recently updated first, which is the eviction order.
-	statuses []ProgramStatus
-	// statusView is statuses as [Terminal.ProgramStatuses] returns them:
-	// sorted by id, with App inherited. It is replaced, never changed in
-	// place, so a [State] can share it. statusGen counts changes to it,
-	// and is never reset, so equal generations mean the same records.
-	statusView []ProgramStatus
-	statusGen  uint64
-	// statusReported is true once any OSC 7501 report has arrived since the
-	// last full reset.
-	statusReported bool
-	// resizeCols and resizeRows are the last CSI 8 t window-resize
-	// request. resizeOK is false until the program asks. The terminal
-	// does not apply the request.
-	resizeCols int
-	resizeRows int
-	resizeOK   bool
-
-	// fg, bg, and cursor are the colors last shown, after overrides.
-	fg, bg, cursor color.NRGBA
-	// fgOverride, bgOverride, and cursorOverride replace the emulator
-	// colors when non-nil. Nil means use the default.
-	fgOverride     color.Color
-	bgOverride     color.Color
-	cursorOverride color.Color
-	// fgDefault, bgDefault, and cursorDefault are restored when the
-	// matching override is cleared.
-	fgDefault     color.Color
-	bgDefault     color.Color
-	cursorDefault color.Color
 	// palette is the last [Terminal.paletteLocked]. It is replaced, never
 	// changed in place, so a [State] can share it. paletteFresh is true
 	// while no write or reset could have changed it since.
@@ -196,7 +130,10 @@ type Terminal struct {
 	rowWordsN []int
 	// callbacksOn is true after installCallbacks. The table entries stay
 	// for the life of the module, including while the instance is pooled.
+	// callbackIdx pairs each effect's GhosttyTerminalOption with its table
+	// index.
 	callbacksOn bool
+	callbackIdx [][2]int32
 	// idle is true while the instance sits in the pool. Methods fail with
 	// errClosed until the next checkout.
 	idle bool
@@ -255,17 +192,24 @@ func (t *Terminal) OutputSeq() uint64 {
 }
 
 // writeLocked copies p into the reusable feed buffer and calls
-// ghostty_terminal_vt_write. The feed buffer is feedSize bytes, so
+// ghostty_terminal_vt_write, or ghostty_terminal_vt_write_until while
+// strings are watched (see [WithControlStrings]). The feed buffer is
+// feedSize bytes, so
 // large writes are split. The call never fails. Malformed input stays
 // inside the emulator.
 func (t *Terminal) writeLocked(p []byte) error {
 	t.paletteFresh = false
 	t.prompts.written = true
 	t.glyphsFresh = false
+	bounds := t.boundariesLocked()
 	for len(p) > 0 {
 		n := min(len(p), feedSize)
 		t.mod.Put(t.feed, p[:n])
-		t.mod.Xghostty_terminal_vt_write(t.term, t.feed, int32(n))
+		if bounds != 0 {
+			t.writeUntilLocked(p[:n], bounds)
+		} else {
+			t.mod.Xghostty_terminal_vt_write(t.term, t.feed, int32(n))
+		}
 		p = p[n:]
 	}
 	return nil
@@ -821,6 +765,9 @@ func (t *Terminal) prepare(cols, rows, scrollback int) error {
 	if t.scratch, err = t.mod.Alloc(scratchSize); err != nil {
 		return err
 	}
+	if t.writeStop, err = t.mod.Alloc(wasmvt.SizeTerminalWriteStop); err != nil {
+		return err
+	}
 	if t.kitty.scratch, err = t.mod.Alloc(kittyScratchSize); err != nil {
 		return err
 	}
@@ -883,6 +830,12 @@ func (t *Terminal) prepare(cols, rows, scrollback int) error {
 	if err != nil {
 		return err
 	}
+	t.kitty.images, err = t.mod.Ctor(func(slot int32) int32 {
+		return t.mod.Xghostty_render_state_image_iterator_new(0, slot)
+	})
+	if err != nil {
+		return err
+	}
 	t.kitty.iter, err = t.mod.Ctor(func(slot int32) int32 {
 		return t.mod.Xghostty_kitty_graphics_placement_iterator_new(0, slot)
 	})
@@ -907,9 +860,15 @@ func (t *Terminal) prepare(cols, rows, scrollback int) error {
 }
 
 // reapplyLocked restores options that [Terminal.Reset] and checkout
-// clear. Scrollback and the checksum host options are applied again.
+// clear. Scrollback, the Glyph Protocol, and the checksum host options are
+// applied again.
 func (t *Terminal) reapplyLocked() error {
 	if err := t.applyScrollbackLocked(); err != nil {
+		return err
+	}
+	// libghostty-vt ships with the Glyph Protocol off. reel has always
+	// answered it, so it is turned on for every terminal.
+	if err := t.mod.SetBoolOption(t.term, wasmvt.TerminalOptionGlyphProtocol, true); err != nil {
 		return err
 	}
 	if err := t.mod.SetBoolOption(t.term, wasmvt.TerminalOptionXtChecksumReport, t.checksumReport); err != nil {
@@ -922,13 +881,15 @@ func (t *Terminal) reapplyLocked() error {
 }
 
 // clearPooledLocked drops what belongs to the previous checkout: the
-// checksum switches, the [WithUnknownSequence] callback, the host colors,
+// checksum switches, the [WithUnknownSequence] and [WithControlStrings]
+// callbacks, the host colors,
 // and the colors the program set with OSC 10, 11, and 12, which a full
 // reset keeps. [Terminal.Reset] keeps the host options.
 func (t *Terminal) clearPooledLocked() {
 	t.checksumReport = false
 	t.checksumFlags = 0
 	t.unknown = nil
+	t.controls = nil
 	t.fgOverride, t.bgOverride, t.cursorOverride = nil, nil, nil
 	t.fgDefault, t.bgDefault, t.cursorDefault = nil, nil, nil
 	for _, opt := range [...]int32{

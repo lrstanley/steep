@@ -57,6 +57,7 @@ func (t *Terminal) captureFrame() (*Buffer, Cursor) {
 // The row iterator handle is passed by pointer in scratch. Failure leaves
 // the previous grid in place.
 func (t *Terminal) refreshLocked() *Buffer {
+	t.tickAnimationsLocked()
 	if rc := t.mod.Xghostty_render_state_update(t.render, t.term); rc != 0 && t.grid == nil {
 		t.grid = NewBuffer(t.cols, t.rows)
 		t.grid.cellSize = image.Pt(int(t.cellW), int(t.cellH))
@@ -68,7 +69,7 @@ func (t *Terminal) refreshLocked() *Buffer {
 	same := t.grid != nil && t.grid.Width() == t.cols && t.grid.Height() == t.rows
 	if dirty == 0 && same {
 		t.grid.ClearDirty()
-		if t.refreshImagesLocked(false) {
+		if t.refreshImagesLocked() {
 			t.grid.AdvanceGeneration()
 		}
 		t.gridFresh = true
@@ -110,7 +111,7 @@ func (t *Terminal) refreshLocked() *Buffer {
 	}
 	// A following refresh may ClearDirty before anyone draws. The
 	// generation still tells that draw the cells are new.
-	if t.refreshImagesLocked(true) || changed {
+	if t.refreshImagesLocked() || changed {
 		t.grid.AdvanceGeneration()
 	}
 	t.readCursorLocked()
@@ -344,14 +345,13 @@ func (t *Terminal) cellUTF8() string {
 	return string(append([]byte(nil), t.mod.Slice(data, n)...))
 }
 
-// applyStyle reads GhosttyStyle for the selected cell. The out
-// pointer is sized. Colors are tagged unions (palette or RGB) decoded
-// by styleColor. Attribute bytes are the manifest field offsets.
+// applyStyle reads GhosttyStyle for the selected cell. GhosttyStyle is a
+// fixed 16-byte layout, not a sized struct. Colors are tagged unions
+// (palette or RGB) decoded by styleColor. Attributes and the underline
+// style are bits of the GhosttyStyleFlags field.
 func (t *Terminal) applyStyle(x, y int) {
-	n := wasmvt.SizeStyle
 	stylePtr := t.scratch + 128
-	t.mod.Zero(stylePtr, n)
-	t.mod.SetU32(stylePtr, 0, uint32(n))
+	t.mod.Zero(stylePtr, wasmvt.SizeStyle)
 	if t.mod.Xghostty_render_state_row_cells_get(
 		t.cells, wasmvt.RenderStateRowCellsDataStyle, stylePtr,
 	) != 0 {
@@ -364,33 +364,30 @@ func (t *Terminal) applyStyle(x, y int) {
 	cell.Style.Fg = t.styleColor(stylePtr, wasmvt.StyleFgColorOff)
 	cell.Style.Bg = t.styleColor(stylePtr, wasmvt.StyleBgColorOff)
 	cell.Style.UnderlineColor = t.styleColor(stylePtr, wasmvt.StyleUnderlineColorOff)
-	base := stylePtr
-	if t.mod.U8(base, wasmvt.StyleBoldOff) != 0 {
-		cell.Style.Attrs |= AttrBold
-	}
-	if t.mod.U8(base, wasmvt.StyleFaintOff) != 0 {
-		cell.Style.Attrs |= AttrFaint
-	}
-	if t.mod.U8(base, wasmvt.StyleItalicOff) != 0 {
-		cell.Style.Attrs |= AttrItalic
+	flags := t.mod.U16(stylePtr, wasmvt.StyleFlagsOff)
+	for _, attr := range [...]struct {
+		mask uint16
+		attr Attr
+	}{
+		{wasmvt.StyleFlagsBoldMask, AttrBold},
+		{wasmvt.StyleFlagsFaintMask, AttrFaint},
+		{wasmvt.StyleFlagsItalicMask, AttrItalic},
+		{wasmvt.StyleFlagsInverseMask, AttrReverse},
+		{wasmvt.StyleFlagsInvisibleMask, AttrConceal},
+		{wasmvt.StyleFlagsStrikethroughMask, AttrStrikethrough},
+	} {
+		if flags&attr.mask != 0 {
+			cell.Style.Attrs |= attr.attr
+		}
 	}
 	// SGR 6 sets both flags.
 	switch {
-	case t.mod.U8(base, wasmvt.StyleRapidBlinkOff) != 0:
+	case flags&wasmvt.StyleFlagsRapidBlinkMask != 0:
 		cell.Style.Attrs |= AttrRapidBlink
-	case t.mod.U8(base, wasmvt.StyleBlinkOff) != 0:
+	case flags&wasmvt.StyleFlagsBlinkMask != 0:
 		cell.Style.Attrs |= AttrBlink
 	}
-	if t.mod.U8(base, wasmvt.StyleInverseOff) != 0 {
-		cell.Style.Attrs |= AttrReverse
-	}
-	if t.mod.U8(base, wasmvt.StyleInvisibleOff) != 0 {
-		cell.Style.Attrs |= AttrConceal
-	}
-	if t.mod.U8(base, wasmvt.StyleStrikethroughOff) != 0 {
-		cell.Style.Attrs |= AttrStrikethrough
-	}
-	ul := t.mod.I32(base, wasmvt.StyleUnderlineOff)
+	ul := (flags & wasmvt.StyleFlagsUnderlineMask) >> wasmvt.StyleFlagsUnderlineShift
 	if ul > 0 && ul < 6 {
 		cell.Style.Underline = Underline(ul)
 	}
@@ -400,7 +397,7 @@ func (t *Terminal) applyStyle(x, y int) {
 // generated offset (fg, bg, or underline). NONE and any other tag
 // return nil so the cell keeps no explicit color.
 func (t *Terminal) styleColor(style int32, field int) color.Color {
-	tag := t.mod.I32(style, field+wasmvt.StyleColorTagOff)
+	tag := int32(t.mod.U8(style, field+wasmvt.StyleColorTagOff))
 	value := field + wasmvt.StyleColorValueOff
 	switch tag {
 	case wasmvt.StyleColorTagPalette:
@@ -413,7 +410,7 @@ func (t *Terminal) styleColor(style int32, field int) color.Color {
 }
 
 // applyLink resolves the cell's hyperlink. The point is a viewport
-// GhosttyPoint. ghostty_terminal_grid_ref writes a sized GhosttyGridRef,
+// GhosttyPoint. ghostty_terminal_grid_ref writes a GhosttyGridRef,
 // and ghostty_grid_ref_hyperlink_uri writes the URI into scratch.
 // A non-zero result means the cell has no URI.
 func (t *Terminal) applyLink(x, y int) {
@@ -425,7 +422,6 @@ func (t *Terminal) applyLink(x, y int) {
 	t.mod.SetU16(point, coord+wasmvt.PointCoordinateXOff, wasmvt.Uint16(x))
 	t.mod.SetU32(point, coord+wasmvt.PointCoordinateYOff, wasmvt.Uint32(y))
 	t.mod.Zero(ref, wasmvt.SizeGridRef)
-	t.mod.SetU32(ref, 0, uint32(wasmvt.SizeGridRef))
 	if t.mod.Xghostty_terminal_grid_ref(t.term, point, ref) != 0 {
 		return
 	}

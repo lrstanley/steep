@@ -20,6 +20,8 @@ func assertSameTerminal(t *testing.T, a, b *Terminal) {
 	sa.ProgramStatusGeneration, sb.ProgramStatusGeneration = 0, 0
 	// The redraw replays the prompt step, so it arrives later.
 	sa.Prompt.At, sb.Prompt.At = 0, 0
+	// Glyphs compare by identity, which two terminals never share.
+	sa.Glyphs, sb.Glyphs = nil, nil
 	if !sa.Equal(sb) {
 		t.Errorf("state:\n%+v\nwant:\n%+v", sb, sa)
 	}
@@ -102,6 +104,9 @@ func TestRedraw(t *testing.T) {
 			"\x1b]133;A\x07$ \x1b]133;B\x07sleep\r\n\x1b]133;C;cmdline_url=sleep%201\x07",
 		"prompt marks typing": promptCmd("x", 0) + "\x1b]133;A\x07$ \x1b]133;B\x07ty",
 		"prompt marks ended":  promptCmd("x", 0) + "\x1b]133;A\x07$ \x1b]133;D\x07" + promptCmd("y", 127),
+		"erased background":   "\x1b[44mab\x1b[2;3H\x1b[5X\x1b[0m  gap  end",
+		"marks with extras after": history.String() + promptCmd("ok", 0) +
+			"\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\\x1b[2;3r\x1b[>4;2m\x1b]7;file:///tmp\x07\x1b[4;2H",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -127,5 +132,33 @@ func TestRedrawHostColors(t *testing.T) {
 	}
 	if bytes.Contains(data, []byte("\x1b]10;")) {
 		t.Fatalf("redraw sets the host foreground: %q", data)
+	}
+}
+
+func TestScreenRowsVT(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		full, rows string
+		ok         bool
+	}{
+		"cursor after":   {full: "\x1b[3g\x1bH\x1b[Ha\r\nb\x1b[0m\x1b[1mc\x1b[0m\x1b[2;3H\x1b[0m", rows: "a\r\nb\x1b[0m\x1b[1mc\x1b[0m", ok: true},
+		"erase and skip": {full: "\x1b[H\x1b[44m\x1b[3X\x1b[3Cx\x1b[1;1H", rows: "\x1b[44m\x1b[3X\x1b[3Cx", ok: true},
+		"hyperlink":      {full: "\x1b[H\x1b]8;id=a;https://e.x\x1b\\l\x1b]8;;\x1b\\\x1b[1;2H", rows: "\x1b]8;id=a;https://e.x\x1b\\l\x1b]8;;\x1b\\", ok: true},
+		"region after":   {full: "\x1b[Hx\x1b[2;3r\x1b[1;1H", rows: "x", ok: true},
+		"keyboard after": {full: "\x1b[Hx\x1b[>4;2m\x1b[1;1H", rows: "x", ok: true},
+		"pwd after":      {full: "\x1b[Hx\x1b]7;file:///\x1b\\\x1b[1;1H", rows: "x", ok: true},
+		"no home":        {full: "x\x1b[1;1H"},
+		"no extras":      {full: "\x1b[Hx"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			start, end, ok := screenRowsVT([]byte(tc.full))
+			if ok != tc.ok {
+				t.Fatalf("ok = %v, want %v", ok, tc.ok)
+			}
+			if ok && tc.full[start:end] != tc.rows {
+				t.Fatalf("rows = %q, want %q", tc.full[start:end], tc.rows)
+			}
+		})
 	}
 }

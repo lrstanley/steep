@@ -212,12 +212,12 @@ func (s *Search) SelectedIndex() (int, error) {
 // SelectNext selects the next older match, wrapping at the oldest.
 // No matches returns [ErrNoValue].
 func (s *Search) SelectNext() error {
-	return s.setOption(wasmvt.SearchOptionSelectNext, 0)
+	return s.call("search select next", s.t.mod.Xghostty_search_select_next)
 }
 
 // SelectPrevious selects the next newer match, wrapping at the newest.
 func (s *Search) SelectPrevious() error {
-	return s.setOption(wasmvt.SearchOptionSelectPrev, 0)
+	return s.call("search select previous", s.t.mod.Xghostty_search_select_prev)
 }
 
 // SetScrollPolicy controls whether selecting a match moves the viewport.
@@ -256,7 +256,6 @@ func (s *Search) SelectedMatch() (Selection, error) {
 	}
 	defer s.t.mod.Free(raw, n)
 	s.t.mod.Zero(raw, n)
-	s.t.mod.SetU32(raw, 0, uint32(n))
 	err = wasmvt.Result("search match", s.t.mod.Xghostty_search_get(s.ptr, wasmvt.SearchDataSelectedMatch, raw))
 	if err != nil {
 		return Selection{}, err
@@ -327,16 +326,14 @@ func (s *Search) selections(data int32) ([]Selection, error) {
 	return out, nil
 }
 
-// setOption calls ghostty_search_set. opt is a generated SearchOption
-// value. value is the raw pointer argument. 0 clears pointer options
-// such as the needle.
-func (s *Search) setOption(opt, value int32) error {
+// call runs a search export that takes only the search handle.
+func (s *Search) call(what string, fn func(search int32) int32) error {
 	s.t.mu.Lock()
 	defer s.t.mu.Unlock()
 	if err := s.ready(); err != nil {
 		return err
 	}
-	return wasmvt.Result("search set", s.t.mod.Xghostty_search_set(s.ptr, opt, value))
+	return wasmvt.Result(what, fn(s.ptr))
 }
 
 func (s *Search) getU32(data int32) (uint32, error) {

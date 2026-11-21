@@ -35,8 +35,8 @@ type inspector struct {
 	// not set itself.
 	palette render.Palette
 	scale   float64
-	// checkpoints is how many terminals the player keeps parked through the
-	// cast, so seeking back stays quick; none for a cast quick to replay.
+	// checkpoints is how many snapshots the player keeps through the cast,
+	// so seeking back stays quick; none for a cast quick to replay.
 	// replayed and replayTime are the events forward seeks applied, and how
 	// long they took, which it is planned from.
 	checkpoints int
@@ -426,10 +426,11 @@ func cut(s string, n int) string {
 
 // Seeking back replays from the nearest checkpoint, so one is kept for
 // about every checkpointSpan of replay, up to maxCheckpoints of them, each
-// holding a terminal's memory.
+// a snapshot of the terminal, which costs about as much memory as its
+// screen and scrollback.
 const (
 	checkpointSpan = 50 * time.Millisecond
-	maxCheckpoints = 8
+	maxCheckpoints = 32
 )
 
 // minTimed is how many events seeks forward must have applied before their

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"getsteep.dev/steep/reel/render"
+	"getsteep.dev/steep/reel/vt"
 )
 
 // Player steps through a timeline's events in a terminal, replaying them as
@@ -31,10 +32,12 @@ type Player struct {
 	img   *image.NRGBA
 	drawn int
 
-	// Backward seeks consume terminals parked in spares; build replays
-	// toward the next missing checkpoint.
-	spares []*replay
-	build  *replay
+	// checkpoints are the snapshots Prepare took, which Seek restores.
+	// build replays toward the next missing one. skipped are the events
+	// the terminal could not be snapshotted after.
+	checkpoints []checkpoint
+	build       *replay
+	skipped     map[int]bool
 }
 
 // NewPlayer returns a Player of all of tl's events, before the first one is
@@ -75,18 +78,18 @@ func (p *Player) Pos() int {
 	return p.r.n
 }
 
-// Seek applies the timeline's first n events, clamped to [0, Len]. If it
+// Seek applies the timeline's first n events, clamped to [0, Len]. Seeking
+// forward applies the events in between. Seeking back starts from the
+// checkpoint nearest before n that [Player.Prepare] took, or the start. If it
 // fails, the other methods must not be called until a Seek succeeds.
 func (p *Player) Seek(n int) error {
 	n = min(max(n, 0), len(p.events))
 	if p.r == nil || n < p.r.n {
-		if r := p.takeSpare(n); r != nil {
-			if p.r != nil {
-				_ = p.r.close()
+		// Seeking rewinds to the start when restoring a checkpoint fails.
+		if cp := p.checkpointAt(n); p.r == nil || cp == nil || p.r.restore(cp) != nil {
+			if err := p.rewind(); err != nil {
+				return err
 			}
-			p.r = r
-		} else if err := p.rewind(); err != nil {
-			return err
 		}
 	}
 	for p.r.n < n {
@@ -100,51 +103,78 @@ func (p *Player) Seek(n int) error {
 	return nil
 }
 
-// takeSpare removes and returns the parked terminal furthest along without
-// passing n, or nil if none is.
-func (p *Player) takeSpare(n int) *replay {
-	best := -1
-	for i, r := range p.spares {
-		if r.n <= n && (best < 0 || r.n > p.spares[best].n) {
-			best = i
+// checkpointAt returns the checkpoint furthest along without passing n, or
+// nil if none is.
+func (p *Player) checkpointAt(n int) *checkpoint {
+	var best *checkpoint
+	for i := range p.checkpoints {
+		if cp := &p.checkpoints[i]; cp.n <= n && (best == nil || cp.n > best.n) {
+			best = cp
 		}
 	}
-	if best < 0 {
-		return nil
-	}
-	r := p.spares[best]
-	p.spares = slices.Delete(p.spares, best, best+1)
-	return r
+	return best
 }
 
-// Prepare works for up to budget toward keeping limit terminals parked at
-// evenly spaced checkpoints of the timeline, so a Seek back replays from
-// the nearest one at or before it rather than from the start. It reports
-// whether there is more to do, such as after a Seek took over a
-// checkpoint, so it can be called again when the caller is idle. Each
-// checkpoint holds a terminal's memory; a limit of zero closes them all.
+// maxCheckpointBytes is the most memory the snapshots [Player.Prepare]
+// keeps may take. A Kitty image on screen is in every snapshot taken while
+// it shows, so a few large ones would otherwise multiply.
+const maxCheckpointBytes = 256 << 20
+
+// checkpoint is a replay after its first n events, as [Player.Prepare] took
+// it.
+type checkpoint struct {
+	n       int
+	now     time.Duration
+	focused bool
+	snap    *vt.Snapshot
+}
+
+// Prepare works for up to budget toward taking limit checkpoints at evenly
+// spaced events of the timeline, so a Seek replays from the nearest one at
+// or before it rather than from the start. Each is a snapshot of the
+// terminal (see [vt.Terminal.Snapshot]), a small part of the memory a
+// terminal holds, and Seek can use it any number of times. It reports
+// whether there is more to do, so it can be called again when the caller is
+// idle. A point the terminal cannot be snapshotted at, such as on the
+// alternate screen with prompt marks kept for the primary one, gets no
+// checkpoint, and neither do those during synchronized output or past the
+// memory the checkpoints may take together. A limit of zero drops them all.
 func (p *Player) Prepare(limit int, budget time.Duration) (more bool, err error) {
 	targets := checkpoints(len(p.events), limit)
-	// Drop terminals parked anywhere the checkpoints no longer are.
-	p.spares = slices.DeleteFunc(p.spares, func(r *replay) bool {
-		if slices.Contains(targets, r.n) {
-			return false
-		}
-		_ = r.close()
-		return true
+	// Drop checkpoints anywhere the targets no longer are. That frees room,
+	// so the targets skipped for want of it are tried again.
+	kept := slices.DeleteFunc(p.checkpoints, func(cp checkpoint) bool {
+		return !slices.Contains(targets, cp.n)
 	})
+	if len(kept) < len(p.checkpoints) {
+		p.skipped = nil
+	}
+	p.checkpoints = kept
 	deadline := time.Now().Add(budget)
 	for _, target := range targets {
-		if slices.ContainsFunc(p.spares, func(r *replay) bool { return r.n == target }) {
+		if p.skipped[target] || slices.ContainsFunc(p.checkpoints, func(cp checkpoint) bool { return cp.n == target }) {
 			continue
 		}
 		if p.build != nil && p.build.n > target {
 			_ = p.build.close()
 			p.build = nil
 		}
+		// Opening a builder can restore a checkpoint, which costs about
+		// as much as taking one.
+		if time.Now().After(deadline) {
+			return true, nil
+		}
 		if p.build == nil {
-			if p.build, err = newReplay(p.ctx, recordRuntime, p.header, 0, 0); err != nil {
+			if p.build, err = newReplay(p.ctx, recordRuntime, p.header, 0, 0, vt.WithSnapshots()); err != nil {
 				return false, err
+			}
+			// Start from the nearest checkpoint before the target.
+			if cp := p.checkpointAt(target); cp != nil {
+				if err = p.build.restore(cp); err != nil {
+					_ = p.build.close()
+					p.build = nil
+					return false, err
+				}
 			}
 		}
 		for p.build.n < target {
@@ -157,14 +187,61 @@ func (p *Player) Prepare(limit int, budget time.Duration) (more bool, err error)
 				return false, err
 			}
 		}
-		p.spares = append(p.spares, p.build)
-		p.build = nil
+		// A snapshot copies the whole terminal, so it waits for the next
+		// call once the budget is spent.
+		if time.Now().After(deadline) {
+			return true, nil
+		}
+		if err = p.takeCheckpoint(); err != nil {
+			_ = p.build.close()
+			p.build = nil
+			return false, err
+		}
 	}
 	if p.build != nil {
 		_ = p.build.close()
 		p.build = nil
 	}
 	return false, nil
+}
+
+// takeCheckpoint snapshots the builder where it is, or marks that event
+// skipped when it cannot or should not be snapshotted there.
+func (p *Player) takeCheckpoint() error {
+	n := p.build.n
+	// A snapshot during synchronized output keeps the frozen frame, with
+	// images the byte count does not see, so a hold gets none.
+	if p.build.term.Held() {
+		p.skip(n)
+		return nil
+	}
+	snap, err := p.build.term.Snapshot()
+	switch {
+	case errors.Is(err, vt.ErrSnapshot) || err == nil && p.checkpointBytes()+snap.Len() > maxCheckpointBytes:
+		p.skip(n)
+	case err != nil:
+		return err
+	default:
+		p.checkpoints = append(p.checkpoints, checkpoint{n: n, now: p.build.now, focused: p.build.focused, snap: snap})
+	}
+	return nil
+}
+
+// skip marks event count n as one Prepare takes no checkpoint at.
+func (p *Player) skip(n int) {
+	if p.skipped == nil {
+		p.skipped = map[int]bool{}
+	}
+	p.skipped[n] = true
+}
+
+// checkpointBytes is the size of the checkpoints' snapshots.
+func (p *Player) checkpointBytes() int {
+	n := 0
+	for _, cp := range p.checkpoints {
+		n += cp.snap.Len()
+	}
+	return n
 }
 
 // checkpoints returns limit event counts spaced evenly through n events,
@@ -261,10 +338,7 @@ func (p *Player) Close() error {
 	if p.r != nil {
 		err = p.r.close()
 	}
-	for _, r := range p.spares {
-		err = errors.Join(err, r.close())
-	}
-	p.spares = nil
+	p.checkpoints = nil
 	if p.build != nil {
 		err = errors.Join(err, p.build.close())
 		p.build = nil

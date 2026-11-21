@@ -13,31 +13,32 @@
 //
 // # Updating Ghostty
 //
-// The Wasm module is built from one Ghostty commit. [GhosttyRev] must
-// match GHOSTTY_REV in vt/build/Dockerfile. Rebuild from the module root
+// The Wasm module is built from one libghostty-vt release, GHOSTTY_TAG in
+// vt/build/Dockerfile. [GhosttyRev] is the commit that tag points at and
+// must match GHOSTTY_REV there. Rebuild from the module root
 // with `task vt:generate` after changing the pin. That rebuilds the
 // module and regenerates abi.gen.go from ghostty_type_json. Struct
 // layouts are not stable across commits. Use the generated constants.
 //
 // WebAssembly utilities (alloc, free, opaque slots, memory growth):
 //
-//	https://github.com/ghostty-org/ghostty/blob/e3ebb1d1bf772cf5d1bc70b5ae19e6943e33a110/include/ghostty/vt/wasm.h
+//	https://github.com/ghostty-org/ghostty/blob/108cacb17ed8990840cd14abfce43d8ed8503ca1/include/ghostty/vt/wasm.h
 //
 // Implementation of those exports:
 //
-//	https://github.com/ghostty-org/ghostty/blob/e3ebb1d1bf772cf5d1bc70b5ae19e6943e33a110/src/lib/allocator/wasm.zig
+//	https://github.com/ghostty-org/ghostty/blob/108cacb17ed8990840cd14abfce43d8ed8503ca1/src/lib/allocator/wasm.zig
 //
 // Shared types, GhosttyResult, GhosttyString, and ghostty_type_json:
 //
-//	https://github.com/ghostty-org/ghostty/blob/e3ebb1d1bf772cf5d1bc70b5ae19e6943e33a110/include/ghostty/vt/types.h
+//	https://github.com/ghostty-org/ghostty/blob/108cacb17ed8990840cd14abfce43d8ed8503ca1/include/ghostty/vt/types.h
 //
 // JSON schema for that manifest:
 //
-//	https://github.com/ghostty-org/ghostty/blob/e3ebb1d1bf772cf5d1bc70b5ae19e6943e33a110/src/terminal/c/types.schema.json
+//	https://github.com/ghostty-org/ghostty/blob/108cacb17ed8990840cd14abfce43d8ed8503ca1/src/terminal/c/types.schema.json
 //
 // Terminal options and queries (ghostty_terminal_set, ghostty_terminal_get):
 //
-//	https://github.com/ghostty-org/ghostty/blob/e3ebb1d1bf772cf5d1bc70b5ae19e6943e33a110/include/ghostty/vt/terminal.h
+//	https://github.com/ghostty-org/ghostty/blob/108cacb17ed8990840cd14abfce43d8ed8503ca1/include/ghostty/vt/terminal.h
 //
 // # Memory
 //
@@ -61,6 +62,6 @@
 // for the offset. On this target it is 0.
 package wasmvt
 
-// GhosttyRev is the Ghostty commit these helpers and the doc links were
-// written against. It must match GHOSTTY_REV in vt/build/Dockerfile.
-const GhosttyRev = "e3ebb1d1bf772cf5d1bc70b5ae19e6943e33a110"
+// GhosttyRev is the Ghostty commit (libghostty-vt 1.0.1) these helpers and
+// the doc links were written against. It must match GHOSTTY_REV in vt/build/Dockerfile.
+const GhosttyRev = "108cacb17ed8990840cd14abfce43d8ed8503ca1"

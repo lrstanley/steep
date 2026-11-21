@@ -201,7 +201,7 @@ reel keeps no state from DCS sequences. It only sees them as queries and replies
 | `DCS ! \| 00000000 ST` | DA3 reply | Sent by the terminal |
 | `DCS 1 ! ~ FF3D ST` | DECRQCRA reply | Sent by the terminal |
 
-Any other DCS is dropped, and it doesn't reach `WithUnknownSequence`.
+Any other DCS is dropped, and `WithUnknownSequence` reports it as `SequenceDCS`. See [Unknown sequences](#unknown-sequences).
 
 ## APC: Kitty graphics
 
@@ -216,7 +216,8 @@ Commands are `APC G key=value,key=value ; base64 ST`. The module is built with K
 | `APC G a=f ...`, `APC G a=a ...` | Animation frame and control | Runs on the terminal's clock | `Image.Generation`, `Terminal.AnimationDue`, `Terminal.Animate` |
 | `APC G a=q ...` | Query | Replies `APC G i=1 ; OK ST` | `Terminal.Read` |
 | `z=` | Layer | Orders placements | `Placement.Z`, `Placement.BelowBackground`, `Placement.BelowText` |
-| `U=1`, with U+10EEEE cells | Unicode placeholder | Draws the image in those cells | `Placement.Clip`, `Cell.KittyPlaceholder` |
+| `U=1`, with U+10EEEE cells | Unicode placeholder | Draws the image in those cells, as one placement for each row of them, under the text | `Placement.Clip`, `Cell.KittyPlaceholder` |
+| `P=`, `Q=`, `H=`, `V=` | Relative placement | Draws the image a number of cells from its parent placement, and moves it with the parent, including a parent drawn by placeholder cells | `Terminal.Images` |
 | `f=24`, `f=32`, `f=100`, `o=z` | RGB, RGBA, PNG, zlib | Decodes the payload | `Image.Pixels` |
 | `t=f`, `t=t`, `t=s` | File, temporary file, shared memory | Replies `EINVAL: unsupported medium`, unless the session reads them | `reel.WithKittyFiles` |
 
@@ -332,8 +333,8 @@ A sequence the terminal doesn't implement does nothing on screen, but its bytes 
 
 | Field | Holds |
 | --- | --- |
-| `UnknownSequence.Kind` | `SequenceOSC` (`osc`) or `SequenceAPC` (`apc`) |
-| `UnknownSequence.Data` | Everything between the introducer and the terminator, such as `7400;status=busy` |
+| `UnknownSequence.Kind` | `SequenceOSC` (`osc`), `SequenceAPC` (`apc`), or `SequenceDCS` (`dcs`) |
+| `UnknownSequence.Data` | Everything between the introducer and the terminator, such as `7400;status=busy`. A DCS starts with its parameters, intermediates, and final byte. |
 | `UnknownSequence.Truncated` | True when `Data` holds only the first `UnknownSequenceMaxBytes` (4096) |
 | `UnknownSequence.At` | When it arrived, on the terminal's clock |
 
@@ -342,13 +343,32 @@ What is and isn't reported:
 - An OSC with a number the terminal doesn't implement is reported, such as `OSC 7400 ; status=busy`.
 - An APC other than `G` and `25a1` is reported. PM (`ESC ^`) and SOS (`ESC X`) strings are too, with `Kind` set to `SequenceAPC`.
 - An OSC with a number it does implement is never reported, even when malformed.
-- CSI and DCS sequences are never reported.
+- A DCS other than XTGETTCAP (`DCS + q`) and DECRQSS (`DCS $ q`) is reported, such as a Sixel image (`DCS q`).
+- A string cut short by `CAN`, `SUB`, or another control byte isn't run, so it isn't reported.
+- CSI sequences are never reported.
 
 The implemented OSC numbers are 0, 1, 2, 4, 5, 7, 8, 9, 10 to 19, 21, 22, 52, 66, 72, 99, 104, 105, 110 to 119, 133, 777, 1337, 3008, 5522, and 7501. Of those, 1, 5, 13 to 19, 22, 66, 72, 99, 105, 113 to 119, and 3008 have no Go name, so you can't read what they did. The same goes for OSC 1337 commands other than `Copy`.
 
+## Control strings
+
+`vt.WithControlStrings` and `reel.WithControlStrings` call a function with every APC, DCS, OSC, SOS, and PM string a program writes, implemented or not, as it was on the wire. It suits checking what a program sends rather than what the terminal made of it, such as that it ends an OSC with `ST` rather than `BEL`. In steep, `Harness.ControlStrings` returns them. Each one arrives as a `ControlString` once its end does, even when it's split across writes.
+
+| Field | Holds |
+| --- | --- |
+| `ControlString.Kind` | `SequenceAPC`, `SequenceDCS`, `SequenceOSC`, `SequenceSOS` (`sos`), or `SequencePM` (`pm`) |
+| `ControlString.Data` | Everything between the introducer and the terminator |
+| `ControlString.Truncated` | True when `Data` holds only the first `ControlStringMaxBytes` (4096) |
+| `ControlString.C1` | True when it started with an 8-bit introducer, such as `0x9D` for OSC |
+| `ControlString.End` | `EndST` (`ESC \`), `EndESC` (`ESC` and something other than `\`), `EndSTC1` (`0x9C`), `EndBEL`, `EndCancelled` (`CAN` or `SUB`), or `EndAborted` (another 8-bit control byte) |
+| `ControlString.At` | When its end arrived, on the terminal's clock |
+
+The strings are found by the parse that runs them, with libghostty-vt's `ghostty_terminal_vt_write_until`, so writes stop at each string's start and end. Without either option, writes don't stop.
+
+`Terminal.InSequence` reports whether the bytes written so far end inside an escape sequence or a UTF-8 character, so the program has more to write before the last of it takes effect. `Session.WaitSettle` uses it to wait out a sequence a program is still writing, such as a Kitty image sent in several writes.
+
 ## Executed by libghostty-vt
 
-Most of what a program writes is carried out by libghostty-vt, and reel doesn't track it by name. You see the result in `Terminal.Screen`, `Terminal.Text`, and `Cursor`. The commit is pinned by `GHOSTTY_REV` in `reel/vt/build/Dockerfile`, and its own documentation covers what it implements.
+Most of what a program writes is carried out by libghostty-vt, and reel doesn't track it by name. You see the result in `Terminal.Screen`, `Terminal.Text`, and `Cursor`. The libghostty-vt release is pinned by `GHOSTTY_TAG` (and its commit, `GHOSTTY_REV`) in `reel/vt/build/Dockerfile`, and its own documentation covers what it implements. `vt.LibraryVersion` and `vt.LibraryCommit` name it, `reel --version` lists it, and `vt.Build` reports how the module was built and which parts of the C API it has.
 
 These groups are confirmed to work:
 
@@ -359,4 +379,4 @@ These groups are confirmed to work:
 - **Character sets:** `ESC ( 0` and `ESC ( B`.
 - **Soft reset:** DECSTR (`CSI ! p`).
 
-`Terminal.Redraw` restores the screen, modes, scrolling region, tab stops, and keyboard state for a [cut](/reel/exporting#stills-and-cuts), without reel tracking them itself. In the [inspector](/reel/inspecting#the-inspector), the timeline shows these sequences in lanes by group.
+`Terminal.Redraw` restores the screen, modes, scrolling region, tab stops, and keyboard state for a [cut](/reel/exporting#stills-and-cuts), without reel tracking them itself. `Terminal.Snapshot` and `Terminal.Restore` capture and put back a whole terminal exactly, both screens, the scrollback, Kitty images, and what reel tracks, such as the title, prompt marks, and glyphs, within one process. The player's checkpoints are snapshots. A snapshot taken part way through an escape sequence needs a terminal opened `WithSnapshots`, and `Snapshot` returns an error wrapping `ErrSnapshot` for the few states it can't restore exactly. In the [inspector](/reel/inspecting#the-inspector), the timeline shows these sequences in lanes by group.

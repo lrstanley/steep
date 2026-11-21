@@ -7,6 +7,7 @@ package reel
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -121,8 +122,7 @@ func TestPlayerSeek(t *testing.T) {
 }
 
 // TestPlayerPrepare checks that a Seek back from checkpoints shows the same
-// screen as one replayed from the start, and that Prepare rebuilds a
-// checkpoint a Seek took over.
+// screen as one replayed from the start, and that the checkpoints last.
 func TestPlayerPrepare(t *testing.T) {
 	var evs []Event
 	for i := range 40 {
@@ -149,7 +149,7 @@ func TestPlayerPrepare(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if got := len(p.spares); got != 3 {
+	if got := len(p.checkpoints); got != 3 {
 		t.Fatalf("%d checkpoints, want 3", got)
 	}
 
@@ -181,13 +181,101 @@ func TestPlayerPrepare(t *testing.T) {
 			t.Errorf("Seek(%d) from a checkpoint = %q, want %q", n, got, want)
 		}
 	}
-	if len(p.spares) == 3 {
-		t.Error("Seek back took over no checkpoint")
+	// Seeks restore checkpoints without using them up.
+	if more, perr := p.Prepare(3, time.Second); perr != nil || more || len(p.checkpoints) != 3 {
+		t.Errorf("Prepare after seeking = %v, %v with %d checkpoints, want nothing to do", more, perr, len(p.checkpoints))
 	}
-	if more, perr := p.Prepare(3, time.Second); perr != nil || more || len(p.spares) != 3 {
-		t.Errorf("Prepare after seeking = %v, %v with %d checkpoints, want them rebuilt", more, perr, len(p.spares))
+	if _, err = p.Prepare(0, time.Second); err != nil || len(p.checkpoints) != 0 {
+		t.Errorf("Prepare(0) left %d checkpoints, %v", len(p.checkpoints), err)
 	}
-	if _, err = p.Prepare(0, time.Second); err != nil || len(p.spares) != 0 {
-		t.Errorf("Prepare(0) left %d checkpoints, %v", len(p.spares), err)
+}
+
+// TestPlayerCheckpoints checks that seeking through checkpoints of a busy
+// timeline shows each frame as a replay from the start does: through
+// images, glyphs, a sequence split across events, the alternate screen,
+// resizes, scrolling, and focus. A point the terminal cannot be snapshotted
+// at gets no checkpoint.
+func TestPlayerCheckpoints(t *testing.T) {
+	var evs []Event
+	add := func(ev Event) { evs = append(evs, ev) }
+	ms := 0
+	out := func(s string) {
+		ms += 10
+		add(Output{event: at(ms), Data: []byte(s)})
+	}
+	for i := range 6 {
+		out(fmt.Sprintf("line %d\r\n", i))
+	}
+	out("\x1b]133;A\x07$ \x1b]133;B\x07ls\r\n\x1b]133;C\x07\x1b]133;D;0\x07")
+	out("\x1b]2;one\x07\x1b_25a1;r;cp=e000;upm=1000;AAEAZABkA4QDhAACAAABAQEB9P5wAyADhPzgAAA=\x1b\\\ue000\r\n")
+	out("\x1b_Ga=T,i=9,f=24,s=1,v=1,q=2;/wAA\x1b\\\r\n")
+	out("\x1b]2;sp")
+	out("lit\x07half")
+	out("\x1b[?1049h\x1b[2Jalt screen")
+	out("\x1b[2;2Hmore alt")
+	out("\x1b[?1049lback\r\n")
+	ms += 10
+	add(Resize{event: at(ms), Cols: 30, Rows: 5})
+	for i := range 6 {
+		out(fmt.Sprintf("after %d\r\n", i))
+	}
+	ms += 10
+	add(Scroll{event: at(ms), Offset: 2})
+	ms += 10
+	add(Focus{event: at(ms), On: false})
+	out("end")
+	tl := testTimeline(t, evs...)
+
+	p, err := NewPlayer(t.Context(), tl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = p.Close() })
+	for more := true; more; {
+		if more, err = p.Prepare(len(evs), time.Second); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(p.checkpoints) == 0 || len(p.skipped) == 0 {
+		t.Fatalf("%d checkpoints, %d skipped, want both: the alternate screen keeps marks", len(p.checkpoints), len(p.skipped))
+	}
+	plain, err := NewPlayer(t.Context(), tl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = plain.Close() })
+	frame := func(p *Player) string {
+		f := p.Frame()
+		// Counters of changes, which a restore moves on.
+		f.State.Generation, f.State.ProgramStatusGeneration = 0, 0
+		f.State.Glyphs = nil
+		var b strings.Builder
+		for y := range f.Screen.Height() {
+			for x := range f.Screen.Width() {
+				if c := f.Screen.CellAt(x, y); c != nil {
+					fmt.Fprintf(&b, "%s%v", c.Content, c.Style)
+				}
+			}
+		}
+		fmt.Fprintf(&b, "|%+v|%d images", f.State, len(f.Screen.Images()))
+		return b.String()
+	}
+	order := []int{len(evs)}
+	for n := range slices.Backward(evs) {
+		order = append(order, n)
+	}
+	for _, n := range append(order, 5, len(evs), 12, 3, 20) {
+		if err = p.Seek(n); err != nil {
+			t.Fatal(err)
+		}
+		if err = plain.Seek(0); err != nil {
+			t.Fatal(err)
+		}
+		if err = plain.Seek(n); err != nil {
+			t.Fatal(err)
+		}
+		if got, want := frame(p), frame(plain); got != want {
+			t.Errorf("Seek(%d) from a checkpoint:\n%s\nwant:\n%s", n, got, want)
+		}
 	}
 }

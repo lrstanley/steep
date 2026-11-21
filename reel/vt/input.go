@@ -43,7 +43,9 @@ func (t *Terminal) EncodeKey(key Key) ([]byte, error) {
 	if t.idle {
 		return nil, errClosed
 	}
-	t.mod.Xghostty_key_encoder_setopt_from_terminal(t.keys, t.term)
+	if err := wasmvt.Result("key encoder modes", t.mod.Xghostty_key_encoder_set_from_terminal(t.keys, t.term)); err != nil {
+		return nil, err
+	}
 	action := wasmvt.KeyActionPress
 	t.mod.Xghostty_key_event_set_action(t.keyEv, action)
 	t.mod.Xghostty_key_event_set_mods(t.keyEv, int32(key.Mods))
@@ -58,19 +60,26 @@ func (t *Terminal) EncodeKey(key Key) ([]byte, error) {
 		consumed = int32(key.Mods & ModShift)
 	}
 	t.mod.Xghostty_key_event_set_consumed_mods(t.keyEv, consumed)
-	var textPtr int32
-	if key.Text != "" {
-		raw := []byte(key.Text)
-		var err error
-		textPtr, err = t.mod.Alloc(len(raw))
-		if err != nil {
-			return nil, err
-		}
-		defer t.mod.Free(textPtr, len(raw))
-		t.mod.Put(textPtr, raw)
-		t.mod.Xghostty_key_event_set_utf8(t.keyEv, textPtr, wasmvt.Int32(len(raw)))
-	} else {
-		t.mod.Xghostty_key_event_set_utf8(t.keyEv, 0, 0)
+	// The text is a GhosttyString passed by value, so by pointer on wasm32.
+	// The event borrows the bytes until its text is set again, which every
+	// call does before it encodes.
+	raw := []byte(key.Text)
+	n := wasmvt.SizeString + len(raw)
+	str, err := t.mod.Alloc(n)
+	if err != nil {
+		return nil, err
+	}
+	defer t.mod.Free(str, n)
+	t.mod.Zero(str, wasmvt.SizeString)
+	if len(raw) > 0 {
+		text := str + int32(wasmvt.SizeString)
+		t.mod.Put(text, raw)
+		t.mod.SetI32(str, wasmvt.StringPtrOff, text)
+		t.mod.SetU32(str, wasmvt.StringLenOff, wasmvt.Uint32(len(raw)))
+	}
+	err = wasmvt.Result("key text", t.mod.Xghostty_key_event_set_utf8(t.keyEv, str))
+	if err != nil {
+		return nil, err
 	}
 	return t.encode("key encode", 128, func(buf, capN, lenPtr int32) int32 {
 		return t.mod.Xghostty_key_encoder_encode(t.keys, t.keyEv, buf, capN, lenPtr)
@@ -210,7 +219,7 @@ func (t *Terminal) EncodeFocus(focused bool) ([]byte, error) {
 // options. Tracking comes from modes 9 and 1000-1003. Format comes
 // from 1005, 1006, 1015, and 1016. The size option is a sized
 // GhosttyMouseEncoderSize in pixels. Enum values are passed by
-// pointer and freed before return. Ghostty copies them during setopt.
+// pointer and freed before return. Ghostty copies them during set.
 func (t *Terminal) configureMouse() error {
 	tracking := wasmvt.MouseTrackingModeNone
 	switch {
@@ -240,9 +249,15 @@ func (t *Terminal) configureMouse() error {
 	}
 	defer t.mod.Free(opt, 4)
 	t.mod.SetI32(opt, 0, tracking)
-	t.mod.Xghostty_mouse_encoder_setopt(t.mice, wasmvt.MouseEncoderOptionEvent, opt)
+	err = wasmvt.Result("mouse tracking", t.mod.Xghostty_mouse_encoder_set(t.mice, wasmvt.MouseEncoderOptionEvent, opt))
+	if err != nil {
+		return err
+	}
 	t.mod.SetI32(opt, 0, format)
-	t.mod.Xghostty_mouse_encoder_setopt(t.mice, wasmvt.MouseEncoderOptionFormat, opt)
+	err = wasmvt.Result("mouse format", t.mod.Xghostty_mouse_encoder_set(t.mice, wasmvt.MouseEncoderOptionFormat, opt))
+	if err != nil {
+		return err
+	}
 
 	n := wasmvt.SizeMouseEncoderSize
 	size, err := t.mod.Alloc(n)
@@ -256,8 +271,7 @@ func (t *Terminal) configureMouse() error {
 	t.mod.SetU32(size, wasmvt.MouseEncoderSizeScreenHeightOff, wasmvt.Uint32(t.rows)*t.cellH)
 	t.mod.SetU32(size, wasmvt.MouseEncoderSizeCellWidthOff, t.cellW)
 	t.mod.SetU32(size, wasmvt.MouseEncoderSizeCellHeightOff, t.cellH)
-	t.mod.Xghostty_mouse_encoder_setopt(t.mice, wasmvt.MouseEncoderOptionSize, size)
-	return nil
+	return wasmvt.Result("mouse size", t.mod.Xghostty_mouse_encoder_set(t.mice, wasmvt.MouseEncoderOptionSize, size))
 }
 
 func (t *Terminal) modeOn(number int) bool {

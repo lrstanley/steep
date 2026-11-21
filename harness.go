@@ -80,6 +80,9 @@ type Harness struct {
 	closed    atomic.Bool
 	// waits numbers recorded waits, for their annotation ids.
 	waits atomic.Int64
+	// controls are the strings the program wrote, for
+	// [Harness.ControlStrings].
+	controls *controlLog
 }
 
 // NewHarness runs the root [tea.Model] in a [tea.Program] and returns a
@@ -155,8 +158,10 @@ func newHarness(tb testing.TB, opts []Option) *Harness {
 	// Bubble Tea writes capability queries before its first paint, and leaves
 	// the alternate screen as it exits, so the recording starts and ends on
 	// its paints rather than on the blank terminal.
+	controls := &controlLog{}
 	sessionOpts := []reel.SessionOption{
 		reel.WithTitle(tb.Name()), reel.WithSkipPristine(),
+		reel.WithControlStrings(controls.add),
 		reel.WithScrollOnInput(cfg.scrollOnInput), reel.WithTypingDelay(cfg.typingDelay),
 		reel.WithSource(cfg.source), reel.WithSourceSkip(sourceSkip...),
 	}
@@ -186,6 +191,7 @@ func newHarness(tb testing.TB, opts []Option) *Harness {
 		start:     time.Now(),
 		autoMarks: autoMarks,
 		markCount: make(map[HookEvent]int),
+		controls:  controls,
 	}
 	// Clipped, so one call's appends cannot write into another's.
 	h.opts = slices.Clip(append(slices.Clone(opts), withHarness(h)))

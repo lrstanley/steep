@@ -75,7 +75,7 @@ const (
 	slices.Sort(names)
 
 	taken := map[string]string{}
-	var sizes, fields, enums bytes.Buffer
+	var sizes, fields, bitFields, enums bytes.Buffer
 	var keyCases []string
 	for _, name := range names {
 		desc := doc.Types[name]
@@ -96,6 +96,22 @@ const (
 			fmt.Fprintf(&fields, "\t%s = %d\n", offName, info.Offset)
 		}
 
+		bitNames := make([]string, 0, len(desc.Bits))
+		for field := range desc.Bits {
+			bitNames = append(bitNames, field)
+		}
+		slices.Sort(bitNames)
+		for _, field := range bitNames {
+			info := desc.Bits[field]
+			if info.Width < 1 || info.Lsb < 0 || info.Lsb+info.Width > desc.Size*8 {
+				fatal(fmt.Errorf("%s.%s bits %d+%d outside %d bytes", name, field, info.Lsb, info.Width, desc.Size))
+			}
+			shiftName := claim(taken, name+"."+field+".shift", goIdent(name, field)+"Shift")
+			maskName := claim(taken, name+"."+field+".mask", goIdent(name, field)+"Mask")
+			fmt.Fprintf(&bitFields, "\t%s = %d\n", shiftName, info.Lsb)
+			fmt.Fprintf(&bitFields, "\t%s = %#x\n", maskName, (uint64(1)<<info.Width-1)<<info.Lsb)
+		}
+
 		valueNames := make([]string, 0, len(desc.Values))
 		for value := range desc.Values {
 			valueNames = append(valueNames, value)
@@ -114,6 +130,8 @@ const (
 	buf.Write(sizes.Bytes())
 	buf.WriteString(")\n\nconst (\n")
 	buf.Write(fields.Bytes())
+	buf.WriteString(")\n\n// Bit fields of packed types: a field's value is\n// (v & Mask) >> Shift.\nconst (\n")
+	buf.Write(bitFields.Bytes())
 	buf.WriteString(")\n\nconst (\n")
 	buf.Write(enums.Bytes())
 	buf.WriteString(")\n\n")
@@ -169,7 +187,15 @@ type typeDesc struct {
 	Size       int                  `json:"size"`
 	Underlying string               `json:"underlying"`
 	Fields     map[string]fieldDesc `json:"fields"`
+	Bits       map[string]bitDesc   `json:"bits"`
 	Values     map[string]int32     `json:"values"`
+}
+
+// bitDesc is one field of a packed type, Width bits from bit Lsb of the
+// underlying integer.
+type bitDesc struct {
+	Lsb   int `json:"lsb"`
+	Width int `json:"width"`
 }
 
 type fieldDesc struct {

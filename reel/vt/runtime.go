@@ -60,6 +60,8 @@ type openConfig struct {
 	cellH      int
 	kitty      uint64
 	unknown    func(UnknownSequence)
+	controls   func(ControlString)
+	snapshots  bool
 	blink      bool
 }
 
@@ -68,11 +70,13 @@ type openConfig struct {
 // [UnknownSequence.Truncated].
 const UnknownSequenceMaxBytes = 4096
 
-// WithUnknownSequence calls fn with each APC or OSC sequence the terminal
-// does not implement, such as a newer protocol, so a caller can log what it
-// drops. An OSC whose number it implements is never reported, even when
-// malformed. fn runs inside [Terminal.Write] with the terminal locked, so it
-// must not call the terminal's methods.
+// WithUnknownSequence calls fn with each APC, DCS, or OSC sequence the
+// terminal does not implement, such as a newer protocol, so a caller can log
+// what it drops. An OSC whose number it implements is never reported, even
+// when malformed, and neither is a DCS it implements (XTGETTCAP and
+// DECRQSS). A string that CAN, SUB, or another control byte cut short is not
+// run, so it is not reported. fn runs inside [Terminal.Write] with the
+// terminal locked, so it must not call the terminal's methods.
 func WithUnknownSequence(fn func(UnknownSequence)) Option {
 	return func(cfg *openConfig) { cfg.unknown = fn }
 }
@@ -201,6 +205,18 @@ func (t *Terminal) configure(cfg openConfig) error {
 	defer t.mu.Unlock()
 	t.clock = cfg.clock
 	t.unknown = cfg.unknown
+	t.controls = cfg.controls
+	// The continuation limit is a size_t. Zero stops keeping unfinished
+	// input, for a checkout without WithSnapshots.
+	t.snapshots = cfg.snapshots
+	var keep uint32
+	if cfg.snapshots {
+		keep = SnapshotContinuationMaxBytes
+	}
+	if err := t.mod.SetU32Option(t.term, wasmvt.TerminalOptionContinuationMaxBytes, keep); err != nil {
+		return err
+	}
+	t.scan = stringScan{data: t.scan.data[:0]}
 	var unknownMax uint32
 	if cfg.unknown != nil {
 		unknownMax = UnknownSequenceMaxBytes

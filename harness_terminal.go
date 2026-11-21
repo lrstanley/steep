@@ -7,6 +7,8 @@ package steep
 import (
 	"image"
 	"image/color"
+	"slices"
+	"sync"
 
 	tea "charm.land/bubbletea/v2"
 	"getsteep.dev/steep/reel"
@@ -40,6 +42,15 @@ func (h *Harness) Blur() *Harness {
 
 // IsFocused reports the last known terminal focus state.
 func (h *Harness) IsFocused() bool { return h.session.Focused() }
+
+// ControlStrings returns the APC, DCS, OSC, SOS, and PM strings the program
+// has written so far, oldest first, whether the terminal implements them or
+// not, with each one's data and how it ended (see [vt.ControlString]). It
+// checks what the program sent rather than what the terminal made of it,
+// such as that it ends an OSC with ST rather than BEL, or that it sends a
+// sequence the terminal ignores. Each string's data is cut at
+// [vt.ControlStringMaxBytes].
+func (h *Harness) ControlStrings() []vt.ControlString { return h.controls.all() }
 
 // Title returns the last known window title.
 func (h *Harness) Title() string { return h.session.Terminal().Title() }
@@ -541,4 +552,23 @@ func (h *Harness) ResizeRequest() (cols, rows int, ok bool) {
 // [vt.Terminal.ProgramStatuses]). At most 256 are kept.
 func (h *Harness) ProgramStatuses() []vt.ProgramStatus {
 	return h.session.Terminal().ProgramStatuses()
+}
+
+// controlLog collects the strings a session's program writes. add runs as the
+// session writes to its terminal.
+type controlLog struct {
+	mu      sync.Mutex
+	strings []vt.ControlString
+}
+
+func (l *controlLog) add(s vt.ControlString) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.strings = append(l.strings, s)
+}
+
+func (l *controlLog) all() []vt.ControlString {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Clone(l.strings)
 }

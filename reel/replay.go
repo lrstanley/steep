@@ -72,17 +72,18 @@ type replay struct {
 	mark func(Mark) error
 }
 
-// newReplay opens a terminal from rt for a timeline with header h whose
-// window starts at event index start, offset from.
-func newReplay(ctx context.Context, rt *vt.Runtime, h Header, start int, from time.Duration) (*replay, error) {
+// newReplay opens a terminal from rt, with opts after the header's, for a
+// timeline with header h whose window starts at event index start, offset
+// from.
+func newReplay(ctx context.Context, rt *vt.Runtime, h Header, start int, from time.Duration, opts ...vt.Option) (*replay, error) {
 	r := &replay{focused: true, skipPristine: h.SkipPristine, start: start, from: from}
-	term, err := rt.Open(ctx, h.Cols, h.Rows,
+	term, err := rt.Open(ctx, h.Cols, h.Rows, append([]vt.Option{
 		vt.WithScrollbackLines(h.Scrollback),
 		vt.WithClock(func() time.Duration { return r.now }),
 		vt.WithCellSize(h.CellWidth, h.CellHeight),
 		kittyStorage(h.KittyStorage),
 		vt.WithCursorBlink(h.CursorBlink),
-	)
+	}, opts...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -123,6 +124,16 @@ func nrgba(c color.Color) color.NRGBA {
 }
 
 func (r *replay) close() error { return r.term.Close() }
+
+// restore puts the replay back at cp, a checkpoint of a replay of the same
+// timeline with no frames to pass on.
+func (r *replay) restore(cp *checkpoint) error {
+	if err := r.term.Restore(cp.snap); err != nil {
+		return err
+	}
+	r.n, r.now, r.focused = cp.n, cp.now, cp.focused
+	return nil
+}
 
 // setColors applies a [Theme] event's colors, falling back to the header's.
 func (r *replay) setColors(c Colors) error {

@@ -289,6 +289,34 @@ func TestHarness_terminalTrackedTitle(t *testing.T) {
 	}
 }
 
+func TestHarness_controlStrings(t *testing.T) {
+	t.Parallel()
+	h := newTerminalHarness(t, 4, 2)
+	before := len(h.ControlStrings())
+	_ = writeString(h, "\x1b]2;bel\x07\x1b]2;st\x1b\\\x1bP1|unknown\x1b\\")
+	got := h.ControlStrings()[before:]
+	want := []struct {
+		kind vt.SequenceKind
+		data string
+		end  vt.StringEnd
+	}{
+		{vt.SequenceOSC, "2;bel", vt.EndBEL},
+		{vt.SequenceOSC, "2;st", vt.EndST},
+		{vt.SequenceDCS, "1|unknown", vt.EndST},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("ControlStrings() = %+v, want %d strings", got, len(want))
+	}
+	for i, w := range want {
+		if got[i].Kind != w.kind || got[i].Data != w.data || got[i].End != w.end {
+			t.Errorf("string %d = %+v, want %+v", i, got[i], w)
+		}
+	}
+	if title := h.Title(); title != "st" {
+		t.Fatalf("Title() = %q, want %q", title, "st")
+	}
+}
+
 func TestHarness_terminalTrackedBell(t *testing.T) {
 	t.Parallel()
 	h := newTerminalHarness(t, 4, 2)

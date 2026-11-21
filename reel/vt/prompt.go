@@ -127,7 +127,6 @@ func (t *Terminal) resolvePromptLocked(m *promptMark) bool {
 		return false
 	}
 	t.mod.Zero(ref, wasmvt.SizeGridRef)
-	t.mod.SetU32(ref, wasmvt.GridRefSizeOff, uint32(wasmvt.SizeGridRef))
 	if t.mod.Xghostty_tracked_grid_ref_snapshot(m.ref, ref) != 0 ||
 		t.mod.Xghostty_grid_ref_row(ref, row) != 0 {
 		return false

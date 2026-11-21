@@ -24,12 +24,13 @@ import (
 // their byte size in the first field, the same role as
 // GHOSTTY_INIT_SIZED. Callbacks that fill an out pointer return 1.
 
-// installCallbacks registers every effect once per Wasm instance.
-// A second call is a no-op. The handles live for the life of the module,
-// including after the terminal returns to the pool.
+// installCallbacks puts every effect in the Wasm table once per instance,
+// and sets them on the terminal. The table entries live for the life of the
+// module, including after the terminal returns to the pool. A second call
+// sets them on t.term again, for a terminal [Terminal.Restore] replaced.
 func (t *Terminal) installCallbacks() error {
 	if t.callbacksOn {
-		return nil
+		return t.setCallbacksLocked()
 	}
 	pairs := []struct {
 		opt int32
@@ -55,11 +56,9 @@ func (t *Terminal) installCallbacks() error {
 		{wasmvt.TerminalOptionResizeWindow, t.onResizeWindow},
 		{wasmvt.TerminalOptionUnknownSequence, t.onUnknownSequence},
 	}
+	t.callbackIdx = make([][2]int32, 0, len(pairs))
 	for _, pair := range pairs {
-		idx := t.mod.Bind(pair.fn)
-		if err := t.mod.SetOption(t.term, pair.opt, idx); err != nil {
-			return err
-		}
+		t.callbackIdx = append(t.callbackIdx, [2]int32{pair.opt, t.mod.Bind(pair.fn)})
 	}
 	// The PNG decoder is a process-wide setting of the module, which holds
 	// one terminal.
@@ -67,6 +66,16 @@ func (t *Terminal) installCallbacks() error {
 		return err
 	}
 	t.callbacksOn = true
+	return t.setCallbacksLocked()
+}
+
+// setCallbacksLocked sets the bound effects on t.term.
+func (t *Terminal) setCallbacksLocked() error {
+	for _, cb := range t.callbackIdx {
+		if err := t.mod.SetOption(t.term, cb[0], cb[1]); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

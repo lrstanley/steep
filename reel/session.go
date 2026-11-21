@@ -99,6 +99,8 @@ type sessionConfig struct {
 	kittyFiles bool
 	// unknown is [WithUnknownSequence].
 	unknown func(vt.UnknownSequence)
+	// controls is [WithControlStrings].
+	controls func(vt.ControlString)
 	// source is [WithSource], and sourceSkip [WithSourceSkip].
 	source     bool
 	sourceSkip []string
@@ -198,13 +200,23 @@ func WithTypingDelay(d time.Duration) SessionOption {
 	return func(cfg *sessionConfig) { cfg.typingDelay = d }
 }
 
-// WithUnknownSequence calls fn with each APC or OSC sequence the terminal
-// does not implement and drops, such as to log what a program sends that a
+// WithUnknownSequence calls fn with each APC, DCS, or OSC sequence the
+// terminal does not implement and drops, such as to log what a program sends that a
 // recording will not show (see [vt.WithUnknownSequence]). fn runs while the
 // session writes to its terminal, holding the session's lock, so it must not
 // call the session's methods.
 func WithUnknownSequence(fn func(vt.UnknownSequence)) SessionOption {
 	return func(cfg *sessionConfig) { cfg.unknown = fn }
+}
+
+// WithControlStrings calls fn with each APC, DCS, OSC, SOS, and PM string
+// the program writes, implemented or not, with its raw data and how it
+// ended, such as to check that a program ends its OSC with ST rather than
+// BEL (see [vt.WithControlStrings]). fn runs while the session writes to its
+// terminal, holding the session's lock, so it must not call the session's
+// methods.
+func WithControlStrings(fn func(vt.ControlString)) SessionOption {
+	return func(cfg *sessionConfig) { cfg.controls = fn }
 }
 
 // WithSource records where in Go source each [Session.Mark] and
@@ -243,6 +255,7 @@ func Open(ctx context.Context, cols, rows int, opts ...SessionOption) (*Session,
 		kittyStorage(cfg.kittyStorage),
 		vt.WithCursorBlink(cfg.cursorBlink),
 		vt.WithUnknownSequence(cfg.unknown),
+		vt.WithControlStrings(cfg.controls),
 	)
 	if err != nil {
 		return nil, err

@@ -277,6 +277,37 @@ func TestSessionWaitSettle(t *testing.T) {
 	})
 }
 
+func TestSessionWaitSettleInSequence(t *testing.T) {
+	t.Parallel()
+	const quiet = 30 * time.Millisecond
+	for name, tc := range map[string]struct {
+		out  []string
+		want time.Duration
+	}{
+		// Writes every 20ms. The text changes only at 20ms, but the image
+		// is still arriving at 40ms and 60ms, and is whole at 80ms.
+		"image in parts": {out: []string{"a", "\x1b_Ga=T,f=24,s=1,v=1,m=1;", "AAAA", "\x1b_Gm=0;\x1b\\"}, want: 60*time.Millisecond + quiet},
+		// A sequence that never ends holds the wait for one quiet time.
+		"never ends": {out: []string{"a", "\x1b]2;tit"}, want: 40*time.Millisecond + quiet},
+		"plain text": {out: []string{"a", "\x1b]2;title\x07"}, want: 20*time.Millisecond + quiet},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				s := openTest(t, 10, 2)
+				start := time.Now()
+				writeLater(t, s, 20*time.Millisecond, tc.out...)
+				if _, err := s.WaitSettle(t.Context(), quiet); err != nil {
+					t.Fatal(err)
+				}
+				if elapsed := time.Since(start); elapsed != tc.want {
+					t.Fatalf("settled after %s, want %s", elapsed, tc.want)
+				}
+			})
+		})
+	}
+}
+
 // tickClock writes a clock that ticks every 10ms to row 3 of s, as a status
 // bar of "updated Ns ago" would, until the returned stop is called, which
 // waits for it to. It goes from 9s to 10s on its third tick, so the text

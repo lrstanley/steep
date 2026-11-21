@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"image/color"
-	"slices"
 	"strings"
 
 	"getsteep.dev/steep/reel/vt/internal/wasmvt"
@@ -92,109 +91,138 @@ func (t *Terminal) Redraw() ([]byte, error) {
 }
 
 // screenVTLocked returns the formatter's output for the terminal, with the
-// rows it trims added back. The formatter leaves out the blank rows after
-// the last one with text, so written to a fresh terminal, its rows would
-// scroll the screen and its scrollback short of where they were. Blank lines
-// after the screen's own fill them in.
+// OSC 133 prompt marks written into the rows they belong to. Written to a
+// fresh terminal, the rows fill its scrollback and screen as they were: with
+// trimming off, the formatter writes every row, blank ones too.
 func (t *Terminal) screenVTLocked() ([]byte, error) {
-	full, err := t.formatVTLocked(true)
+	// Every extra but the palette, which paletteVT writes.
+	full, err := t.formatLocked(wasmvt.FormatterFormatVt, 0, formatterExtrasAll&^formatterExtraPalette)
 	if err != nil {
 		return nil, err
 	}
-	content, err := t.formatVTLocked(false)
-	if err != nil {
-		return nil, err
-	}
-	// The extras before the screen end with a cursor home, and the ones
-	// after it start with the scrolling region and the cursor.
-	home := bytes.Index(full, []byte("\x1b[H"))
-	if home < 0 || !bytes.HasPrefix(full[home+3:], content) {
+	start, end, ok := screenRowsVT(full)
+	// Every row but the last ends with CRLF, and the first is at the top of
+	// the scrollback, so a split in the wrong place shows in the count.
+	if !ok || bytes.Count(full[start:end], []byte("\r\n")) != t.scrollbackLenLocked()+t.rows-1 {
 		return nil, errors.New("vt: redraw: unexpected formatter output")
 	}
-	// Every row the formatter writes but the last ends with CRLF, and the
-	// first is at the top of the scrollback.
-	written := bytes.Count(content, []byte("\r\n"))
-	pad := max(t.scrollbackLenLocked()+t.rows-1-written, 0)
-	end := home + 3 + len(content)
 	marks := t.promptMarksLocked()
-	out := make([]byte, 0, len(full)+2*pad+16*len(marks))
-	out = append(out, full[:home+3]...)
-	body := append(slices.Clip(content), bytes.Repeat([]byte("\r\n"), pad)...)
-	out = appendPromptVT(out, body, marks, t.prompt)
+	out := make([]byte, 0, len(full)+16*len(marks))
+	out = append(out, full[:start]...)
+	out = appendPromptVT(out, full[start:end], marks, t.prompt)
 	return append(out, full[end:]...), nil
 }
 
-// formatVTLocked runs libghostty-vt's VT formatter over the terminal: the
-// screen and its scrollback, with every extra but the palette when extras is
-// set.
-func (t *Terminal) formatVTLocked(extras bool) ([]byte, error) {
-	optN := wasmvt.SizeFormatterTerminalOptions
-	opt, err := t.mod.Alloc(optN)
-	if err != nil {
-		return nil, err
+// screenRowsVT finds the screen's rows in the VT formatter's output, between
+// the extras before and after them. The ones before end with a cursor home.
+// Rows hold text, CRLFs, SGR, ECH and CUF (CSI m, X and C with plain
+// parameters), and OSC 8 hyperlinks. The extras after them start with
+// something rows never hold: the scrolling region, modifyOtherKeys, OSC 7,
+// or the cursor position, which is always written.
+func screenRowsVT(full []byte) (start, end int, ok bool) {
+	home := bytes.Index(full, []byte("\x1b[H"))
+	if home < 0 {
+		return 0, 0, false
 	}
-	defer t.mod.Free(opt, optN)
-	t.mod.Zero(opt, optN)
-	t.mod.SetU32(opt, wasmvt.FormatterTerminalOptionsSizeOff, uint32(optN))
-	t.mod.SetI32(opt, wasmvt.FormatterTerminalOptionsEmitOff, wasmvt.FormatterFormatVt)
-	extra := opt + int32(wasmvt.FormatterTerminalOptionsExtraOff)
-	t.mod.SetU32(extra, wasmvt.FormatterTerminalExtraSizeOff, uint32(wasmvt.SizeFormatterTerminalExtra))
-	scr := extra + int32(wasmvt.FormatterTerminalExtraScreenOff)
-	t.mod.SetU32(scr, wasmvt.FormatterScreenExtraSizeOff, uint32(wasmvt.SizeFormatterScreenExtra))
-	var on byte
-	if extras {
-		on = 1
+	start = home + 3
+	for i := start; ; {
+		j := bytes.IndexByte(full[i:], ansi.ESC)
+		if j < 0 {
+			return 0, 0, false
+		}
+		i += j
+		n := rowSequenceLen(full[i:])
+		if n == 0 {
+			return start, i, true
+		}
+		i += n
 	}
-	for _, off := range []int{
-		wasmvt.FormatterTerminalExtraModesOff,
-		wasmvt.FormatterTerminalExtraScrollingRegionOff,
-		wasmvt.FormatterTerminalExtraTabstopsOff,
-		wasmvt.FormatterTerminalExtraPwdOff,
-		wasmvt.FormatterTerminalExtraKeyboardOff,
-	} {
-		t.mod.SetU8(extra, off, on)
-	}
-	for _, off := range []int{
-		wasmvt.FormatterScreenExtraCursorOff,
-		wasmvt.FormatterScreenExtraStyleOff,
-		wasmvt.FormatterScreenExtraHyperlinkOff,
-		wasmvt.FormatterScreenExtraProtectionOff,
-		wasmvt.FormatterScreenExtraKittyKeyboardOff,
-		wasmvt.FormatterScreenExtraCharsetsOff,
-	} {
-		t.mod.SetU8(scr, off, on)
-	}
+}
 
+// rowSequenceLen is the length of the escape sequence p starts with when it
+// is one the formatter writes inside a row, or 0 when it isn't.
+func rowSequenceLen(p []byte) int {
+	if link, ok := bytes.CutPrefix(p, []byte("\x1b]8;")); ok {
+		if k := bytes.Index(link, []byte("\x1b\\")); k >= 0 {
+			return len(p) - len(link) + k + 2
+		}
+		return 0
+	}
+	if len(p) < 3 || p[1] != '[' {
+		return 0
+	}
+	for k := 2; k < len(p); k++ {
+		switch c := p[k]; {
+		case c >= '0' && c <= '9', c == ';', c == ':':
+		case c == 'm', c == 'X', c == 'C':
+			return k + 1
+		default:
+			return 0
+		}
+	}
+	return 0
+}
+
+// GhosttyFormatterExtras bits (GHOSTTY_FORMATTER_EXTRA_* in formatter.h).
+// The manifest describes the type only as a u32, so the bits are not
+// generated.
+const (
+	formatterExtraPalette = 1 << 0
+	formatterExtrasNone   = 0
+	formatterExtrasAll    = 0xfff
+)
+
+// formatLocked runs a formatter over the terminal with format, extras, and
+// trimming and unwrapping off. sel is a staged GhosttySelection, or 0 for
+// the whole screen and its scrollback. The output is formatted once, into a
+// buffer the library allocates.
+func (t *Terminal) formatLocked(format, sel int32, extras uint32) ([]byte, error) {
 	out, err := t.mod.Alloc(4)
 	if err != nil {
 		return nil, err
 	}
 	defer t.mod.Free(out, 4)
 	t.mod.Zero(out, 4)
-	if rerr := wasmvt.Result("formatter new", t.mod.Xghostty_formatter_terminal_new(0, out, t.term, opt)); rerr != nil {
+	if rerr := wasmvt.Result("formatter new", t.mod.Xghostty_formatter_terminal_new(0, out, t.term)); rerr != nil {
 		return nil, rerr
 	}
 	f := t.mod.I32(out, 0)
 	defer t.mod.Xghostty_formatter_free(f)
 
-	// A null buffer reports the size needed.
-	rc := t.mod.Xghostty_formatter_format_buf(f, 0, 0, out)
-	if rc != 0 && rc != wasmvt.ResultOutOfSpace {
-		return nil, wasmvt.Result("format", rc)
+	// Options are passed by pointer and copied by the formatter.
+	t.mod.SetI32(out, 0, format)
+	if rerr := wasmvt.Result("formatter emit", t.mod.Xghostty_formatter_set(f, wasmvt.FormatterOptionEmit, out)); rerr != nil {
+		return nil, rerr
 	}
-	need := int(t.mod.U32(out, 0))
-	if need == 0 {
-		return nil, nil
+	t.mod.SetU32(out, 0, 0)
+	if rerr := wasmvt.Result("formatter trim", t.mod.Xghostty_formatter_set(f, wasmvt.FormatterOptionTrim, out)); rerr != nil {
+		return nil, rerr
 	}
-	buf, err := t.mod.Alloc(need)
+	t.mod.SetU32(out, 0, extras)
+	if rerr := wasmvt.Result("formatter extras", t.mod.Xghostty_formatter_set(f, wasmvt.FormatterOptionExtras, out)); rerr != nil {
+		return nil, rerr
+	}
+	if sel != 0 {
+		if rerr := wasmvt.Result("formatter selection", t.mod.Xghostty_formatter_set(f, wasmvt.FormatterOptionSelection, sel)); rerr != nil {
+			return nil, rerr
+		}
+	}
+
+	res, err := t.mod.Alloc(8)
 	if err != nil {
 		return nil, err
 	}
-	defer t.mod.Free(buf, need)
-	if rerr := wasmvt.Result("format", t.mod.Xghostty_formatter_format_buf(f, buf, int32(need), out)); rerr != nil { //nolint:gosec // need fits the Wasm address space.
+	defer t.mod.Free(res, 8)
+	t.mod.Zero(res, 8)
+	if rerr := wasmvt.Result("format", t.mod.Xghostty_formatter_format_alloc(f, 0, res, res+4)); rerr != nil {
 		return nil, rerr
 	}
-	return append([]byte(nil), t.mod.Slice(buf, min(int(t.mod.U32(out, 0)), need))...), nil
+	ptr, n := t.mod.I32(res, 0), int(t.mod.U32(res, 4))
+	if ptr == 0 || n == 0 {
+		return nil, nil
+	}
+	defer t.mod.Xghostty_free(0, ptr, wasmvt.Int32(n))
+	return append([]byte(nil), t.mod.Slice(ptr, n)...), nil
 }
 
 // cursorShape returns the DECSCUSR sequence for c's shape and blinking.

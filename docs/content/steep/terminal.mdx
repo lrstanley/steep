@@ -149,6 +149,7 @@ if n := h.Notifications(); len(n) != 1 || n[0].Body != "Sencha is ready" {
 | `Prompt()` | The latest semantic prompt step | OSC 133 |
 | `Bell()` | The latest bell. Its `Count` is zero before the first. | BEL |
 | `ResizeRequest()` | The last window-resize request, with `ok` false until one comes. The terminal isn't resized. | CSI 8 t |
+| `ControlStrings()` | Every string the program wrote, oldest first, with its raw data and how it ended, whether the terminal implements it or not. See [Control strings](/reel/terminal-features#control-strings). | APC, DCS, OSC, SOS, PM |
 
 ### Colors and focus
 

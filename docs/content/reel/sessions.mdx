@@ -56,7 +56,7 @@ The [conditions](/steep/checks#conditions) are `Contains`, `NotContains`, `Match
 | Method | Waits until |
 | --- | --- |
 | `Wait(ctx, cond)` | A condition holds |
-| `WaitSettle(ctx, quiet, opts...)` | The screen's text hasn't changed for `quiet` |
+| `WaitSettle(ctx, quiet, opts...)` | The screen's text hasn't changed for `quiet`. Output that ends inside an escape sequence, such as part of a Kitty image, counts as a change. |
 | `WaitIdle(ctx, since, quiet, limit)` | The program has responded to something and gone quiet |
 
 A screen with a clock or a spinner on it never settles, because the clock changes it. Settle on the rest of the screen by passing [regions](/reel/effects#regions):
@@ -97,6 +97,7 @@ text, err = s.WaitSettle(ctx, 200*time.Millisecond, reel.SettleOnly(region.Rows(
 | `WithKittyFiles()`, `WithKittyStorage(n)` | Controls Kitty graphics |
 | `WithRuntime(rt)` | Opens the terminal from your own pool |
 | `WithUnknownSequence(fn)` | Calls `fn` with sequences the terminal drops |
+| `WithControlStrings(fn)` | Calls `fn` with every APC, DCS, OSC, SOS, and PM string the program writes. See [Control strings](/reel/terminal-features#control-strings). |
 
 Sessions are safe for concurrent use. `Close` returns the terminal to its pool, and the timeline stays readable afterward.
 

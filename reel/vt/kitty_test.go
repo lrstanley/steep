@@ -13,6 +13,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -185,12 +186,17 @@ func TestKittyPlaceholders(t *testing.T) {
 	if len(imgs) != 1 {
 		t.Fatalf("got %d placements, want one run: %+v", len(imgs), imgs)
 	}
-	if p := imgs[0]; p.Rect != image.Rect(10, 0, 30, 20) || p.Source != image.Rect(0, 0, 20, 20) || p.Clip != image.Rect(0, 0, 20, 20) {
-		t.Errorf("rect %v source %v clip %v, want the image centered, clipped to two cells", p.Rect, p.Source, p.Clip)
+	// The run draws the left half of the image, after the padding.
+	if p := imgs[0]; p.Rect != image.Rect(10, 0, 20, 20) || p.Source != image.Rect(0, 0, 10, 20) || p.Clip != image.Rect(0, 0, 20, 20) {
+		t.Errorf("rect %v source %v clip %v, want the image's left half centered, clipped to two cells", p.Rect, p.Source, p.Clip)
+	}
+	if p := imgs[0]; !p.BelowText() {
+		t.Errorf("z %d, want a placeholder image under the text", p.Z)
 	}
 	// A cell with no marks continues the run before it.
 	writeTerm(t, term, "\r\n\x1b[38;5;5m\U0010EEEE̅̅\U0010EEEE\x1b[m")
-	if both := term.Images(); len(both) != 2 || both[1].Rect != image.Rect(10, 20, 30, 40) || both[1].Clip != image.Rect(0, 20, 20, 40) {
+	both := term.Images()
+	if len(both) != 2 || both[1].Rect != image.Rect(10, 20, 20, 40) || both[1].Source != both[0].Source || both[1].Clip != image.Rect(0, 20, 20, 40) {
 		t.Errorf("placements %+v, want the second row to match the first", both)
 	}
 }
@@ -251,8 +257,8 @@ func TestKittyRedraw(t *testing.T) {
 	if len(want) != 3 {
 		t.Fatalf("got %d placements before the redraw, want 3: %+v", len(want), want)
 	}
-	if want[1].Rect.Min.Y >= 0 {
-		t.Fatalf("image 1 at %v is not partly above the screen", want[1].Rect)
+	if i := slices.IndexFunc(want, func(p Placement) bool { return p.Image.ID == 1 }); i < 0 || want[i].Rect.Min.Y >= 0 {
+		t.Fatalf("image 1 is not partly above the screen: %+v", want)
 	}
 
 	got := redrawInto(t, term).Images()
@@ -292,10 +298,11 @@ func TestKittyPlaceholderRows(t *testing.T) {
 	if len(imgs) != 2 {
 		t.Fatalf("got %d placements, want a run on each row: %+v", len(imgs), imgs)
 	}
-	// The 1x1 image fills the 20x40 box's width, centered in its height.
+	// The 1x1 image fills the 20x40 box's width, centered in its height:
+	// each row draws its half, and both show the image's one pixel.
 	for i, p := range imgs {
-		if p.Rect != image.Rect(0, 10, 20, 30) || p.Clip != image.Rect(0, 20*i, 20, 20*(i+1)) {
-			t.Errorf("row %d: rect %v clip %v", i, p.Rect, p.Clip)
+		if p.Rect != image.Rect(0, 10+10*i, 20, 20+10*i) || p.Source != image.Rect(0, 0, 1, 1) || p.Clip != image.Rect(0, 20*i, 20, 20*(i+1)) {
+			t.Errorf("row %d: rect %v source %v clip %v", i, p.Rect, p.Source, p.Clip)
 		}
 	}
 }
@@ -337,5 +344,74 @@ func TestKittyStorageOption(t *testing.T) {
 	defer term.Close()
 	if term == grown {
 		t.Error("a terminal past the pooled memory limit was reused")
+	}
+}
+
+// TestKittyRelativeToPlaceholder checks that an image placed relative to a
+// virtual placement is drawn from the top-left of the parent's placeholder
+// cells, and moves with them.
+func TestKittyRelativeToPlaceholder(t *testing.T) {
+	t.Parallel()
+	term := openTest(t, 10, 4)
+	green, red := color.NRGBA{G: 0xff, A: 0xff}, color.NRGBA{R: 0xff, A: 0xff}
+	// Image 1, placement 7, drawn by two placeholder cells at column 3, row 1.
+	writeTerm(t, term, kittyAPC("a=T,i=1,p=7,f=32,s=20,v=20,U=1,c=2,r=1,q=2", solid(20, 20, green))+
+		"\x1b[2;4H\x1b[38;5;1m\x1b[58;5;7m\U0010EEEE̅̅\U0010EEEE̅̍\x1b[m")
+	// Image 2, one cell right of and one row below its parent.
+	writeTerm(t, term, kittyAPC("a=T,i=2,p=3,f=32,s=10,v=10,P=1,Q=7,H=1,V=1,q=2", solid(10, 10, red)))
+	child := func() (Placement, bool) {
+		imgs := term.Images()
+		i := slices.IndexFunc(imgs, func(p Placement) bool { return p.Image.ID == 2 })
+		if i < 0 {
+			return Placement{}, false
+		}
+		return imgs[i], true
+	}
+	p, ok := child()
+	if !ok || p.Rect != image.Rect(40, 40, 50, 50) || p.PlacementID != 3 {
+		t.Fatalf("child = %+v, %v, want it at column 4, row 2", p, ok)
+	}
+	// The placeholders scroll up a row, and the child with them.
+	writeTerm(t, term, "\x1b[4;1H\n")
+	if p, ok = child(); !ok || p.Rect != image.Rect(40, 20, 50, 30) {
+		t.Fatalf("child after a scroll = %+v, %v, want it a row higher", p, ok)
+	}
+}
+
+func TestFitSource(t *testing.T) {
+	t.Parallel()
+	bounds := image.Rect(0, 0, 4, 4)
+	for _, tc := range []struct{ src, want image.Rectangle }{
+		{image.Rect(1, 1, 3, 3), image.Rect(1, 1, 3, 3)},
+		{image.Rect(0, 4, 1, 5), image.Rect(0, 3, 1, 4)},
+		{image.Rect(3, 2, 5, 3), image.Rect(2, 2, 4, 3)},
+		{image.Rect(0, 0, 6, 6), image.Rect(0, 0, 4, 4)},
+		{image.Rect(0, 4, 1, 4), image.Rect(0, 3, 1, 4)},
+		{image.Rect(2, 2, 2, 2), image.Rect(2, 2, 3, 3)},
+	} {
+		if got := fitSource(tc.src, bounds); got != tc.want {
+			t.Errorf("fitSource(%v) = %v, want %v", tc.src, got, tc.want)
+		}
+	}
+}
+
+// TestKittyPlaceholderUpscaled checks that each row of placeholders over an
+// image drawn larger than it is shows some of it: rounded to whole image
+// pixels, a third of a pixel per row is none.
+func TestKittyPlaceholderUpscaled(t *testing.T) {
+	t.Parallel()
+	term := openTest(t, 10, 3)
+	// A 1x1 image in a 6x3 box of 10x20 cells: 60x60 pixels.
+	row := "\U0010EEEE\U0010EEEE\U0010EEEE\U0010EEEE\U0010EEEE\U0010EEEE"
+	writeTerm(t, term, kittyAPC("a=T,i=3,f=32,s=1,v=1,U=1,c=6,r=3,q=2", solid(1, 1, color.NRGBA{R: 0xff, A: 0xff}))+
+		"\x1b[38;5;3m"+"\U0010EEEE̅"+row[4:]+"\r\n\U0010EEEE̍"+row[4:]+"\r\n\U0010EEEE̎"+row[4:]+"\x1b[m")
+	imgs := term.Images()
+	if len(imgs) != 3 {
+		t.Fatalf("got %d placements, want a run on each row: %+v", len(imgs), imgs)
+	}
+	for i, p := range imgs {
+		if p.Source.Empty() || p.Rect.Empty() || !p.Source.In(p.Image.Pixels.Rect) {
+			t.Errorf("row %d: rect %v source %v, want some of the image", i, p.Rect, p.Source)
+		}
 	}
 }

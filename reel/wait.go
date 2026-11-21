@@ -380,12 +380,18 @@ type screenRead struct {
 // readScreen updates r from the terminal, reading the text, or with
 // withScreen a copy of the screen in place of it, only when the grid or
 // cursor row changed since r was read, and reports whether it did. It holds
-// s.mu, so the terminal has every recorded event's bytes.
-func (s *Session) readScreen(r *screenRead, withScreen bool) (bool, error) {
+// s.mu, so the terminal has every recorded event's bytes. out, if not nil,
+// is updated from the same read.
+func (s *Session) readScreen(r *screenRead, withScreen bool, out *outputMark) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed.Load() {
 		return false, ErrClosed
+	}
+	if out != nil {
+		seq := s.term.OutputSeq()
+		out.partial = seq != out.seq && s.term.InSequence()
+		out.seq = seq
 	}
 	gen, row := s.term.GridGeneration(), s.term.Cursor().Y
 	if r.read && gen == r.gen && row == r.CursorRow {
@@ -400,11 +406,18 @@ func (s *Session) readScreen(r *screenRead, withScreen bool) (bool, error) {
 	return true, nil
 }
 
+// outputMark is the output count a read last saw, and whether the output
+// since the one before it ends inside an escape sequence.
+type outputMark struct {
+	seq     uint64
+	partial bool
+}
+
 // ScreenText returns the screen as [Session.Wait] checks it, such as to
 // check a [Condition] once. It returns [ErrClosed] after [Session.Close].
 func (s *Session) ScreenText() (ScreenText, error) {
 	var r screenRead
-	_, err := s.readScreen(&r, false)
+	_, err := s.readScreen(&r, false, nil)
 	return r.ScreenText, err
 }
 
@@ -445,7 +458,7 @@ func (s *Session) Wait(ctx context.Context, cond Condition) (WaitResult, error) 
 	var r screenRead
 	var res WaitResult
 	err := s.await(ctx, nil, func(bool) (bool, error) {
-		changed, err := s.readScreen(&r, false)
+		changed, err := s.readScreen(&r, false, nil)
 		if err != nil || !changed {
 			return false, err
 		}
@@ -461,9 +474,12 @@ func (s *Session) Wait(ctx context.Context, cond Condition) (WaitResult, error) 
 
 // WaitSettle waits until the screen's text has not changed for quiet,
 // counting from the call, and returns it. Changes that leave the text as it
-// was, such as a repaint, do not count. It sees changes as [Session.Wait]
-// does, and returns a [*WaitError] when ctx is done or the session closes
-// first.
+// was, such as a repaint, do not count. Output that leaves the terminal
+// inside an escape sequence does, so a screen is not taken as settled half
+// way through a sequence the program is still writing, such as a Kitty image
+// sent in several writes; once quiet passes with no more of it, the wait
+// ends all the same. It sees changes as [Session.Wait] does, and returns a
+// [*WaitError] when ctx is done or the session closes first.
 //
 // [SettleIgnore] leaves out changes to part of the screen, such as a clock,
 // and [SettleOnly] watches only part of it.
@@ -480,11 +496,20 @@ func (s *Session) WaitSettle(ctx context.Context, quiet time.Duration, opts ...S
 	defer timer.Stop()
 	// view is the screen as last read, with the cells watch covers on it.
 	var view settleView
+	// output is what the last read saw of the program's output.
+	var output outputMark
 	err := s.await(ctx, timer, func(fired bool) (bool, error) {
 		was := view
-		changed, err := s.readScreen(&view.screenRead, withScreen)
-		if err != nil || !changed {
-			return fired && watch.shows(view), err
+		changed, err := s.readScreen(&view.screenRead, withScreen, &output)
+		if err != nil {
+			return false, err
+		}
+		if output.partial {
+			timer.Reset(quiet)
+			fired = false
+		}
+		if !changed {
+			return fired && watch.shows(view), nil
 		}
 		watch.cover(&view)
 		switch {

@@ -1,8 +1,8 @@
 diff --git a/include/ghostty/vt/sgr.h b/include/ghostty/vt/sgr.h
-index b8aecb6..63bf21d 100644
+index 33c0ac0..315259b 100644
 --- a/include/ghostty/vt/sgr.h
 +++ b/include/ghostty/vt/sgr.h
-@@ -90,6 +90,7 @@ typedef enum GHOSTTY_ENUM_TYPED {
+@@ -79,6 +79,7 @@ typedef enum GHOSTTY_ENUM_TYPED {
    GHOSTTY_SGR_ATTR_BRIGHT_FG_8 = 28,
    GHOSTTY_SGR_ATTR_BG_256 = 29,
    GHOSTTY_SGR_ATTR_FG_256 = 30,
@@ -11,44 +11,33 @@ index b8aecb6..63bf21d 100644
  } GhosttySgrAttributeTag;
  
 diff --git a/include/ghostty/vt/style.h b/include/ghostty/vt/style.h
-index b6bf860..fbd3654 100644
+index 42fdf56..022b4bb 100644
 --- a/include/ghostty/vt/style.h
 +++ b/include/ghostty/vt/style.h
-@@ -105,6 +105,7 @@ typedef struct {
-   bool strikethrough;
-   bool overline;
-   int underline; /**< One of GHOSTTY_SGR_UNDERLINE_* values */
-+  bool rapid_blink; /**< SGR 6. blink is also set. */
- } GhosttyStyle;
+@@ -127,7 +127,8 @@ typedef struct {
+  * |----------|-----------------------------------------------------|
+  * | 0 to 7   | On/off attributes, one GHOSTTY_STYLE_FLAG_* per bit |
+  * | 8 to 10  | Underline style, a GhosttySgrUnderline value        |
+- * | 11 to 15 | Reserved, always zero                               |
++ * | 11       | Rapid blink (GHOSTTY_STYLE_FLAG_RAPID_BLINK)        |
++ * | 12 to 15 | Reserved, always zero                               |
+  *
+  * Test an attribute with a bitwise AND against its GHOSTTY_STYLE_FLAG_*
+  * mask. Read the underline style with GHOSTTY_STYLE_UNDERLINE().
+@@ -152,6 +153,8 @@ typedef uint16_t GhosttyStyleFlags;
+ #define GHOSTTY_STYLE_FLAG_STRIKETHROUGH ((GhosttyStyleFlags)(1u << 6))
+ /** Overlined text. @ingroup style */
+ #define GHOSTTY_STYLE_FLAG_OVERLINE ((GhosttyStyleFlags)(1u << 7))
++/** Rapid blink (SGR 6). GHOSTTY_STYLE_FLAG_BLINK is also set. @ingroup style */
++#define GHOSTTY_STYLE_FLAG_RAPID_BLINK ((GhosttyStyleFlags)(1u << 11))
  
  /**
-diff --git a/src/terminal/Screen.zig b/src/terminal/Screen.zig
-index 820455e..ce71213 100644
---- a/src/terminal/Screen.zig
-+++ b/src/terminal/Screen.zig
-@@ -2422,10 +2422,17 @@ pub fn setAttribute(
- 
-         .blink => {
-             self.cursor.style.flags.blink = true;
-+            self.cursor.style.flags.rapid_blink = false;
-+        },
-+
-+        .rapid_blink => {
-+            self.cursor.style.flags.blink = true;
-+            self.cursor.style.flags.rapid_blink = true;
-         },
- 
-         .reset_blink => {
-             self.cursor.style.flags.blink = false;
-+            self.cursor.style.flags.rapid_blink = false;
-         },
- 
-         .inverse => {
+  * The lowest bit of the underline style in GhosttyStyleFlags.
 diff --git a/src/terminal/Terminal.zig b/src/terminal/Terminal.zig
-index 2667c51..0703cc8 100644
+index 30424fc..7a76660 100644
 --- a/src/terminal/Terminal.zig
 +++ b/src/terminal/Terminal.zig
-@@ -3932,7 +3932,7 @@ pub fn printAttributes(self: *Terminal, buf: []u8) ![]const u8 {
+@@ -4766,7 +4766,7 @@ pub fn printAttributes(self: *Terminal, buf: []u8) ![]const u8 {
      }
  
      if (pen.flags.blink) {
@@ -58,45 +47,54 @@ index 2667c51..0703cc8 100644
      }
  
 diff --git a/src/terminal/c/style.zig b/src/terminal/c/style.zig
-index bea4d07..689b13d 100644
+index 8f7f357..1c07f4f 100644
 --- a/src/terminal/c/style.zig
 +++ b/src/terminal/c/style.zig
-@@ -70,6 +70,7 @@ pub const Style = extern struct {
-     strikethrough: bool,
-     overline: bool,
-     underline: c_int,
-+    rapid_blink: bool,
- 
-     /// The default (empty) style in C representation. C
-     pub const default: Style = .{
-@@ -85,6 +86,7 @@ pub const Style = extern struct {
-         .strikethrough = false,
-         .overline = false,
-         .underline = 0,
-+        .rapid_blink = false,
-     };
- 
-     // fromStyle writes the eight bool fields as one 8-byte store,
-@@ -136,6 +138,7 @@ pub const Style = extern struct {
-         };
- 
-         out.underline = @intFromEnum(s.flags.underline);
-+        out.rapid_blink = s.flags.rapid_blink;
+@@ -90,7 +90,8 @@ comptime {
      }
- 
-     pub fn fromStyle(s: style.Style) Style {
-@@ -165,7 +168,8 @@ pub fn style_is_default(s: *const Style) callconv(lib.calling_conv) bool {
-         s.invisible == false and
-         s.strikethrough == false and
-         s.overline == false and
--        s.underline == 0;
-+        s.underline == 0 and
-+        s.rapid_blink == false;
+     assert(@bitOffsetOf(Flags, "underline") == 8);
+     assert(@bitSizeOf(sgr.Attribute.Underline) == 3);
+-    assert(@bitOffsetOf(Flags, "_padding") == 11);
++    assert(@bitOffsetOf(Flags, "rapid_blink") == 11);
++    assert(@bitOffsetOf(Flags, "_padding") == 12);
  }
  
- test "default style" {
+ /// The GhosttyStyleFlags entry in the type manifest. The padding bits
+@@ -130,7 +131,7 @@ pub const Style = extern struct {
+     /// they appear when the struct is viewed as a native u128.
+     const reserved_bits: u128 = bits: {
+         var s: Style = .default;
+-        s.flags = .{ ._padding = std.math.maxInt(u5) };
++        s.flags = .{ ._padding = std.math.maxInt(u4) };
+         s.reserved = 0xFFFF;
+         break :bits s.toBits();
+     };
+@@ -229,12 +230,12 @@ test "style write produces the frozen byte layout" {
+ 
+     const with_padding = padding: {
+         // Every padding bit set, plus bold so the flags are not empty.
+-        const flags_pad: u128 = 0x1F << (96 + 11);
++        const flags_pad: u128 = 0xF << (96 + 12);
+         const style_pad: u128 = 0xFFFF << 112;
+         break :padding @as(style.Style, @bitCast(flags_pad | style_pad | (1 << 96)));
+     };
+     const only_padding = padding: {
+-        const flags_pad: u128 = 0x1F << (96 + 11);
++        const flags_pad: u128 = 0xF << (96 + 12);
+         const style_pad: u128 = 0xFFFF << 112;
+         break :padding @as(style.Style, @bitCast(flags_pad | style_pad));
+     };
+@@ -301,7 +302,7 @@ test "style write produces the frozen byte layout" {
+ test "style_is_default ignores reserved bits" {
+     var s: Style = .default;
+     s.reserved = 0xFFFF;
+-    s.flags = .{ ._padding = std.math.maxInt(u5) };
++    s.flags = .{ ._padding = std.math.maxInt(u4) };
+     try testing.expect(style_is_default(&s));
+     s.flags.overline = true;
+     try testing.expect(!style_is_default(&s));
 diff --git a/src/terminal/sgr.zig b/src/terminal/sgr.zig
-index 3fecd44..df1b512 100644
+index f203ddf..3888ac0 100644
 --- a/src/terminal/sgr.zig
 +++ b/src/terminal/sgr.zig
 @@ -77,6 +77,9 @@ pub const Attribute = union(Tag) {
@@ -136,10 +134,10 @@ index 3fecd44..df1b512 100644
  
      {
 diff --git a/src/terminal/style.zig b/src/terminal/style.zig
-index 701356e..9691d5c 100644
+index 5413dcd..930fa30 100644
 --- a/src/terminal/style.zig
 +++ b/src/terminal/style.zig
-@@ -38,7 +38,9 @@ pub const Style = struct {
+@@ -43,7 +43,9 @@ pub const Style = packed struct(u128) {
          strikethrough: bool = false,
          overline: bool = false,
          underline: sgr.Attribute.Underline = .none,
@@ -150,7 +148,28 @@ index 701356e..9691d5c 100644
      };
  
      /// The color for an SGR attribute. A color can come from multiple
-@@ -380,7 +382,7 @@ pub const Style = struct {
+@@ -157,8 +159,18 @@ pub const Style = packed struct(u128) {
+             .underline => |v| s.flags.underline = v,
+             .overline => s.flags.overline = true,
+             .reset_overline => s.flags.overline = false,
+-            .blink => s.flags.blink = true,
+-            .reset_blink => s.flags.blink = false,
++            .blink => {
++                s.flags.blink = true;
++                s.flags.rapid_blink = false;
++            },
++            .rapid_blink => {
++                s.flags.blink = true;
++                s.flags.rapid_blink = true;
++            },
++            .reset_blink => {
++                s.flags.blink = false;
++                s.flags.rapid_blink = false;
++            },
+             .inverse => s.flags.inverse = true,
+             .reset_inverse => s.flags.inverse = false,
+             .invisible => s.flags.invisible = true,
+@@ -444,7 +456,7 @@ pub const Style = packed struct(u128) {
                  len += 4;
              }
              if (self.style.flags.blink) {

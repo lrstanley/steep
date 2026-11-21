@@ -16,6 +16,7 @@ import (
 	"syscall"
 
 	"getsteep.dev/steep/reel"
+	"getsteep.dev/steep/reel/vt"
 	"github.com/alecthomas/kong"
 	"github.com/lrstanley/clix/v2"
 )
@@ -46,6 +47,16 @@ type Flags struct {
 	Themes  ThemesCmd  `cmd:"" guide:"/cli/appearance" help:"List the named themes."`
 }
 
+// withVTVersion lists the embedded libghostty-vt release in --version's
+// build options, for bug reports.
+func withVTVersion(cli *clix.CLI[Flags]) {
+	v := cli.GetVersion()
+	v.Settings = append(v.Settings, clix.BuildSetting{
+		Key:   "libghostty-vt",
+		Value: vt.LibraryVersion + " (ghostty " + vt.LibraryCommit[:12] + ")",
+	})
+}
+
 func main() {
 	cli := clix.New(
 		clix.WithAppInfo[Flags](clix.AppInfo{
@@ -61,6 +72,7 @@ func main() {
 			},
 		}),
 		clix.WithVersionPlugin[Flags](),
+		withVTVersion,
 		clix.WithMarkdownPlugin[Flags](),
 		clix.WithKongOptions[Flags](kong.Vars{"spec": specHelp}, withDocsLinks()),
 	)

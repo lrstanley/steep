@@ -40,14 +40,14 @@ type Notification struct {
 	Body string
 }
 
-// UnknownSequence is an APC or OSC sequence the emulator does not implement,
-// which it otherwise drops. See [WithUnknownSequence].
+// UnknownSequence is an APC, DCS, or OSC sequence the emulator does not
+// implement, which it otherwise drops. See [WithUnknownSequence].
 type UnknownSequence struct {
 	// Kind is the kind of sequence.
 	Kind SequenceKind
 	// Data is everything between the introducer and the terminator. An OSC
-	// starts with its number, such as "7400;status=busy". It may hold
-	// binary data.
+	// starts with its number, such as "7400;status=busy", and a DCS with its
+	// parameters, intermediates, and final byte. It may hold binary data.
 	Data string
 	// Truncated is true when Data holds only the first
 	// [UnknownSequenceMaxBytes] of the sequence.
@@ -57,16 +57,26 @@ type UnknownSequence struct {
 	At time.Duration
 }
 
-// SequenceKind is the introducer of an [UnknownSequence].
+// SequenceKind is the introducer of an [UnknownSequence] or a
+// [ControlString].
 type SequenceKind string
 
-// Kinds of unknown sequence. Names match GhosttyTerminalUnknownSequenceTag
-// in include/ghostty/vt/terminal.h.
+// Kinds of string sequence. An [UnknownSequence] is an APC, DCS, or OSC. The
+// names of APC and OSC match GhosttyTerminalUnknownSequenceTag in
+// include/ghostty/vt/terminal.h.
 const (
 	// SequenceAPC is an Application Program Command, ESC _.
 	SequenceAPC SequenceKind = "apc"
+	// SequenceDCS is a Device Control String, ESC P.
+	SequenceDCS SequenceKind = "dcs"
 	// SequenceOSC is an Operating System Command, ESC ].
 	SequenceOSC SequenceKind = "osc"
+	// SequenceSOS is a Start of String, ESC X. Only [ControlString] reports
+	// it: the terminal ignores it.
+	SequenceSOS SequenceKind = "sos"
+	// SequencePM is a Privacy Message, ESC ^. Only [ControlString] reports
+	// it: the terminal ignores it.
+	SequencePM SequenceKind = "pm"
 )
 
 // Prompt is the latest OSC 133 step.

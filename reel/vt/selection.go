@@ -266,7 +266,7 @@ func (t *Terminal) selectAt(op string, optN, refOff int, at Point, call func(ter
 	})
 }
 
-// selectionCall allocates a sized GhosttySelection out-parameter and
+// selectionCall allocates a GhosttySelection out-parameter and
 // decodes it. call writes the selection and returns a GhosttyResult.
 func (t *Terminal) selectionCall(op string, call func(out int32) int32) (Selection, error) {
 	n := wasmvt.SizeSelection
@@ -276,7 +276,6 @@ func (t *Terminal) selectionCall(op string, call func(out int32) int32) (Selecti
 	}
 	defer t.mod.Free(raw, n)
 	t.mod.Zero(raw, n)
-	t.mod.SetU32(raw, 0, uint32(n))
 	err = wasmvt.Result(op, call(raw))
 	if err != nil {
 		return Selection{}, err
@@ -323,54 +322,22 @@ func (t *Terminal) stageSelection(sel Selection) (ptr int32, size int, err error
 	return raw, n, nil
 }
 
-// selectionTextLocked formats a selection as plain text.
-// ghostty_terminal_selection_format_buf is called once with a null
-// buffer to read the required size (GHOSTTY_OUT_OF_SPACE) and again
-// to fill it. The options struct points at the staged selection.
+// selectionTextLocked formats a selection as plain text, with a formatter
+// set to the staged selection.
 func (t *Terminal) selectionTextLocked(sel Selection) (string, error) {
 	raw, n, err := t.stageSelection(sel)
 	if err != nil {
 		return "", err
 	}
 	defer t.mod.Free(raw, n)
-	optN := wasmvt.SizeTerminalSelectionFormatOptions
-	opt, err := t.mod.Alloc(optN)
+	text, err := t.formatLocked(wasmvt.FormatterFormatPlain, raw, formatterExtrasNone)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("vt: selection text: %w", err)
 	}
-	defer t.mod.Free(opt, optN)
-	t.mod.Zero(opt, optN)
-	t.mod.SetU32(opt, 0, uint32(optN))
-	t.mod.SetI32(opt, wasmvt.TerminalSelectionFormatOptionsEmitOff, wasmvt.FormatterFormatPlain)
-	t.mod.SetI32(opt, wasmvt.TerminalSelectionFormatOptionsSelectionOff, raw)
-	lenPtr, err := t.mod.Alloc(4)
-	if err != nil {
-		return "", err
-	}
-	defer t.mod.Free(lenPtr, 4)
-	rc := t.mod.Xghostty_terminal_selection_format_buf(t.term, opt, 0, 0, lenPtr)
-	outOfSpace := rc == wasmvt.ResultOutOfSpace
-	if rc != 0 && !outOfSpace {
-		return "", wasmvt.Result("selection text", rc)
-	}
-	need := int(t.mod.U32(lenPtr, 0))
-	if need == 0 {
-		return "", nil
-	}
-	buf, err := t.mod.Alloc(need)
-	if err != nil {
-		return "", err
-	}
-	defer t.mod.Free(buf, need)
-	err = wasmvt.Result("selection text", t.mod.Xghostty_terminal_selection_format_buf(t.term, opt, buf, wasmvt.Int32(need), lenPtr))
-	if err != nil {
-		return "", err
-	}
-	wrote := min(int(t.mod.U32(lenPtr, 0)), need)
-	return string(append([]byte(nil), t.mod.Slice(buf, wrote)...)), nil
+	return string(text), nil
 }
 
-// gridRefLocked converts a Go point into a sized GhosttyGridRef via
+// gridRefLocked converts a Go point into a GhosttyGridRef via
 // ghostty_terminal_grid_ref. The caller frees the ref. The temporary
 // point is freed here.
 func (t *Terminal) gridRefLocked(at Point) (gridRef int32, size int, err error) {
@@ -388,7 +355,6 @@ func (t *Terminal) gridRefLocked(at Point) (gridRef int32, size int, err error) 
 	defer t.mod.Free(pt, pn)
 	t.writePoint(pt, at)
 	t.mod.Zero(ref, refN)
-	t.mod.SetU32(ref, 0, uint32(refN))
 	if err = wasmvt.Result("grid ref", t.mod.Xghostty_terminal_grid_ref(t.term, pt, ref)); err != nil {
 		t.mod.Free(ref, refN)
 		return 0, 0, err

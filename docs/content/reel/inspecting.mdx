@@ -114,12 +114,12 @@ img, err := p.Image()
 
 | Method | Does |
 | --- | --- |
-| `Seek(n)` | Applies the first `n` events. Seeking back replays from the start, or from a checkpoint. |
+| `Seek(n)` | Applies the first `n` events. Seeking back replays from the nearest checkpoint before `n`, or from the start. |
 | `Pos()`, `Len()` | Reports the events applied, and the total |
 | `Screen()`, `Frame()` | Returns the screen and state after the applied events |
 | `Image()`, `Layout()` | Draws it, and says where the screen sits in the image |
 | `SetOptions(opts...)` | Replaces the render options, from the next `Image` |
-| `Prepare(limit, budget)` | Works toward keeping `limit` checkpoints, for fast seeks back |
+| `Prepare(limit, budget)` | Works toward keeping `limit` checkpoints, for fast seeks. Each is a snapshot of the terminal, which seeks reuse. |
 | `Rasterizer()` | Returns what `Image` draws with, such as for an effect's `Context` |
 
 `Image` reuses its image on the next call, so copy it if you keep it. A player isn't safe for concurrent use.
