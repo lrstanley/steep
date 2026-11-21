@@ -118,7 +118,9 @@ Sleep 50ms
 	}
 }
 
-// TestRunShell runs a tape in a real shell.
+// TestRunShell runs a tape in a real shell. Each command is typed once the
+// prompt is back: bash drops what is typed while a command runs when
+// readline takes the terminal for the next prompt.
 func TestRunShell(t *testing.T) {
 	if _, err := exec.LookPath("bash"); err != nil || runtime.GOOS == "windows" {
 		t.Skip("needs bash on a pseudo-terminal")
@@ -131,9 +133,9 @@ Set Shell bash
 Set Rows 10
 Set TypingSpeed 0
 Type "echo $GREETING" Enter
-Wait+Screen /hello from env/
+Wait+Screen /hello from env\n>/
 Type "seq 1 40" Enter
-Wait+Screen /40\n>/
+Wait+Screen /\n40\n>/
 ScrollUp 3
 `)
 	if err != nil {
