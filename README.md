@@ -163,10 +163,10 @@ in CI. Without it, they build against the reel version they pin. Nothing runs th
 <!-- do not edit anything in this "template" block, its auto-generated -->
 ## :raising_hand_man: Support & Assistance
 
-* :heart: Please review the [Code of Conduct](.github/CODE_OF_CONDUCT.md) for
+* :heart: Please review the [Code of Conduct](https://github.com/lrstanley/steep?tab=coc-ov-file) for
      guidelines on ensuring everyone has the best experience interacting with
      the community.
-* :raising_hand_man: Take a look at the [support](.github/SUPPORT.md) document on
+* :raising_hand_man: Take a look at the [support](https://github.com/lrstanley/.github/blob/HEAD/.github/SUPPORT.md) document on
      guidelines for tips on how to ask the right questions.
 * :lady_beetle: For all features/bugs/issues/questions/etc, [head over here](https://github.com/lrstanley/steep/issues/new/choose).
 <!-- template:end:support -->
@@ -175,10 +175,10 @@ in CI. Without it, they build against the reel version they pin. Nothing runs th
 <!-- do not edit anything in this "template" block, its auto-generated -->
 ## :handshake: Contributing
 
-* :heart: Please review the [Code of Conduct](.github/CODE_OF_CONDUCT.md) for guidelines
+* :heart: Please review the [Code of Conduct](https://github.com/lrstanley/steep?tab=coc-ov-file) for guidelines
      on ensuring everyone has the best experience interacting with the
     community.
-* :clipboard: Please review the [contributing](.github/CONTRIBUTING.md) doc for submitting
+* :clipboard: Please review the [contributing](https://github.com/lrstanley/steep?tab=contributing-ov-file) doc for submitting
      issues/a guide on submitting pull requests and helping out.
 * :old_key: For anything security related, please review this repositories [security policy](https://github.com/lrstanley/steep/security/policy).
 <!-- template:end:contributing -->
