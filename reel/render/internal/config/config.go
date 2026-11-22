@@ -7,12 +7,10 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"maps"
-	"math"
 	"time"
 
 	"getsteep.dev/steep/reel/render/fonts"
@@ -118,24 +116,37 @@ func DefaultOptions() Options {
 
 // ParsePositivePx validates a non-negative pixel count.
 func ParsePositivePx(px int, name string) (units.Px, error) {
-	if px < 0 {
-		return 0, fmt.Errorf("render: %s must be >= 0", name)
+	if px < 0 || px > MaxPx {
+		return 0, fmt.Errorf("render: %s must be from 0 to %d, got %d", name, MaxPx, px)
 	}
 	return units.Px(px), nil
 }
 
 // ParseRequiredPx validates a positive pixel count.
 func ParseRequiredPx(px int, name string) (units.Px, error) {
-	if px <= 0 {
-		return 0, fmt.Errorf("render: %s must be > 0", name)
+	if px <= 0 || px > MaxPx {
+		return 0, fmt.Errorf("render: %s must be from 1 to %d, got %d", name, MaxPx, px)
 	}
 	return units.Px(px), nil
 }
 
-// ParseScale validates a font scale, which must be positive and finite.
+// MaxPx bounds the pixel lengths options take, such as padding, so the
+// layout's arithmetic cannot overflow and a frame's size stays in reach of
+// a check before it is allocated.
+const MaxPx = 4096
+
+// MaxScale bounds the font scale, for the same reasons as [MaxPx]: 32 is a
+// 576px font.
+const MaxScale = 32
+
+// MaxIconHeightScale bounds the icon height scale.
+const MaxIconHeightScale = 4
+
+// ParseScale validates a font scale, which must be positive and at most
+// [MaxScale].
 func ParseScale(scale float64) (float64, error) {
-	if scale <= 0 || math.IsNaN(scale) || math.IsInf(scale, 0) {
-		return 0, fmt.Errorf("render: scale must be > 0, got %v", scale)
+	if !(scale > 0 && scale <= MaxScale) { // Also catches NaN.
+		return 0, fmt.Errorf("render: scale must be above 0 and at most %d, got %v", MaxScale, scale)
 	}
 	return scale, nil
 }
@@ -147,8 +158,8 @@ func (o Options) FontSizePx() float64 {
 
 // ParseIconHeightScale validates icon height scale.
 func ParseIconHeightScale(scale float64) (float64, error) {
-	if scale < 0 {
-		return 0, errors.New("render: icon height scale must be >= 0")
+	if !(scale >= 0 && scale <= MaxIconHeightScale) { // Also catches NaN.
+		return 0, fmt.Errorf("render: icon height scale must be from 0 to %d, got %v", MaxIconHeightScale, scale)
 	}
 	return scale, nil
 }

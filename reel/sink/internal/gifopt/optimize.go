@@ -9,6 +9,7 @@ package gifopt
 
 import (
 	"bytes"
+	"context"
 	"image"
 	"image/color"
 	"image/draw"
@@ -69,31 +70,35 @@ func (c *disposalCanvas) mutable() *image.Paletted {
 // there must be at least two frames, with a delay for each.
 //
 // Only [gif.DisposalNone] and [gif.DisposalPrevious] are used, so the GIF's
-// background color never shows.
+// background color never shows. It stops with ctx's error once ctx is done.
 func Optimize(
+	ctx context.Context,
 	screen image.Rectangle,
 	frames []*image.Paletted,
 	delays []time.Duration,
 	deltaAt int,
-) (outFrames []*image.Paletted, outDelays []time.Duration, disposals []byte) {
+) (outFrames []*image.Paletted, outDelays []time.Duration, disposals []byte, err error) {
 	// The first frame is the keyframe, aliased by the canvas until it is
 	// written to.
 	first := frameForDiff(frames[0], screen)
 	canvas := disposalCanvas{view: first}
 
-	plans, firstDelayExtra := planDisposalFrames(frames, delays, deltaAt, &canvas, screen)
+	plans, firstDelayExtra, err := planDisposalFrames(ctx, frames, delays, deltaAt, &canvas, screen)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	outFrames, outDelays, disposals = collectDisposalOutput(plans, 1+len(plans))
 
 	outFrames[0] = first
 	outDelays[0] = delays[0] + firstDelayExtra
 	disposals[0] = gif.DisposalNone
-	return outFrames, outDelays, disposals
+	return outFrames, outDelays, disposals, nil
 }
 
 // planDisposalFrames diffs each frame after the first against the simulated
 // canvas, plans its output frame, and applies it to the canvas. A frame on a
 // different palette than the canvas is diffed by color instead of index.
-func planDisposalFrames(frames []*image.Paletted, delays []time.Duration, deltaAt int, canvas *disposalCanvas, screen image.Rectangle) (plans []framePlan, firstDelayExtra time.Duration) {
+func planDisposalFrames(ctx context.Context, frames []*image.Paletted, delays []time.Duration, deltaAt int, canvas *disposalCanvas, screen image.Rectangle) (plans []framePlan, firstDelayExtra time.Duration, err error) {
 	n := len(frames)
 	canvasArea := screen.Dx() * screen.Dy()
 	plans = make([]framePlan, 0, n-1)
@@ -101,6 +106,9 @@ func planDisposalFrames(frames []*image.Paletted, delays []time.Duration, deltaA
 	// cur rebuilds full frames of the delta segment on a rolling clone.
 	var cur *image.Paletted
 	for i := 1; i < n; i++ {
+		if cerr := ctx.Err(); cerr != nil {
+			return nil, 0, cerr
+		}
 		var full *image.Paletted
 		switch {
 		case deltaAt >= 0 && i > deltaAt:
@@ -186,7 +194,7 @@ func planDisposalFrames(frames []*image.Paletted, delays []time.Duration, deltaA
 		applyPlanToCanvas(canvas, plan)
 	}
 
-	return plans, firstDelayExtra
+	return plans, firstDelayExtra, nil
 }
 
 // applyPlanToCanvas updates the simulated canvas after plan. DisposalPrevious

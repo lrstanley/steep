@@ -8,7 +8,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"image/color"
+	"strings"
 	"testing"
 
 	"getsteep.dev/steep/reel/vt"
@@ -83,5 +85,55 @@ func TestDrawKittyPlaceholder(t *testing.T) {
 	}
 	if got := img.NRGBAAt(c.Min.X, c.Min.Y); got == blue {
 		t.Errorf("placeholder top-left = %v, want padding", got)
+	}
+}
+
+// TestDrawHugeKittyPlacement checks that a placement far larger than the
+// frame is drawn where it shows without scaling all of it, which would
+// take gigabytes.
+func TestDrawHugeKittyPlacement(t *testing.T) {
+	t.Parallel()
+	red := color.NRGBA{R: 0xff, A: 0xff}
+	d := MustNew()
+	scr, st := kittyScreen(t, 8, 2, kittyImage("a=T,i=1,f=32,s=1,v=1,c=60000,r=60000,q=2", 1, 1, red))
+	img := drawAt(t, d, scr, st, 0)
+	c := d.Layout(8, 2).CellRect(7, 1)
+	if got := img.NRGBAAt(c.Min.X+c.Dx()/2, c.Min.Y+c.Dy()/2); got != red {
+		t.Errorf("last cell = %v, want the red image", got)
+	}
+	// The frame's copies are kept for the next, once it is drawn.
+	for k := range d.images.last {
+		if k.size.X > img.Rect.Dx() || k.size.Y > img.Rect.Dy() {
+			t.Errorf("scaled a %v copy for a %v frame", k.size, img.Rect.Size())
+		}
+	}
+}
+
+// TestDrawManyKittyPlacements checks that the scaled copies kept for a
+// frame stay within their budget however many placements it has, with the
+// rest still drawn.
+func TestDrawManyKittyPlacements(t *testing.T) {
+	t.Parallel()
+	red := color.NRGBA{R: 0xff, A: 0xff}
+	d := MustNew(WithScale(MaxScale))
+	var b strings.Builder
+	for i := range 48 {
+		// Each is a different image, so each would need its own copy, and
+		// half a row, so all are drawn.
+		b.WriteString("\x1b[H" + kittyImage(fmt.Sprintf("a=T,i=%d,f=32,s=1,v=1,c=4,r=1,C=1,q=2", i+1), 1, 1, red))
+	}
+	scr, st := kittyScreen(t, 8, 2, b.String())
+	img := drawAt(t, d, scr, st, 0)
+	// The frame's copies are kept for the next, once it is drawn.
+	kept := 0
+	for _, s := range d.images.last {
+		kept += len(s.Pix)
+	}
+	if kept > maxCacheBytes || len(d.images.last) == 48 {
+		t.Errorf("kept %d copies of %d bytes, want at most %d bytes", len(d.images.last), kept, maxCacheBytes)
+	}
+	c := d.Layout(8, 2).CellRect(3, 0)
+	if got := img.NRGBAAt(c.Min.X+c.Dx()/2, c.Min.Y+c.Dy()/2); got != red {
+		t.Errorf("cell 3,0 = %v, want the red images", got)
 	}
 }

@@ -30,10 +30,15 @@ var (
 // window are applied too, to reach the state the window starts in.
 type replay struct {
 	term *vt.Terminal
+	// ctx stops the replay at the next event, animation frame, or chunk of
+	// output once it is done.
+	ctx context.Context //nolint:containedctx // A replay lives for one call.
 	// base is the header colors applied as terminal defaults: nil where the
 	// header has none or matches the terminal's own.
 	base    Colors
 	focused bool
+	// limits bound the terminal's size.
+	limits Limits
 
 	// skipPristine drops frames that look like a fresh terminal (pristine)
 	// before the first real frame and after the last, per
@@ -74,9 +79,13 @@ type replay struct {
 
 // newReplay opens a terminal from rt, with opts after the header's, for a
 // timeline with header h whose window starts at event index start, offset
-// from.
-func newReplay(ctx context.Context, rt *vt.Runtime, h Header, start int, from time.Duration, opts ...vt.Option) (*replay, error) {
-	r := &replay{focused: true, skipPristine: h.SkipPristine, start: start, from: from}
+// from. A terminal, at the start or after a [Resize], larger than lim allows
+// is an error.
+func newReplay(ctx context.Context, rt *vt.Runtime, h Header, start int, from time.Duration, lim Limits, opts ...vt.Option) (*replay, error) {
+	if err := lim.checkCells(h.Cols, h.Rows); err != nil {
+		return nil, err
+	}
+	r := &replay{ctx: ctx, focused: true, skipPristine: h.SkipPristine, start: start, from: from, limits: lim}
 	term, err := rt.Open(ctx, h.Cols, h.Rows, append([]vt.Option{
 		vt.WithScrollbackLines(h.Scrollback),
 		vt.WithClock(func() time.Duration { return r.now }),
@@ -148,6 +157,9 @@ func (r *replay) setColors(c Colors) error {
 
 // apply applies the next event and passes on the resulting frame, if any.
 func (r *replay) apply(ev Event) error {
+	if err := r.ctx.Err(); err != nil {
+		return err
+	}
 	inWindow := r.n >= r.start
 	if r.n == r.start {
 		if err := r.animate(min(r.from, ev.At()), false); err != nil {
@@ -162,12 +174,18 @@ func (r *replay) apply(ev Event) error {
 	if err := r.animate(ev.At(), inWindow); err != nil {
 		return err
 	}
+	if ev, ok := ev.(Resize); ok {
+		// Checked before the event counts as applied, so it stays next.
+		if err := r.limits.checkCells(ev.Cols, ev.Rows); err != nil {
+			return err
+		}
+	}
 	r.n++
 	r.now = ev.At()
 	var err error
 	switch ev := ev.(type) {
 	case Output:
-		_, err = r.term.Write(ev.Data)
+		err = r.write(ev.Data)
 	case Resize:
 		err = r.term.Resize(ev.Cols, ev.Rows)
 	case Focus:
@@ -201,6 +219,9 @@ func (r *replay) animate(until time.Duration, inWindow bool) error {
 		return nil
 	}
 	for {
+		if err := r.ctx.Err(); err != nil {
+			return err
+		}
 		due, ok := r.term.AnimationDue()
 		// The terminal has already ticked at now, so a frame due then or
 		// before is one it showed.
@@ -213,6 +234,25 @@ func (r *replay) animate(until time.Duration, inWindow bool) error {
 			return err
 		}
 	}
+}
+
+// writeChunk is how much output write feeds the terminal between checks of
+// the context, so one huge event cannot hold up canceling.
+const writeChunk = 1 << 20
+
+// write feeds data to the terminal, in chunks.
+func (r *replay) write(data []byte) error {
+	for len(data) > 0 {
+		if err := r.ctx.Err(); err != nil {
+			return err
+		}
+		n := min(len(data), writeChunk)
+		if _, err := r.term.Write(data[:n]); err != nil {
+			return err
+		}
+		data = data[n:]
+	}
+	return nil
 }
 
 // state returns the terminal's state with the timeline's focus.

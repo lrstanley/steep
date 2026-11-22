@@ -5,6 +5,7 @@
 package sink
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"image"
@@ -115,9 +116,13 @@ func (s *VideoEncoder) WriteFrame(f Frame) error {
 	case img.Bounds().Empty():
 		return errEmptyFrame
 	}
+	if err := s.opts.ctx.Err(); err != nil {
+		s.err = err
+		return err
+	}
 	if s.job == nil {
 		s.bounds = image.Rectangle{Max: img.Bounds().Size()}
-		job, err := s.driver.Start(s.file.f, s.format, s.bounds.Size(), s.cfg)
+		job, err := s.driver.Start(s.opts.ctx, s.file.f, s.format, s.bounds.Size(), s.cfg)
 		if err != nil {
 			s.err = err
 			return err
@@ -126,8 +131,9 @@ func (s *VideoEncoder) WriteFrame(f Frame) error {
 	}
 	delay := max(f.Delay.Truncate(time.Millisecond), time.Millisecond)
 	if err := s.job.WriteFrame(s.streamable(img), delay); err != nil {
-		s.err = err
-		return err
+		// A write fails once the context kills the encode; say so.
+		s.err = cmp.Or(s.opts.ctx.Err(), err)
+		return s.err
 	}
 	s.frames++
 	return nil
@@ -217,7 +223,14 @@ func (s *VideoEncoder) Close() error {
 	s.done = true
 	if s.job != nil {
 		if s.err == nil {
+			s.err = s.opts.ctx.Err()
+		}
+		if s.err == nil {
 			s.err = s.job.Close()
+			if cerr := s.opts.ctx.Err(); cerr != nil && s.err != nil {
+				// The job failed because the context killed it.
+				s.err = cerr
+			}
 		} else {
 			s.job.Abort()
 		}

@@ -342,6 +342,10 @@ func (s *zoomStage) acquire(cf *reel.CellFrame) *zoomTarget {
 	scale := s.scale
 	if !s.scaleSet {
 		scale = max(1, fit(float64(base.X), float64(base.Y)))
+		if s.opts != nil {
+			// The cells cannot be drawn larger than the largest font.
+			scale = max(1, min(scale, render.MaxScale/s.base))
+		}
 	}
 	if scale == 1 {
 		return nil

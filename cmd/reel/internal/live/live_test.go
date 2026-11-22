@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"os"
 	"slices"
 	"strings"
@@ -274,5 +275,41 @@ func TestServeRejects(t *testing.T) {
 	err = Serve(context.Background(), Config{Dir: dir, Name: "../x", Cols: 10, Rows: 2, Command: []string{"sh"}})
 	if err == nil || !strings.Contains(err.Error(), "invalid session name") {
 		t.Errorf("bad name = %v", err)
+	}
+}
+
+// TestRequestTooLarge checks that the server answers a request past
+// MaxRequestBytes, such as an unterminated string, with an error rather
+// than reading it without end.
+func TestRequestTooLarge(t *testing.T) {
+	dir, done := serve(t, time.Minute)
+	conn, err := net.Dial("unix", Socket(dir, "sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	// The client never ends the string; it writes until the server hangs up.
+	go func() {
+		_, _ = conn.Write([]byte(`{"op":"type","text":"`))
+		chunk := bytes.Repeat([]byte("a"), 64<<10)
+		for range 2 * MaxRequestBytes / len(chunk) {
+			if _, werr := conn.Write(chunk); werr != nil {
+				return
+			}
+		}
+	}()
+	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	var resp Response
+	if err = json.NewDecoder(conn).Decode(&resp); err != nil {
+		t.Fatalf("reading the response: %v", err)
+	}
+	if resp.Code != CodeInvalid || !strings.Contains(resp.Error, "larger than 1048576 bytes") {
+		t.Errorf("response = %+v, want an invalid request that is too large", resp)
+	}
+	// The session still answers requests of a reasonable size.
+	call(t, dir, Request{Op: OpType, Text: strings.Repeat("a", 64<<10)})
+	call(t, dir, Request{Op: OpStop})
+	if err = <-done; err != nil {
+		t.Fatal(err)
 	}
 }

@@ -45,6 +45,10 @@ func fakeFFmpeg(args []string) int {
 		fmt.Fprintln(os.Stdout, "ffmpeg version 4.4.2-0ubuntu0.22.04.1 Copyright (c) 2000-2021 the FFmpeg developers")
 	case slices.Contains(args, "-encoders"):
 		fmt.Fprint(os.Stdout, "Encoders:\n V..... = Video\n ------\n V....D libx264              libx264 H.264\n A....D aac                  AAC\n")
+	case os.Getenv(fakeFFmpegEnv) == "hang":
+		// An encode that never finishes, as a slow one may seem to.
+		_, _ = io.Copy(io.Discard, os.Stdin)
+		time.Sleep(time.Hour)
 	default:
 		_, _ = io.Copy(io.Discard, io.LimitReader(os.Stdin, 1<<10))
 		fmt.Fprintln(os.Stderr, "fake ffmpeg: refusing to encode")

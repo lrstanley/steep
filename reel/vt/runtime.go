@@ -82,12 +82,12 @@ func WithUnknownSequence(fn func(UnknownSequence)) Option {
 }
 
 // WithKittyStorage sets how many bytes of decoded Kitty graphics the
-// terminal keeps, which a full reset restores. Zero turns Kitty graphics
-// off. The default is [DefaultKittyStorage]. Images are decoded in the
+// terminal keeps, at most [MaxKittyStorage], which a full reset restores.
+// Zero turns Kitty graphics off. The default is [DefaultKittyStorage]. Images are decoded in the
 // terminal's Wasm memory, which never shrinks, so a terminal whose memory grew
 // past 32 MiB is not returned to its pool when closed.
 func WithKittyStorage(n uint64) Option {
-	return func(cfg *openConfig) { cfg.kitty = n }
+	return func(cfg *openConfig) { cfg.kitty = min(n, MaxKittyStorage) }
 }
 
 // WithCursorBlink sets whether the cursor blinks by default: at the start,
@@ -118,12 +118,12 @@ func WithClock(now func() time.Duration) Option {
 	return func(cfg *openConfig) { cfg.clock = now }
 }
 
-// WithScrollbackLines sets the retained history cap for this terminal.
-// Negative n leaves the default in place.
+// WithScrollbackLines sets the retained history cap for this terminal, at
+// most [MaxScrollback]. Negative n leaves the default in place.
 func WithScrollbackLines(n int) Option {
 	return func(cfg *openConfig) {
 		if n >= 0 {
-			cfg.scrollback = n
+			cfg.scrollback = min(n, MaxScrollback)
 		}
 	}
 }

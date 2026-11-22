@@ -25,6 +25,7 @@ type Player struct {
 	header Header
 	events []Event
 	opts   []render.Option
+	limits Limits
 
 	r    *replay
 	rend *render.Renderer
@@ -42,9 +43,11 @@ type Player struct {
 
 // NewPlayer returns a Player of all of tl's events, before the first one is
 // applied. Its images are drawn with a renderer of opts, after the palette
-// of tl's header, as [Export] draws them.
-func NewPlayer(ctx context.Context, tl *Timeline, opts ...render.Option) (*Player, error) {
-	p := &Player{ctx: ctx, header: tl.header, events: tl.snapshot(), opts: renderOptions(tl.header, opts)}
+// of tl's header, as [Export] draws them. The terminal and images are held
+// to lim's [Limits.Cells] and [Limits.Pixels]: a larger terminal is an
+// error from NewPlayer or Seek, and a larger image one from Image.
+func NewPlayer(ctx context.Context, tl *Timeline, lim Limits, opts ...render.Option) (*Player, error) {
+	p := &Player{ctx: ctx, header: tl.header, events: tl.snapshot(), opts: renderOptions(tl.header, opts), limits: lim}
 	if err := p.rewind(); err != nil {
 		return nil, err
 	}
@@ -59,7 +62,7 @@ func (p *Player) rewind() error {
 		_ = p.r.close()
 		p.r = nil
 	}
-	r, err := newReplay(p.ctx, recordRuntime, p.header, 0, 0)
+	r, err := newReplay(p.ctx, recordRuntime, p.header, 0, 0, p.limits)
 	if err != nil {
 		return err
 	}
@@ -92,10 +95,8 @@ func (p *Player) Seek(n int) error {
 			}
 		}
 	}
+	// The replay stops once p.ctx is done.
 	for p.r.n < n {
-		if err := p.ctx.Err(); err != nil {
-			return err
-		}
 		if err := p.r.apply(p.events[p.r.n]); err != nil {
 			return err
 		}
@@ -165,7 +166,7 @@ func (p *Player) Prepare(limit int, budget time.Duration) (more bool, err error)
 			return true, nil
 		}
 		if p.build == nil {
-			if p.build, err = newReplay(p.ctx, recordRuntime, p.header, 0, 0, vt.WithSnapshots()); err != nil {
+			if p.build, err = newReplay(p.ctx, recordRuntime, p.header, 0, 0, p.limits, vt.WithSnapshots()); err != nil {
 				return false, err
 			}
 			// Start from the nearest checkpoint before the target.
@@ -324,6 +325,9 @@ func (p *Player) Image() (*image.NRGBA, error) {
 	}
 	f := p.Frame()
 	r := p.rend.Layout(f.Screen.Width(), f.Screen.Height()).Image
+	if err := p.limits.checkPixels(r); err != nil {
+		return nil, err
+	}
 	if p.img == nil || p.img.Rect != r {
 		p.img = image.NewNRGBA(r)
 	}

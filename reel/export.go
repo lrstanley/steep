@@ -48,7 +48,9 @@ import (
 // ".json" outputs hold; when every output is one of those, nothing is
 // drawn.
 //
-// Canceling ctx stops the export, which then writes nothing.
+// Canceling ctx stops the export soon after, encoding the outputs at the
+// end included. It then writes nothing, unless it was canceled while
+// finishing them, when the outputs already finished are kept.
 func Export(ctx context.Context, tl *Timeline, p Profile) error {
 	tl = tl.fixed(tl.header, -1)
 	_, to := tl.Window()
@@ -71,7 +73,7 @@ func Export(ctx context.Context, tl *Timeline, p Profile) error {
 		return err
 	}
 	done = true
-	return rec.commit(tl)
+	return rec.commit(ctx, tl)
 }
 
 // recorder writes a profile's outputs from timeline events fed to it one at
@@ -178,13 +180,13 @@ func (r *recorder) open(ctx context.Context, rt *vt.Runtime, tl *Timeline, live 
 			}
 			r.rast, r.closeRast = rend, true
 		}
-		err = r.outs.open()
+		err = r.outs.open(ctx)
 		if err != nil {
 			return err
 		}
 	}
 	from, _ := tl.Window()
-	if r.replay, err = newReplay(ctx, rt, tl.header, max(tl.from, 0), from); err != nil {
+	if r.replay, err = newReplay(ctx, rt, tl.header, max(tl.from, 0), from, r.s.limits); err != nil {
 		return err
 	}
 	if r.outs.hasStills(false) {
@@ -192,6 +194,10 @@ func (r *recorder) open(ctx context.Context, rt *vt.Runtime, tl *Timeline, live 
 	}
 	if r.rast == nil {
 		return nil
+	}
+	layout := r.rast.Layout(tl.header.Cols, tl.header.Rows)
+	if lerr := r.s.limits.checkPixels(layout.Image); lerr != nil {
+		return lerr
 	}
 	if live {
 		r.src, r.view = tl, newTimeline(tl.header)
@@ -202,7 +208,7 @@ func (r *recorder) open(ctx context.Context, rt *vt.Runtime, tl *Timeline, live 
 			Timeline:   tl,
 			Live:       live,
 			Rasterizer: r.rast,
-			Layout:     r.rast.Layout(tl.header.Cols, tl.header.Rows),
+			Layout:     layout,
 			Render:     opts,
 			Step:       r.s.step,
 			Speed:      r.s.speed,
@@ -227,7 +233,7 @@ func (r *recorder) open(ctx context.Context, rt *vt.Runtime, tl *Timeline, live 
 	if err != nil {
 		return err
 	}
-	r.pipe = newPipeline(r.rast, r.s, stages, r.outs.sink)
+	r.pipe = newPipeline(ctx, r.rast, r.s, stages, r.outs.sink)
 	r.replay.frame = r.pipe.record
 	return nil
 }
@@ -330,10 +336,8 @@ func drawnPalette(opts []render.Option) ([16]color.Color, error) {
 // end.
 func (r *recorder) replayAll(ctx context.Context, tl *Timeline, end time.Duration) error {
 	if r.replay != nil {
+		// The replay stops once ctx is done.
 		for _, ev := range tl.events {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
 			if err := r.apply(ev); err != nil {
 				return err
 			}
@@ -375,7 +379,10 @@ func (r *recorder) still(m Mark) error {
 	if len(sinks) == 0 {
 		return nil
 	}
-	f := r.drawCurrent(m.At())
+	f, err := r.drawCurrent(m.At())
+	if err != nil {
+		return err
+	}
 	if r.stills == nil {
 		return writeStill(sinks, f, r.s.step)
 	}
@@ -384,12 +391,16 @@ func (r *recorder) still(m Mark) error {
 }
 
 // drawCurrent draws the current terminal as a one-step frame at at.
-func (r *recorder) drawCurrent(at time.Duration) Frame {
+func (r *recorder) drawCurrent(at time.Duration) (Frame, error) {
 	cf := r.replay.current(at)
 	b := cf.Screen.Bounds()
-	img := image.NewNRGBA(r.rast.Layout(b.Dx(), b.Dy()).Image)
+	rect := r.rast.Layout(b.Dx(), b.Dy()).Image
+	if err := r.s.limits.checkPixels(rect); err != nil {
+		return Frame{}, err
+	}
+	img := image.NewNRGBA(rect)
 	r.rast.Draw(img, cf.Screen, cf.State, cf.At)
-	return Frame{Image: img, Cells: &cf, At: cf.At, Delay: r.s.step}
+	return Frame{Image: img, Cells: &cf, At: cf.At, Delay: r.s.step}, nil
 }
 
 // writeHeld runs effects on and writes the held stills whose span ends
@@ -502,12 +513,13 @@ func (r *recorder) end(end time.Duration) error {
 	return nil
 }
 
-// commit finishes every output, writing tl to the asciicast ones.
+// commit finishes every output, writing tl to the asciicast ones, and
+// stops once ctx is done.
 //
 // Effects whose marks tl lacks are left out of the asciicast outputs. When
 // no effects ran on frames to report those marks, commit reports them
 // itself.
-func (r *recorder) commit(tl *Timeline) error {
+func (r *recorder) commit(ctx context.Context, tl *Timeline) error {
 	report := r.effects == nil
 	var descs []Annotation
 	var missing []error
@@ -524,7 +536,7 @@ func (r *recorder) commit(tl *Timeline) error {
 	}
 	// Release the terminal first: writing a cut replays into one.
 	err := errors.Join(r.outs.close(), r.release(), errors.Join(missing...))
-	return errors.Join(err, r.outs.writeCasts(tl, r.castHdr, descs))
+	return errors.Join(err, r.outs.writeCasts(ctx, tl, r.castHdr, descs, r.s.limits))
 }
 
 func (r *recorder) abort() {

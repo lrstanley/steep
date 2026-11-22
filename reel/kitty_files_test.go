@@ -185,7 +185,7 @@ func TestKittyFilesSplit(t *testing.T) {
 	s = writeKittySession(t, []string{placed}, WithKittyFiles())
 	_ = s.Close()
 	back := readCast(t, writeCast(t, s.Timeline(), CastV3))
-	r, err := newReplay(t.Context(), replayRuntime, back.header, 0, 0)
+	r, err := newReplay(t.Context(), replayRuntime, back.header, 0, 0, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}

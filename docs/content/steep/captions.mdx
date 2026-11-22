@@ -91,7 +91,7 @@ steep.WithRecording(reel.Profile{
 })
 ```
 
-`AutoPause` is a reading time from the caption's words: 700ms and 260ms a word, at least 1.4s. `DefaultCaptionPause` also takes a fixed time. A pause is at most 5 minutes (`effects.MaxDuration`).
+`AutoPause` is a reading time from the caption's words: 700ms and 260ms a word, at least 1.4s and at most 5 minutes. `DefaultCaptionPause` also takes a fixed time. Pauses count toward the recording's playback limit, 10 minutes unless its profile raises it (see [Limits](/reel/exporting#limits)).
 
 A caption can set its own pause, which wins over the default:
 

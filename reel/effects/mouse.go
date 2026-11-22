@@ -97,8 +97,8 @@ func WithPointerStyle(s PointerStyle) MouseOption {
 
 // WithPointerSize sets the pointer's height in pixels, or its diameter for
 // [PointerDot]. Zero, the default, is a cell's height for an arrow, and
-// half a cell's height for a dot. Below zero is an error from
-// Start.
+// half a cell's height for a dot. Below zero or above [MaxSizePX] is an
+// error from Start.
 func WithPointerSize(px int) MouseOption {
 	return func(m *mouse) { m.size = px }
 }
@@ -201,8 +201,8 @@ func (e mouse) check() error {
 	switch {
 	case e.style < PointerArrow || e.style > PointerDot:
 		return fmt.Errorf("effects: pointer style %d out of range", e.style)
-	case e.size < 0:
-		return fmt.Errorf("effects: pointer size %d is below zero", e.size)
+	case e.size < 0 || e.size > MaxSizePX:
+		return fmt.Errorf("effects: pointer size %d is outside 0 to %d", e.size, MaxSizePX)
 	}
 	return nil
 }

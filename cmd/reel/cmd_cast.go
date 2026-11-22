@@ -44,9 +44,9 @@ func readCast(path string) (*reel.Timeline, error) {
 
 // writeCast writes tl to path as asciicast version v, or to standard output
 // for "-".
-func writeCast(tl *reel.Timeline, path string, v reel.CastVersion) error {
+func writeCast(ctx context.Context, tl *reel.Timeline, path string, v reel.CastVersion) error {
 	if path == "-" {
-		_, err := tl.WriteCast(os.Stdout, v)
+		_, err := tl.WriteCast(ctx, os.Stdout, v)
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
@@ -56,7 +56,7 @@ func writeCast(tl *reel.Timeline, path string, v reel.CastVersion) error {
 	if err != nil {
 		return err
 	}
-	_, err = tl.WriteCast(f, v)
+	_, err = tl.WriteCast(ctx, f, v)
 	return errors.Join(err, f.Close())
 }
 
@@ -110,7 +110,8 @@ func (c *ExportCmd) Run(ctx context.Context) error {
 
 // StillCmd renders one moment of an asciicast file.
 type StillCmd struct {
-	look.Look `embed:""`
+	look.Look  `embed:""`
+	LimitFlags `embed:""`
 
 	Cast   string         `arg:"" placeholder:"CAST" help:"Asciicast file (v2 or v3), or - for standard input."`
 	At     *time.Duration `name:"at" xor:"when" placeholder:"DUR" help:"The moment, from the start, such as 3.2s; defaults to the end."`
@@ -148,7 +149,11 @@ func (c *StillCmd) render(ctx context.Context, tl *reel.Timeline) error {
 	for _, w := range warnings {
 		warnf("%s", w)
 	}
-	p, err := reel.NewPlayer(ctx, tl, opts...)
+	lim, err := c.limits()
+	if err != nil {
+		return err
+	}
+	p, err := reel.NewPlayer(ctx, tl, lim, opts...)
 	if err != nil {
 		return err
 	}
@@ -216,7 +221,7 @@ type CutCmd struct {
 }
 
 // Run cuts the file.
-func (c *CutCmd) Run() error {
+func (c *CutCmd) Run(ctx context.Context) error {
 	if c.From == "" && c.To == "" {
 		return errors.New("give --from, --to, or both")
 	}
@@ -227,7 +232,7 @@ func (c *CutCmd) Run() error {
 	if tl, err = tl.Between(c.From, c.To); err != nil {
 		return err
 	}
-	return writeCast(tl, c.Output, reel.CastVersion(c.Version))
+	return writeCast(ctx, tl, c.Output, reel.CastVersion(c.Version))
 }
 
 // ConvertCmd converts an asciicast file between versions.
@@ -238,12 +243,12 @@ type ConvertCmd struct {
 }
 
 // Run converts the file.
-func (c *ConvertCmd) Run() error {
+func (c *ConvertCmd) Run(ctx context.Context) error {
 	tl, err := readCast(c.Cast)
 	if err != nil {
 		return err
 	}
-	return writeCast(tl, c.Output, reel.CastVersion(c.Version))
+	return writeCast(ctx, tl, c.Output, reel.CastVersion(c.Version))
 }
 
 // InfoCmd describes an asciicast file.

@@ -129,20 +129,27 @@ func decodeEffect[T any](build func(T) (reel.Effect, error)) func(jsontext.Value
 // millis is d rounded to whole milliseconds.
 func millis(d time.Duration) int64 { return d.Round(time.Millisecond).Milliseconds() }
 
-// MaxDuration is the longest duration an annotation can give an effect or
-// a caption, such as a pause, how long a card or a toast shows, or an ease.
-// Reading a longer one is an error, so a recording from someone else cannot
-// make an export play, or draw, for hours. Raise it before reading
-// recordings you trust that need longer.
-var MaxDuration = 5 * time.Minute
+// MaxSizePX is the largest size in pixels an effect's option takes: a
+// pointer's size ([WithPointerSize]), a pause badge's ([WithBadgeSize]), or
+// a highlight's [Outline] width or [Padding]. A larger one is an error from
+// Start, so a recording from someone else cannot make an effect allocate
+// gigabytes.
+const MaxSizePX = 1024
+
+// maxDuration is the longest duration an annotation can give an effect or
+// a caption, so arithmetic on it cannot overflow. How long an export plays
+// is bounded by [reel.Limits.Playback], which also bounds any one frame, so
+// a long pause or card from someone else's recording fails the export
+// rather than playing for hours.
+const maxDuration = 24 * time.Hour
 
 // fromMillis is ms milliseconds of annotation data, or an error above
-// [MaxDuration]. Below -MaxDuration, which fields read as none, it is
-// -MaxDuration, so it cannot overflow.
+// [maxDuration]. Below -maxDuration, which fields read as none, it is
+// -maxDuration, so it cannot overflow.
 func fromMillis(ms int64) (time.Duration, error) {
-	limit := MaxDuration.Milliseconds()
+	limit := maxDuration.Milliseconds()
 	if ms > limit {
-		return 0, fmt.Errorf("%dms is longer than effects.MaxDuration, %v", ms, MaxDuration)
+		return 0, fmt.Errorf("%dms is longer than %v", ms, maxDuration)
 	}
 	return time.Duration(max(ms, -limit)) * time.Millisecond, nil
 }

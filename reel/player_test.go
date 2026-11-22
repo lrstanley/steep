@@ -22,7 +22,7 @@ func TestPlayerSeek(t *testing.T) {
 		Output{event: at(20), Data: []byte("\r\ntwo")},
 		Resize{event: at(30), Cols: 40, Rows: 10},
 	)
-	p, err := NewPlayer(t.Context(), tl)
+	p, err := NewPlayer(t.Context(), tl, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,12 +129,12 @@ func TestPlayerPrepare(t *testing.T) {
 		evs = append(evs, Output{event: at(i * 10), Data: []byte(fmt.Sprintf("\r\nline %d", i))})
 	}
 	tl := testTimeline(t, evs...)
-	p, err := NewPlayer(t.Context(), tl)
+	p, err := NewPlayer(t.Context(), tl, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = p.Close() })
-	plain, err := NewPlayer(t.Context(), tl)
+	plain, err := NewPlayer(t.Context(), tl, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +226,7 @@ func TestPlayerCheckpoints(t *testing.T) {
 	out("end")
 	tl := testTimeline(t, evs...)
 
-	p, err := NewPlayer(t.Context(), tl)
+	p, err := NewPlayer(t.Context(), tl, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestPlayerCheckpoints(t *testing.T) {
 	if len(p.checkpoints) == 0 || len(p.skipped) == 0 {
 		t.Fatalf("%d checkpoints, %d skipped, want both: the alternate screen keeps marks", len(p.checkpoints), len(p.skipped))
 	}
-	plain, err := NewPlayer(t.Context(), tl)
+	plain, err := NewPlayer(t.Context(), tl, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}

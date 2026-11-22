@@ -97,7 +97,11 @@ func (s *pngSink) Close() error {
 	if s.last == nil {
 		return s.Discard()
 	}
-	if err := encodePNG(s.last, s.w, s.opts); err != nil {
+	if err := s.opts.ctx.Err(); err != nil {
+		_ = s.abort()
+		return err
+	}
+	if err := encodePNG(s.last, ctxWriter{ctx: s.opts.ctx, w: s.w}, s.opts); err != nil {
 		_ = s.abort()
 		return err
 	}

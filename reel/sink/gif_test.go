@@ -126,7 +126,9 @@ func TestOptimizeDisposalsMergesDurationDelays(t *testing.T) {
 			50 * time.Millisecond,
 		},
 	}
-	optimizeDisposals(rec)
+	if err := optimizeDisposals(t.Context(), rec); err != nil {
+		t.Fatal(err)
+	}
 
 	if len(rec.images) != 1 {
 		t.Fatalf("got %d frames, want 1 merged canvas-identical frame", len(rec.images))

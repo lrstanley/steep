@@ -125,6 +125,10 @@ func hintFor(err error) string {
 		return "a .cast output stores the raw recording, so redaction and cuts (--redact*, --hide, a tape's " +
 			"Hide or Redact) cannot apply to it; write the .cast in a separate run without them, or drop it"
 	}
+	if flag, ok := limitFlag(err); ok {
+		return "limits keep a recording or file from someone else from running for hours or using gigabytes; " +
+			"if you trust it, raise this one with " + flag + ", or set it to none"
+	}
 	return ""
 }
 

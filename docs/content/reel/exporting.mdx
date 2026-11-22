@@ -28,10 +28,11 @@ Every field but `Outputs` has a usable zero value. A profile holds no state, so 
 | `Encode` | Options for every frame output, from the [`sink` package](https://pkg.go.dev/getsteep.dev/steep/reel/sink). |
 | `Effects` | [Effects](/reel/effects), in any order. |
 | `FPS` | The delay grid: frames play whole steps of 10ms × max(1, 100/FPS). Zero means 20, and the most is 100. |
-| `Speed` | Playback speed. 2 plays twice as fast, and zero means 1. |
+| `Speed` | Playback speed. 2 plays twice as fast, and zero means 1. A slow speed stretches the playback, which counts toward [`Limits.Playback`](#limits). |
 | `Title` | Names the recording, for cards and `.cast` outputs. Defaults to the timeline's. |
 | `Meta` | Passed to effects in `Context.Meta`. reel never reads it. |
 | `Vars` | Extra path variables. |
+| `Limits` | How long the output may play, and how large its terminal and frames may get. See [Limits](#limits). |
 
 `FPS` isn't a frame rate in the usual sense. Frames aren't drawn at a fixed rate: each visible change is a frame, ending on the step nearest its time. Of the changes on one step, only the newest shows.
 
@@ -55,7 +56,36 @@ Missing directories are created. Each output is written to a temporary file and 
 - All outputs are checked and created before any frame is drawn, so a missing ffmpeg fails at once.
 - A mark the profile looks for that the window doesn't have doesn't stop the export. The outputs are written, and `Export` then returns a `NoMarkError` for each. `reel.MissingMarks(err)` separates them from other errors.
 - A profile with a concealer or a cutter, plus a `.cast` output, returns `ErrRawOutput` before anything's written.
-- Canceling `ctx` stops the export, which then writes nothing.
+- Going over a [limit](#limits) returns a `*LimitError`, and nothing is written.
+- Canceling `ctx` stops the export within moments, even while it encodes the outputs at the end. It then writes nothing, except for the outputs it had already finished, when canceled while finishing them.
+
+## Limits
+
+A timeline can come from someone else, such as a `.cast` file or a tape, so an export is held to limits that keep it from playing for hours or using gigabytes. The defaults are well above what a demo or a test needs. Going over one returns a `*reel.LimitError`, which names the limit and wraps `reel.ErrLimit`.
+
+| `Limits` field | Bounds | Default |
+| --- | --- | --- |
+| `Playback` | How long the output plays: the timeline scaled by `Speed`, footage `Hide` cuts included, plus the pauses and cards effects add. No single frame may be longer either. | 10 minutes |
+| `Cells` | The terminal's columns times rows, from the header and each resize | 250,000, such as 1000×250 |
+| `Pixels` | One frame, with the window, padding, and margin, checked before it's drawn | 4096×4096 |
+
+A zero field is its default, and a negative one sets no limit, for timelines you trust:
+
+```go
+p := reel.Profile{
+	Outputs: reel.MustFiles("long.mp4"),
+	Limits:  reel.Limits{Playback: time.Hour, Pixels: -1},
+}
+```
+
+`reel.NewPlayer` takes limits too, for its terminal and images.
+
+Some sizes are fixed caps, since nothing needs more:
+
+- The terminal keeps at most 100,000 lines of scrollback (`vt.MaxScrollback`) and 64 MiB of Kitty images (`vt.MaxKittyStorage`). A larger setting is lowered to the cap.
+- Render options take pixel lengths, such as padding, up to 4096 (`render.MaxPx`), and a scale up to 32 (`render.MaxScale`).
+- Effects take pixel sizes, such as a pointer's, up to 1024 (`effects.MaxSizePX`).
+- A duration read from an annotation is at most a day, and plays only as long as `Playback` allows.
 
 ## Stills and cuts
 

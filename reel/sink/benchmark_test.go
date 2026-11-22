@@ -142,7 +142,7 @@ func BenchmarkOptimizeDisposals(b *testing.B) {
 			rec.images[i] = gifopt.Clone(frame)
 			rec.delays[i] = 50 * time.Millisecond
 		}
-		optimizeDisposals(rec)
+		_ = optimizeDisposals(b.Context(), rec)
 	}
 }
 

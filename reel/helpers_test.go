@@ -46,15 +46,19 @@ func (*fakeAnimator) Repaint(dst *image.NRGBA, _ vt.Screen, _ vt.State, _, at ti
 }
 
 // collectSink records the frames it is given, with copies of their images
-// in images.
+// in images. If err is set, every write fails with it instead.
 type collectSink struct {
 	frames    []sink.Frame
 	images    []*image.NRGBA
 	closed    bool
 	discarded bool
+	err       error
 }
 
 func (s *collectSink) WriteFrame(f sink.Frame) error {
+	if s.err != nil {
+		return s.err
+	}
 	src, ok := f.Image.(*image.NRGBA)
 	if !ok {
 		return fmt.Errorf("frame image is %T", f.Image)

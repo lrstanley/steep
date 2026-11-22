@@ -74,6 +74,8 @@ type Session struct {
 	// source is [WithSource], skipping the packages of sourceSkip.
 	source     bool
 	sourceSkip []string
+	// limits bound the terminal's size on Resize.
+	limits Limits
 	// painted is set once the program has painted (see [Session.WaitPainted]),
 	// and drew once its output has changed what a paint changes, while
 	// synchronized output may still hold it. Both are guarded by mu.
@@ -108,11 +110,14 @@ type sessionConfig struct {
 	// source is [WithSource], and sourceSkip [WithSourceSkip].
 	source     bool
 	sourceSkip []string
+	// limits is [WithLimits].
+	limits Limits
 }
 
 // WithKittyStorage sets how many bytes of decoded Kitty graphics the
-// terminal keeps (see [vt.WithKittyStorage]). It is written to the
-// timeline's header, so replays match. Zero leaves vt's default.
+// terminal keeps, at most [vt.MaxKittyStorage] (see [vt.WithKittyStorage]).
+// It is written to the timeline's header, so replays match. Zero leaves
+// vt's default.
 func WithKittyStorage(n uint64) SessionOption {
 	return func(cfg *sessionConfig) { cfg.kittyStorage = n }
 }
@@ -147,8 +152,16 @@ func WithRuntime(rt *vt.Runtime) SessionOption {
 	}
 }
 
-// WithScrollback sets how many lines of history the terminal keeps. Zero keeps
-// none. A negative count keeps the default of 1000. It is recorded in the
+// WithLimits holds the terminal to l's [Limits.Cells], when it opens and on
+// each [Session.Resize], so a tape or a request from someone else cannot
+// make it gigabytes. Its other limits are an export's, from its [Profile].
+func WithLimits(l Limits) SessionOption {
+	return func(cfg *sessionConfig) { cfg.limits = l }
+}
+
+// WithScrollback sets how many lines of history the terminal keeps, at most
+// [vt.MaxScrollback]. Zero keeps none. A negative count keeps the default of
+// 1000. It is recorded in the
 // timeline's [Header]; [Session.SetScrollbackSize] changes it later.
 func WithScrollback(lines int) SessionOption {
 	return func(cfg *sessionConfig) {
@@ -251,6 +264,9 @@ func Open(ctx context.Context, cols, rows int, opts ...SessionOption) (*Session,
 			opt(&cfg)
 		}
 	}
+	if err := cfg.limits.checkCells(cols, rows); err != nil {
+		return nil, err
+	}
 	var timeline *Timeline
 	term, err := cfg.runtime.Open(ctx, cols, rows,
 		vt.WithScrollbackLines(cfg.scrollback),
@@ -279,7 +295,7 @@ func Open(ctx context.Context, cols, rows int, opts ...SessionOption) (*Session,
 		term: term, timeline: timeline, done: make(chan struct{}),
 		scrollOnInput: cfg.scrollOnInput, noQueries: cfg.noQueries, noONLCR: cfg.noONLCR,
 		typingDelay: cfg.typingDelay,
-		source:      cfg.source, sourceSkip: cfg.sourceSkip,
+		source:      cfg.source, sourceSkip: cfg.sourceSkip, limits: cfg.limits,
 	}
 	if cfg.kittyFiles {
 		s.kittyFiles = newKittyFiles(cmp.Or(cfg.kittyStorage, vt.DefaultKittyStorage))
@@ -504,10 +520,13 @@ func (s *Session) ClearScrollback() error {
 // Resize resizes the terminal to cols by rows and appends a [Resize] event.
 // While an [Exec] process runs, its pseudo-terminal is resized too; an
 // error doing so is returned after the terminal is resized and the event
-// appended.
+// appended. A size over the session's [WithLimits] is a [LimitError].
 func (s *Session) Resize(cols, rows int) error {
 	var ptyErr error
 	err := s.change(func() (Event, error) {
+		if err := s.limits.checkCells(cols, rows); err != nil {
+			return nil, err
+		}
 		if err := s.term.Resize(cols, rows); err != nil {
 			return nil, err
 		}

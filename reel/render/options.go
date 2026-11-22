@@ -18,6 +18,14 @@ import (
 // Option configures a [Renderer] at construction time via [New] or [MustNew] only.
 type Option func(*Renderer) error
 
+// MaxScale is the largest [WithScale], a 576px font.
+const MaxScale = config.MaxScale
+
+// MaxPx is the longest pixel length an option takes, such as [WithPadding]
+// or [WithMargin]. Longer ones are an error from [New], so a size read from
+// a file cannot make the layout overflow.
+const MaxPx = config.MaxPx
+
 // WithCellWidth adjusts the base value of the cell width (clamped -1,1), as a
 // percentage of the default value.
 func WithCellWidth(adjust float64) Option {
@@ -152,7 +160,8 @@ func WithIconHeightSingle(scale float64) Option {
 // at 96 DPI (18px). Use 2 for twice the pixels in each direction.
 //
 // Fixed pixel lengths ([WithPadding], [WithMargin], [WithBorderRadius],
-// [WithProgressBarHeight], and so on) do not scale with it. Must be > 0.
+// [WithProgressBarHeight], and so on) do not scale with it. Must be above 0
+// and at most [MaxScale].
 func WithScale(scale float64) Option {
 	return func(d *Renderer) error {
 		v, err := config.ParseScale(scale)

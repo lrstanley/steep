@@ -72,15 +72,20 @@ func lex(file, src string) ([]Token, []error) {
 		errs []error
 	)
 	line, lineStart := 1, 0
+	// end is the index of the end of the line i is on, found again only
+	// once i passes it, so a long line is scanned once rather than once a
+	// byte.
+	end := -1
 	for i := 0; i < len(src); {
 		c := src[i]
 		pos := Pos{File: file, Line: line, Col: i - lineStart + 1}
-		// end is the index of the end of the line.
-		end := strings.IndexAny(src[i:], "\r\n")
-		if end < 0 {
-			end = len(src)
-		} else {
-			end += i
+		if i > end {
+			end = strings.IndexAny(src[i:], "\r\n")
+			if end < 0 {
+				end = len(src)
+			} else {
+				end += i
+			}
 		}
 		switch {
 		case c == '\n':

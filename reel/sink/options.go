@@ -5,6 +5,7 @@
 package sink
 
 import (
+	"context"
 	"fmt"
 	"image/color"
 
@@ -73,13 +74,15 @@ type options struct {
 	fullChroma bool
 	// drivers is nil for the default, [FFmpeg] on PATH.
 	drivers []Driver
+	// ctx is [WithContext]'s, never nil once collected.
+	ctx context.Context
 }
 
 // collectOptions applies opts over the default optimize flags without
 // validating them: each output checks only the options it reads
 // ([gifOptions], [videoOptions]).
 func collectOptions(optimize OptimizeFlags, opts []Option) options {
-	cfg := options{optimize: optimize}
+	cfg := options{optimize: optimize, ctx: context.Background()}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&cfg)
@@ -110,6 +113,17 @@ func (o options) validateLoopCount() error {
 		return fmt.Errorf("sink: WithLoopCount %d out of range [%d, %d]", o.loopCount, LoopOnce, maxGIFLoopCount)
 	}
 	return nil
+}
+
+// WithContext bounds an encode by ctx: once it is done, writes, and Close
+// with the encoding it does, stop soon after with its error, and nothing is
+// written. A nil ctx is [context.Background].
+func WithContext(ctx context.Context) Option {
+	return func(cfg *options) {
+		if ctx != nil {
+			cfg.ctx = ctx
+		}
+	}
 }
 
 // WithOptimize sets the optimization flags, replacing any earlier

@@ -197,3 +197,34 @@ func TestParseVHSExamples(t *testing.T) {
 		t.Errorf("parsed %d example tapes, want VHS's 100 or more", n)
 	}
 }
+
+// TestLexLongLine checks that a long line is lexed in linear time: the end
+// of the line used to be found again for every byte of whitespace, so 4 MiB
+// of spaces took trillions of steps.
+func TestLexLongLine(t *testing.T) {
+	t.Parallel()
+	src := "Type" + strings.Repeat(" ", 4<<20) + `"x"` + strings.Repeat("\t", 4<<20) + "\nEnter"
+	done := make(chan []Token, 1)
+	go func() {
+		toks, errs := lex("long.tape", src)
+		if len(errs) > 0 {
+			t.Error(errs)
+		}
+		done <- toks
+	}()
+	select {
+	case toks := <-done:
+		var got []string
+		for _, tok := range toks {
+			got = append(got, tok.Text)
+		}
+		if want := []string{"Type", "x", "Enter", ""}; !slices.Equal(got, want) {
+			t.Errorf("tokens = %q, want %q", got, want)
+		}
+		if toks[2].Pos.Line != 2 {
+			t.Errorf("Enter is on line %d, want 2", toks[2].Pos.Line)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("lexing an 8 MiB line took over 10s")
+	}
+}

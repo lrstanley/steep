@@ -5,6 +5,7 @@
 package native
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -27,7 +28,9 @@ func (driver) Check(format sink.Format, _ sink.VideoConfig) error {
 	return nil
 }
 
-func (d driver) Start(out *os.File, format sink.Format, size image.Point, cfg sink.VideoConfig) (sink.Job, error) {
+// Start begins a WebP encode. It ignores ctx, as it encodes each frame in
+// WriteFrame, between which the [sink.VideoEncoder] checks it.
+func (d driver) Start(_ context.Context, out *os.File, format sink.Format, size image.Point, cfg sink.VideoConfig) (sink.Job, error) {
 	if err := d.Check(format, cfg); err != nil {
 		return nil, err
 	}

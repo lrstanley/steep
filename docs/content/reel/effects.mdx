@@ -68,7 +68,7 @@ Without its `from` mark, an effect never comes on, and without its `to` mark, it
 
 A `.cast` output skips the effects, since it's the raw recording. Most effects are recorded in it as annotations, so [an export of the file](/reel/exporting#re-exporting-from-cast) applies them again. `Hide`, `Redact`, and `RedactInputs` can't be combined with a `.cast` output at all, so write that in a separate run.
 
-A recording can come from someone else, so a duration read from one, such as a pause, how long a card or a toast shows, or an ease, is at most `effects.MaxDuration`, 5 minutes unless you raise it, and a longer one is an error. The same goes for [captions](/reel/captions).
+A recording can come from someone else, so how long its effects play is held to the export's [`Limits.Playback`](/reel/exporting#limits), 10 minutes unless you raise it. A long pause or card from someone else's file fails the export rather than playing for hours. The same goes for [captions](/reel/captions). A pixel size read from a file, such as a pointer's, is at most 1024 (`effects.MaxSizePX`).
 
 ## Keys
 

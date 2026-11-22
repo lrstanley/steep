@@ -5,6 +5,7 @@
 package sink
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -84,7 +85,7 @@ func (d ffmpegDriver) Check(format Format, _ VideoConfig) error {
 	return err
 }
 
-func (d ffmpegDriver) Start(out *os.File, format Format, size image.Point, cfg VideoConfig) (Job, error) {
+func (d ffmpegDriver) Start(ctx context.Context, out *os.File, format Format, size image.Point, cfg VideoConfig) (Job, error) {
 	info, p, encoder, err := d.find(format)
 	if err != nil {
 		return nil, err
@@ -94,7 +95,7 @@ func (d ffmpegDriver) Start(out *os.File, format Format, size image.Point, cfg V
 		return nil, cerr
 	}
 	j := &ffmpegJob{format: format, path: out.Name(), size: size, cfg: cfg}
-	j.job, err = ffmpeg.Start(info.Path, ffmpegArgs(info, p, encoder, cfg, out.Name()))
+	j.job, err = ffmpeg.Start(ctx, info.Path, ffmpegArgs(info, p, encoder, cfg, out.Name()))
 	if err != nil {
 		return nil, err
 	}

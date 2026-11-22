@@ -45,7 +45,7 @@ func DimOthers(factor float64) HighlightOption {
 // Outline draws a border px pixels wide around each rectangle of cells the
 // [Highlight] region covers, outside its [Padding]. A nil c is a warm
 // yellow. A px of zero is an eighth of a cell's height, at least 1. A px
-// below zero is an error from Start.
+// below zero or above [MaxSizePX] is an error from Start.
 func Outline(c color.Color, px int) HighlightOption {
 	return highlightOption(func(h *highlight) {
 		h.outline, h.outlinePx = outlineColor, px
@@ -60,7 +60,8 @@ func Outline(c color.Color, px int) HighlightOption {
 // [Outline] drawn outside them. Zero means no padding, so the outline sits
 // against the cells. The default is a third of a cell's width, at least 1.
 // Near the edges of the image, the padding shrinks so the outline still
-// fits, but never into the cells. A px below zero is an error from Start.
+// fits, but never into the cells. A px below zero or above [MaxSizePX] is
+// an error from Start.
 func Padding(px int) HighlightOption {
 	return highlightOption(func(h *highlight) { h.pad, h.padSet = px, true })
 }
@@ -101,10 +102,10 @@ func (e highlight) Start(ctx *reel.Context) (reel.Stage, error) {
 		return nil, errors.New("effects: highlight without a region")
 	case e.dim < 0 || e.dim > 1 || math.IsNaN(e.dim):
 		return nil, fmt.Errorf("effects: highlight dim %v is outside 0 to 1", e.dim)
-	case e.outlinePx < 0:
-		return nil, fmt.Errorf("effects: highlight outline width %d is below zero", e.outlinePx)
-	case e.pad < 0:
-		return nil, fmt.Errorf("effects: highlight padding %d is below zero", e.pad)
+	case e.outlinePx < 0 || e.outlinePx > MaxSizePX:
+		return nil, fmt.Errorf("effects: highlight outline width %d is outside 0 to %d", e.outlinePx, MaxSizePX)
+	case e.pad < 0 || e.pad > MaxSizePX:
+		return nil, fmt.Errorf("effects: highlight padding %d is outside 0 to %d", e.pad, MaxSizePX)
 	}
 	w, err := e.timing.start(ctx, easeAfterMark)
 	if err != nil {

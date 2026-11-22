@@ -6,6 +6,7 @@ package config_test
 
 import (
 	"image/color"
+	"math"
 	"testing"
 
 	"getsteep.dev/steep/reel/render/internal/config"
@@ -100,6 +101,43 @@ func TestParseIconHeightScale(t *testing.T) {
 		t.Fatal("ParseIconHeightScale(-0.1) error = nil, want error")
 	}
 }
+
+// TestParseBounds checks that pixel lengths and scales past their maxima
+// are errors, so the layout's arithmetic cannot overflow.
+func TestParseBounds(t *testing.T) {
+	t.Parallel()
+
+	for name, err := range map[string]error{
+		"positive px":  second(config.ParsePositivePx(config.MaxPx+1, "padding")),
+		"required px":  second(config.ParseRequiredPx(config.MaxPx+1, "cursor thickness")),
+		"scale":        second(config.ParseScale(config.MaxScale + 0.5)),
+		"scale NaN":    second(config.ParseScale(math.NaN())),
+		"icon height":  second(config.ParseIconHeightScale(config.MaxIconHeightScale + 1)),
+		"icon NaN":     second(config.ParseIconHeightScale(math.NaN())),
+		"negative px":  second(config.ParsePositivePx(-1, "padding")),
+		"zero px":      second(config.ParseRequiredPx(0, "cursor thickness")),
+		"zero scale":   second(config.ParseScale(0)),
+		"infinite":     second(config.ParseScale(math.Inf(1))),
+		"negative ico": second(config.ParseIconHeightScale(-1)),
+	} {
+		if err == nil {
+			t.Errorf("%s: no error", name)
+		}
+	}
+	for name, err := range map[string]error{
+		"positive px": second(config.ParsePositivePx(config.MaxPx, "padding")),
+		"required px": second(config.ParseRequiredPx(config.MaxPx, "cursor thickness")),
+		"scale":       second(config.ParseScale(config.MaxScale)),
+		"icon height": second(config.ParseIconHeightScale(config.MaxIconHeightScale)),
+	} {
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+// second returns the error of a value and an error.
+func second[T any](_ T, err error) error { return err }
 
 func TestBoxThicknessOverride(t *testing.T) {
 	t.Parallel()

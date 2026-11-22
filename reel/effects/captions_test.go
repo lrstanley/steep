@@ -44,8 +44,8 @@ func TestNewCaptionErrors(t *testing.T) {
 		"caption spotlight":    {make: func() (reel.Annotation, error) { return NewCaption("x", Spotlight()) }},
 		"negative for":         {make: func() (reel.Annotation, error) { return NewCaption("x", CaptionFor(-ms)) }},
 		"negative pause":       {make: func() (reel.Annotation, error) { return NewCaption("x", CaptionPause(-5*ms)) }},
-		"long pause":           {make: func() (reel.Annotation, error) { return NewCaption("x", CaptionPause(6*time.Minute)) }},
-		"long for":             {make: func() (reel.Annotation, error) { return NewCaption("x", CaptionFor(6*time.Minute)) }},
+		"long pause":           {make: func() (reel.Annotation, error) { return NewCaption("x", CaptionPause(25*time.Hour)) }},
+		"long for":             {make: func() (reel.Annotation, error) { return NewCaption("x", CaptionFor(25*time.Hour)) }},
 		"nil anchor":           {make: func() (reel.Annotation, error) { return NewCallout(nil, "x") }},
 		"nil regexp anchor":    {make: func() (reel.Annotation, error) { return NewCallout(region.Regexp(nil), "x") }},
 		"custom anchor":        {make: func() (reel.Annotation, error) { return NewCallout(customRegion{}, "x") }, unsupported: true},
@@ -145,7 +145,7 @@ func TestReadingTime(t *testing.T) {
 		{[]string{"one"}, 1400 * ms},
 		{[]string{"one two three"}, 1480 * ms},
 		{[]string{"a b c d e", "f g h i j"}, 3300 * ms},
-		{[]string{strings.Repeat("word ", 2000)}, MaxDuration},
+		{[]string{strings.Repeat("word ", 2000)}, maxReadingTime},
 	} {
 		if got := readingTime(tc.lines); got != tc.want {
 			t.Errorf("readingTime(%q) = %v, want %v", tc.lines, got, tc.want)

@@ -21,6 +21,11 @@ import (
 // [WithScrollbackLines] says otherwise.
 const DefaultScrollback = 1000
 
+// MaxScrollback is the most lines of history a terminal keeps. A larger cap
+// is lowered to it, so a recording from someone else cannot fill the
+// terminal's memory with history.
+const MaxScrollback = 100_000
+
 const (
 	defaultCellWidth  = 10
 	defaultCellHeight = 20
@@ -702,18 +707,16 @@ func (t *Terminal) scroll(next func(cur int) int) error {
 	return nil
 }
 
-// SetScrollbackMaxLines sets the retained history cap. Zero disables it.
-// A later positive cap enables history again. Reset keeps the cap.
+// SetScrollbackMaxLines sets the retained history cap, at most
+// [MaxScrollback]. Zero disables it. A later positive cap enables history
+// again. Reset keeps the cap.
 func (t *Terminal) SetScrollbackMaxLines(n int) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.idle {
 		return errClosed
 	}
-	if n < 0 {
-		n = 0
-	}
-	t.scrollbackLines = n
+	t.scrollbackLines = min(max(n, 0), MaxScrollback)
 	return t.applyScrollbackLocked()
 }
 

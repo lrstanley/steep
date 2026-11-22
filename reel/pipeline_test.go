@@ -111,7 +111,7 @@ func TestPipelineStages(t *testing.T) {
 			t.Parallel()
 			var log []string
 			out := &collectSink{}
-			p := newPipeline(testutil.Rasterizer{}, settings{step: 50 * ms, speed: 1}, tc.stages(&log), out)
+			p := newPipeline(t.Context(), testutil.Rasterizer{}, settings{step: 50 * ms, speed: 1}, tc.stages(&log), out)
 			for i := range tc.frames {
 				cf := cellsOf(1, 1, "", 0)
 				p.push(0, Frame{Image: labelImage(uint8(i + 1)), Cells: &cf, Delay: time.Second})
@@ -189,7 +189,7 @@ func TestPipelineDelays(t *testing.T) {
 			t.Fatal(err)
 		}
 		out := &collectSink{}
-		p := newPipeline(testutil.Rasterizer{}, s, nil, out)
+		p := newPipeline(t.Context(), testutil.Rasterizer{}, s, nil, out)
 		for _, at := range tc.at {
 			if err = p.record(cellsOf(1, 1, "", at)); err != nil {
 				t.Fatal(err)
@@ -222,7 +222,7 @@ func TestPipelineSweep(t *testing.T) {
 		{"spin", 2, 20},
 	} {
 		out := &collectSink{}
-		p := newPipeline(&fakeAnimator{}, settings{step: 10 * ms, speed: tc.speed}, nil, out)
+		p := newPipeline(t.Context(), &fakeAnimator{}, settings{step: 10 * ms, speed: tc.speed}, nil, out)
 		start := 1000 * time.Second
 		if err := p.record(cellsOf(2, 1, tc.title, start)); err != nil {
 			t.Fatal(err)
@@ -253,7 +253,7 @@ func TestPipelineReusesImages(t *testing.T) {
 	t.Parallel()
 	rast := testutil.Rasterizer{}
 	out := &collectSink{}
-	p := newPipeline(rast, settings{step: 10 * ms, speed: 1}, nil, out)
+	p := newPipeline(t.Context(), rast, settings{step: 10 * ms, speed: 1}, nil, out)
 	for i := range 10 {
 		cf := cellsOf(3, 1, "", time.Duration(i)*100*ms)
 		cf.Screen.SetCell(0, 0, &vt.Cell{Content: string(rune('a' + i)), Width: 1})
@@ -294,7 +294,7 @@ func TestPipelineSweepRenderer(t *testing.T) {
 		{"\x1b]9;4;1;50\x07", 1},
 	} {
 		var r *replay
-		if r, err = newReplay(t.Context(), replayRuntime, Header{Cols: 20, Rows: 3}, 0, 0); err != nil {
+		if r, err = newReplay(t.Context(), replayRuntime, Header{Cols: 20, Rows: 3}, 0, 0, Limits{}); err != nil {
 			t.Fatal(err)
 		}
 		if err = r.apply(outAt(0, "busy"+tc.seq)); err != nil {
@@ -307,7 +307,7 @@ func TestPipelineSweepRenderer(t *testing.T) {
 		_ = r.close()
 
 		out := &collectSink{}
-		p := newPipeline(rend, settings{step: 10 * ms, speed: 1}, nil, out)
+		p := newPipeline(t.Context(), rend, settings{step: 10 * ms, speed: 1}, nil, out)
 		if err = p.record(cf); err != nil {
 			t.Fatal(err)
 		}

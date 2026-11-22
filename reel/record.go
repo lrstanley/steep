@@ -91,7 +91,7 @@ func (r *Recording) run(ctx context.Context, tl *Timeline, rec *recorder) error 
 				return err
 			}
 			done = true
-			return rec.commit(fixed)
+			return rec.commit(ctx, fixed)
 		}
 		select {
 		case <-updated:

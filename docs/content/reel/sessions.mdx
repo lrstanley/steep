@@ -89,12 +89,13 @@ text, err = s.WaitSettle(ctx, 200*time.Millisecond, reel.SettleOnly(region.Rows(
 | `WithTitle(title)` | Names the recording |
 | `WithTypingDelay(d)` | Pauses after each key press, so a recording shows typing |
 | `WithSkipPristine()` | Skips the bare terminal before the first paint and after the last, for programs that write queries first or clear the screen as they exit, as Bubble Tea does |
-| `WithScrollback(lines)` | Sets how much history is kept |
+| `WithScrollback(lines)` | Sets how much history is kept, at most 100,000 lines |
 | `WithScrollOnInput(enabled)` | Sets whether input scrolls a scrolled viewport back down |
 | `WithSource(enabled)`, `WithSourceSkip(pkgs...)` | Records where in Go source each mark and annotation came from |
 | `WithoutQueries()` | Leaves out query annotations |
 | `WithCellSize(w, h)` | Sets the pixel size of a cell that programs read |
-| `WithKittyFiles()`, `WithKittyStorage(n)` | Controls Kitty graphics |
+| `WithKittyFiles()`, `WithKittyStorage(n)` | Controls Kitty graphics. Storage is at most 64 MiB. |
+| `WithLimits(l)` | Holds the terminal to `l.Cells`, at the start and on each `Resize`; zero is the default of 250,000 cells (see [limits](/reel/exporting#limits)) |
 | `WithRuntime(rt)` | Opens the terminal from your own pool |
 | `WithUnknownSequence(fn)` | Calls `fn` with sequences the terminal drops |
 | `WithControlStrings(fn)` | Calls `fn` with every APC, DCS, OSC, SOS, and PM string the program writes. See [Control strings](/reel/terminal-features#control-strings). |

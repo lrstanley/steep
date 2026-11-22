@@ -44,13 +44,14 @@ const castTermType = "xterm-ghostty"
 
 var _ io.WriterTo = (*Timeline)(nil)
 
-// WriteTo is [Timeline.WriteCast] with [CastV2].
+// WriteTo is [Timeline.WriteCast] with [CastV2], which cannot be canceled.
 func (t *Timeline) WriteTo(w io.Writer) (int64, error) {
-	return t.WriteCast(w, CastV2)
+	return t.WriteCast(context.Background(), w, CastV2)
 }
 
 // WriteCast writes the events appended so far to w as asciicast version v,
 // and returns the number of bytes written. [ReadTimeline] reads it back.
+// Canceling ctx stops the replay a cut takes, below.
 //
 // A timeline from [Timeline.Between] is written as just its window: the
 // events before it are replaced by one output event that redraws the screen
@@ -59,7 +60,9 @@ func (t *Timeline) WriteTo(w io.Writer) (int64, error) {
 // at the window's start, and times and the header timestamp count from it.
 // Only the visible screen is redrawn, so a cut that starts on the alternate
 // screen and later leaves it shows a blank primary screen; [Export] of the
-// cut is unaffected.
+// cut is unaffected. Replaying the events before the window into a
+// terminal larger than the default [Limits.Cells] is an error; an [Export]
+// to an asciicast file can raise it.
 //
 // Times are written exactly in whole milliseconds; v3 intervals sum to the
 // absolute times, so long recordings do not drift.
@@ -88,21 +91,24 @@ func (t *Timeline) WriteTo(w io.Writer) (int64, error) {
 // player that writes it to its own terminal, such as "asciinema play", only
 // shows it correctly at the same size; asciinema-player sizes its terminal
 // from the file, so it is unaffected.
-func (t *Timeline) WriteCast(w io.Writer, v CastVersion) (int64, error) {
+func (t *Timeline) WriteCast(ctx context.Context, w io.Writer, v CastVersion) (int64, error) {
 	if v != CastV3 && v != CastV2 {
 		return 0, fmt.Errorf("reel: unknown asciicast version %d", v)
 	}
 	if t.from >= 0 {
-		c, err := t.cut()
+		c, err := t.cut(ctx, Limits{})
 		if err != nil {
 			return 0, err
 		}
-		return c.WriteCast(w, v)
+		return c.WriteCast(ctx, w, v)
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, err
 	}
 	events := t.snapshot()
 	start := t.started()
 
-	cw := &countWriter{w: w}
+	cw := &countWriter{ctx: ctx, w: w}
 	bw := bufio.NewWriter(cw)
 	aw, err := asciicast.NewWriter(bw, castHeaderOf(t.header, start, v))
 	if err == nil {
@@ -116,8 +122,9 @@ func (t *Timeline) WriteCast(w io.Writer, v CastVersion) (int64, error) {
 
 // cut returns t's window as a standalone timeline, with the events before
 // it collapsed into a redraw (and theme/focus events) at offset zero, as
-// [Timeline.WriteCast] describes.
-func (t *Timeline) cut() (*Timeline, error) {
+// [Timeline.WriteCast] describes. The terminal the events before the window
+// are replayed into must be within lim.
+func (t *Timeline) cut(ctx context.Context, lim Limits) (*Timeline, error) {
 	events := t.snapshot()
 	h, start := t.header, t.started()
 	from := max(t.from, 0)
@@ -125,7 +132,7 @@ func (t *Timeline) cut() (*Timeline, error) {
 	at := window[0].At()
 	out := make([]Event, 0, len(window)+3)
 	if len(before) > 0 {
-		r, err := newReplay(context.Background(), replayRuntime, h, from, 0)
+		r, err := newReplay(ctx, replayRuntime, h, from, 0, lim)
 		if err != nil {
 			return nil, err
 		}
@@ -269,13 +276,17 @@ func writeCastEvents(aw *asciicast.Writer, events []Event) error {
 	return nil
 }
 
-// countWriter counts the bytes written through it.
+// countWriter counts the bytes written through it, until ctx is done.
 type countWriter struct {
-	w io.Writer
-	n int64
+	ctx context.Context //nolint:containedctx // io.Writer takes none.
+	w   io.Writer
+	n   int64
 }
 
 func (cw *countWriter) Write(p []byte) (int, error) {
+	if err := cw.ctx.Err(); err != nil {
+		return 0, err
+	}
 	n, err := cw.w.Write(p)
 	cw.n += int64(n)
 	return n, err

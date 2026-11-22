@@ -24,6 +24,7 @@ import (
 // PlayCmd replays an asciicast file in this terminal.
 type PlayCmd struct {
 	WindowFlags `embed:""`
+	LimitFlags  `embed:""`
 
 	Cast      string        `arg:"" placeholder:"CAST" help:"Asciicast file (v2 or v3), or - for standard input."`
 	Speed     float64       `name:"speed" default:"1" help:"Playback speed: 2 plays twice as fast."`
@@ -45,6 +46,10 @@ func (c *PlayCmd) Run(ctx context.Context) (err error) {
 	if tl, err = c.window(tl); err != nil {
 		return err
 	}
+	lim, err := c.limits()
+	if err != nil {
+		return err
+	}
 	if !term.IsTerminal(os.Stdout.Fd()) {
 		write := func(_ int, ev reel.Event) error {
 			out, ok := ev.(reel.Output)
@@ -54,10 +59,10 @@ func (c *PlayCmd) Run(ctx context.Context) (err error) {
 			_, writeErr := os.Stdout.Write(out.Data)
 			return writeErr
 		}
-		return replay(ctx, tl, c.Speed, c.IdleLimit, write, func() error { return nil })
+		return replay(ctx, tl, c.Speed, c.IdleLimit, lim, write, func() error { return nil })
 	}
 
-	p, err := reel.NewPlayer(ctx, tl)
+	p, err := reel.NewPlayer(ctx, tl, lim)
 	if err != nil {
 		return err
 	}
@@ -73,7 +78,7 @@ func (c *PlayCmd) Run(ctx context.Context) (err error) {
 	// return to.
 	_, err = os.Stdout.WriteString("\x1b[?1049h\x1b[H\x1b[2J")
 	if err == nil {
-		err = replay(ctx, tl, c.Speed, c.IdleLimit, v.seek, v.draw)
+		err = replay(ctx, tl, c.Speed, c.IdleLimit, lim, v.seek, v.draw)
 	}
 	_, resetErr := os.Stdout.WriteString("\x1b[0m\x1b]8;;\x1b\\\x1b[?25h\x1b[?1049l")
 	if errors.Is(err, context.Canceled) {
@@ -86,8 +91,8 @@ func (c *PlayCmd) Run(ctx context.Context) (err error) {
 // speed, with pauses cut to idle when it is above zero, and calls flush
 // before each pause and at the end. apply is given each event and its
 // index. The events before the window are applied at once, to reach its
-// start.
-func replay(ctx context.Context, tl *reel.Timeline, speed float64, idle time.Duration, apply func(i int, ev reel.Event) error, flush func() error) error {
+// start. Playing past lim's playback is a [reel.LimitError].
+func replay(ctx context.Context, tl *reel.Timeline, speed float64, idle time.Duration, lim reel.Limits, apply func(i int, ev reel.Event) error, flush func() error) error {
 	from, _ := tl.Window()
 	start := time.Now()
 	var last, skipped time.Duration
@@ -98,6 +103,9 @@ func replay(ctx context.Context, tl *reel.Timeline, speed float64, idle time.Dur
 			skipped += gap - idle
 		}
 		last = at
+		if err := lim.CheckPlayback(at-skipped, speed); err != nil {
+			return err
+		}
 		if wait := time.Duration(float64(at-skipped)/speed) - time.Since(start); wait > 0 {
 			if err := flush(); err != nil {
 				return err

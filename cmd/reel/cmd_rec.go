@@ -109,7 +109,7 @@ func (c *RecCmd) Run(ctx context.Context) error {
 	if err != nil {
 		// Keep the recording, in a file of its own, so it can be exported
 		// again.
-		if saved, saveErr := saveRecording(s.Timeline()); saveErr == nil {
+		if saved, saveErr := saveRecording(context.WithoutCancel(ctx), s.Timeline()); saveErr == nil {
 			err = fmt.Errorf("%w (the recording is saved as %s)", err, saved)
 		}
 	}
@@ -235,11 +235,11 @@ func openSequence(seq []byte) bool {
 
 // saveRecording writes tl to a new file in the working directory, and
 // returns its name.
-func saveRecording(tl *reel.Timeline) (string, error) {
+func saveRecording(ctx context.Context, tl *reel.Timeline) (string, error) {
 	f, err := os.CreateTemp(".", "reel-rec-*.cast")
 	if err != nil {
 		return "", err
 	}
-	_, err = tl.WriteCast(f, reel.CastV2)
+	_, err = tl.WriteCast(ctx, f, reel.CastV2)
 	return f.Name(), errors.Join(err, f.Close())
 }

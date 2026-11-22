@@ -6,6 +6,7 @@ package reel
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -306,8 +307,9 @@ func (o *outputs) hasStills(drawn bool) bool {
 	return slices.ContainsFunc(o.files, func(f fileOutput) bool { return f.still && (!drawn || !f.isScreen()) })
 }
 
-// open creates every drawn output. On error, the caller discards o.
-func (o *outputs) open() error {
+// open creates every drawn output, whose encoding stops once ctx is done.
+// On error, the caller discards o.
+func (o *outputs) open(ctx context.Context) error {
 	var recordings []sink.Sink
 	for i := range o.files {
 		f := &o.files[i]
@@ -317,7 +319,7 @@ func (o *outputs) open() error {
 		if err := os.MkdirAll(filepath.Dir(f.path), 0o750); err != nil {
 			return err
 		}
-		s, err := sink.File(f.path, f.opts...)
+		s, err := sink.File(f.path, append(slices.Clip(f.opts), sink.WithContext(ctx))...)
 		if err != nil {
 			return fmt.Errorf("reel: output %q: %w", f.path, err)
 		}
@@ -376,15 +378,16 @@ func (o *outputs) discard() {
 // writeCasts writes tl with header h to every asciicast output, with the
 // effect descriptions at the start replacing tl's annotations of
 // [EffectKind] and of the described kinds. Each file is written to a
-// temporary file and renamed into place.
-func (o *outputs) writeCasts(tl *Timeline, h Header, effects []Annotation) error {
+// temporary file and renamed into place. Cutting tl's window replays it
+// within lim.
+func (o *outputs) writeCasts(ctx context.Context, tl *Timeline, h Header, effects []Annotation, lim Limits) error {
 	if len(o.casts) == 0 {
 		return nil
 	}
 	tl = tl.fixed(h, -1)
 	if tl.from >= 0 {
 		var err error
-		if tl, err = tl.cut(); err != nil {
+		if tl, err = tl.cut(ctx, lim); err != nil {
 			return err
 		}
 	}
@@ -401,16 +404,16 @@ func (o *outputs) writeCasts(tl *Timeline, h Header, effects []Annotation) error
 	}
 	tl = &Timeline{header: tl.header, start: tl.started(), events: events, from: -1}
 	for _, c := range o.casts {
-		if err := writeCastFile(c.path, tl, c.version); err != nil {
+		if err := writeCastFile(ctx, c.path, tl, c.version); err != nil {
 			return fmt.Errorf("reel: output %q: %w", c.path, err)
 		}
 	}
 	return nil
 }
 
-func writeCastFile(name string, tl *Timeline, v CastVersion) error {
+func writeCastFile(ctx context.Context, name string, tl *Timeline, v CastVersion) error {
 	return writeFileWith(name, func(w io.Writer) error {
-		_, err := tl.WriteCast(w, v)
+		_, err := tl.WriteCast(ctx, w, v)
 		return err
 	})
 }

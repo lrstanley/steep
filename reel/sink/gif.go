@@ -6,6 +6,7 @@ package sink
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -89,6 +90,9 @@ func (e *GIFEncoder) WriteFrame(f Frame) error {
 	case e.err != nil:
 		return e.err
 	}
+	if e.err = e.opts.ctx.Err(); e.err != nil {
+		return e.err
+	}
 	e.err = appendRecordingFrame(e.rec, e.opts.optimize, e.opts.background, f.Isolated, f.Image, f.Delay)
 	return e.err
 }
@@ -101,7 +105,7 @@ func (e *GIFEncoder) Close() error {
 	}
 	e.done = true
 	if e.err == nil && len(e.rec.images) > 0 {
-		e.err = encodeGIF(e.w, e.rec, e.opts)
+		e.err = encodeGIF(e.opts.ctx, e.w, e.rec, e.opts)
 		if e.err == nil && e.file != nil {
 			e.err = e.file.commit()
 		}
@@ -125,40 +129,66 @@ func (e *GIFEncoder) Discard() error {
 	return nil
 }
 
-func encodeGIF(w io.Writer, rec *gifRecording, opts options) error {
+// encodeGIF encodes rec to w, stopping between its steps and at each write
+// once ctx is done.
+func encodeGIF(ctx context.Context, w io.Writer, rec *gifRecording, opts options) error {
 	// The palette most captured frames use is the global color table; frames
 	// on any other carry a local one.
 	global := busiestPalette(rec.images)
 	if opts.optimize.has(OptimizeDirtyRects) {
-		optimizeDisposals(rec)
+		if err := optimizeDisposals(ctx, rec); err != nil {
+			return err
+		}
 	}
 	out := buildGIF(rec, global)
 	if opts.optimize.has(OptimizeColorQuantization) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		palette.CompactGIF(out)
 	}
-	return gif.EncodeAll(w, out)
+	return gif.EncodeAll(ctxWriter{ctx: ctx, w: w}, out)
+}
+
+// ctxWriter writes to w until ctx is done.
+type ctxWriter struct {
+	ctx context.Context //nolint:containedctx // gif.EncodeAll takes none.
+	w   io.Writer
+}
+
+func (c ctxWriter) Write(p []byte) (int, error) {
+	if err := c.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return c.w.Write(p)
 }
 
 // optimizeDisposals rewrites rec in place with [gifopt.Optimize]. A single
 // frame only gets its disposal method, and an empty canvas is left alone.
-func optimizeDisposals(rec *gifRecording) {
+// It stops with ctx's error once ctx is done, leaving rec as it was.
+func optimizeDisposals(ctx context.Context, rec *gifRecording) error {
 	n := len(rec.images)
 	if n <= 1 {
 		if n == 1 && len(rec.disposal) == 0 {
 			rec.disposal = []byte{gif.DisposalNone}
 		}
-		return
+		return nil
 	}
 	screen := image.Rectangle{Max: rec.size}
 	if screen.Empty() {
-		return
+		return nil
 	}
 	deltaAt := -1
 	if rec.last != nil {
 		deltaAt = rec.deltaAt
 	}
-	rec.images, rec.delays, rec.disposal = gifopt.Optimize(screen, rec.images, rec.delays, deltaAt)
+	images, delays, disposal, err := gifopt.Optimize(ctx, screen, rec.images, rec.delays, deltaAt)
+	if err != nil {
+		return err
+	}
+	rec.images, rec.delays, rec.disposal = images, delays, disposal
 	rec.last, rec.spare = nil, nil
+	return nil
 }
 
 // gifRecording holds the palettized frames of a GIF capture.

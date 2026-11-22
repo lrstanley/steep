@@ -23,7 +23,7 @@ func testView(t *testing.T, cast string, cols, lines int) (*view, *bytes.Buffer)
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := reel.NewPlayer(t.Context(), tl)
+	p, err := reel.NewPlayer(t.Context(), tl, reel.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}

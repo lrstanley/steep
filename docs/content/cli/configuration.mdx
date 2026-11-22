@@ -39,6 +39,7 @@ There's no configuration file. A tape configures a demo, and flags and environme
 
 | Variable | Is |
 | --- | --- |
+| `REEL_MAX_PLAYBACK`, `REEL_MAX_CELLS`, `REEL_MAX_PIXELS` | The [limits](/cli/tapes#tapes-you-didnt-write), as their flags |
 | `REEL_SESSION` | The session to drive |
 | `REEL_RUNTIME_DIR` | Where session sockets live. The default is `$XDG_RUNTIME_DIR/reel`. |
 
@@ -49,6 +50,7 @@ There's no configuration file. A tape configures a demo, and flags and environme
 | [Outputs](/cli/outputs) | `-o`, `--var` | `run`, `rec`, `export`, `attach`, `session export`, `session stop` |
 | [Appearance](/cli/appearance) | The table above | The same, plus `still` and `session still` |
 | [Effects](/cli/effects) | `--intro`, `--intro-line`, `--outro`, `--outro-line`, `--pause`, `--pause-at`, `--hold-last`, `--hide`, `--highlight`, `--zoom`, `--redact`, `--redact-env`, `--redact-regexp` | The same as outputs |
+| [Limits](/cli/tapes#tapes-you-didnt-write) | `--max-playback`, `--max-cells`, `--max-pixels` | The same as outputs, plus `still`, `session still`, `play`, and `test` |
 
 ## Exit codes
 

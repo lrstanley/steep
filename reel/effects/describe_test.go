@@ -295,37 +295,25 @@ func TestDescribeInvalid(t *testing.T) {
 }
 
 // TestFromMillis checks that durations of annotation data are at most
-// MaxDuration, and those below -MaxDuration cannot overflow.
+// maxDuration, and those below -maxDuration cannot overflow. How long they
+// play is up to the export's limits (see TestLongEffectsHitPlaybackLimit).
 func TestFromMillis(t *testing.T) {
 	t.Parallel()
 	for in, want := range map[int64]time.Duration{
 		1500:          1500 * ms,
 		-1:            -ms,
-		300_000:       5 * time.Minute,
-		math.MinInt64: -5 * time.Minute,
+		600_000:       10 * time.Minute,
+		86_400_000:    24 * time.Hour,
+		math.MinInt64: -24 * time.Hour,
 	} {
 		if got, err := fromMillis(in); err != nil || got != want {
 			t.Errorf("fromMillis(%d) = %v, %v, want %v", in, got, err, want)
 		}
 	}
-	for _, in := range []int64{300_001, math.MaxInt64} {
-		if got, err := fromMillis(in); err == nil || !strings.Contains(err.Error(), "MaxDuration") {
-			t.Errorf("fromMillis(%d) = %v, %v, want an error naming MaxDuration", in, got, err)
+	for _, in := range []int64{86_400_001, math.MaxInt64} {
+		if got, err := fromMillis(in); err == nil || !strings.Contains(err.Error(), "longer than 24h") {
+			t.Errorf("fromMillis(%d) = %v, %v, want an error", in, got, err)
 		}
-	}
-}
-
-// TestMaxDuration checks that raising MaxDuration reads longer durations.
-// It changes MaxDuration, so it runs before the parallel tests resume.
-func TestMaxDuration(t *testing.T) { //nolint:paralleltest // It sets MaxDuration.
-	a := reel.Annotation{Kind: reel.EffectKind, Data: jsontext.Value(`{"effect":"pause","points":[{"at":"end","duration_ms":600000}]}`)}
-	if _, err := FromAnnotation(a); err == nil {
-		t.Fatal("a 10m pause read with the default MaxDuration")
-	}
-	defer func(d time.Duration) { MaxDuration = d }(MaxDuration)
-	MaxDuration = time.Hour
-	if _, err := FromAnnotation(a); err != nil {
-		t.Fatalf("a 10m pause with MaxDuration of an hour: %v", err)
 	}
 }
 
@@ -343,9 +331,9 @@ func TestFromAnnotationErrors(t *testing.T) {
 		"pattern":       {reel.EffectKind, `{"effect":"zoom","region":{"type":"regexp","pattern":"("}}`, "missing closing )"},
 		"pause pattern": {reel.EffectKind, `{"effect":"pause","points":[{"at":"match","duration_ms":1}]}`, "without a pattern"},
 		"pause at":      {reel.EffectKind, `{"effect":"pause","points":[{"at":"start","duration_ms":1}]}`, `unknown pause point "start"`},
-		"long pause":    {reel.EffectKind, `{"effect":"pause","points":[{"at":"end","duration_ms":300001}]}`, "MaxDuration"},
-		"long intro":    {reel.EffectKind, `{"effect":"intro","duration_ms":86400000,"lines":[]}`, "MaxDuration"},
-		"long ease":     {reel.EffectKind, `{"effect":"zoom","region":{"type":"text","text":"x"},"timing":{"ease_in_ms":9223372036854775807}}`, "MaxDuration"},
+		"long pause":    {reel.EffectKind, `{"effect":"pause","points":[{"at":"end","duration_ms":86400001}]}`, "longer than 24h"},
+		"long intro":    {reel.EffectKind, `{"effect":"intro","duration_ms":86400001,"lines":[]}`, "longer than 24h"},
+		"long ease":     {reel.EffectKind, `{"effect":"zoom","region":{"type":"text","text":"x"},"timing":{"ease_in_ms":9223372036854775807}}`, "longer than 24h"},
 		"corner":        {reel.EffectKind, `{"effect":"pause","badge_corner":"middle"}`, `badge: unknown corner "middle"`},
 		"toast corner":  {reel.EffectKind, `{"effect":"toasts","shown_ms":1,"corner":"middle"}`, `unknown corner "middle"`},
 		"color":         {reel.EffectKind, `{"effect":"pause","badge_color":"red"}`, `color "red"`},

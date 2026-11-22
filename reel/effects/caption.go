@@ -27,7 +27,7 @@ const CaptionKind = "reel.caption"
 const CaptionEndKind = "reel.caption.end"
 
 // AutoPause is a pause for a reading time worked out from a caption's words:
-// 700ms and 260ms for each word, at least 1400ms and at most [MaxDuration].
+// 700ms and 260ms for each word, at least 1400ms and at most 5 minutes.
 // It is a pause of a caption ([CaptionPause]) or the default pause of
 // [Captions] ([DefaultCaptionPause]).
 const AutoPause = time.Duration(-1)
@@ -343,12 +343,15 @@ func readCaptionEnd(a reel.Annotation) (callout bool, err error) {
 	return d.Callout, nil
 }
 
+// maxReadingTime is the longest pause [AutoPause] gives.
+const maxReadingTime = 5 * time.Minute
+
 // readingTime is the pause [AutoPause] gives lines of text, at most
-// [MaxDuration].
+// [maxReadingTime].
 func readingTime(lines []string) time.Duration {
 	var words int
 	for _, l := range lines {
 		words += len(strings.Fields(l))
 	}
-	return min(MaxDuration, max(1400*time.Millisecond, 700*time.Millisecond+time.Duration(words)*260*time.Millisecond))
+	return min(maxReadingTime, max(1400*time.Millisecond, 700*time.Millisecond+time.Duration(words)*260*time.Millisecond))
 }

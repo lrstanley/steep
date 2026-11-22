@@ -21,7 +21,8 @@ import (
 
 // TestCmd runs tapes as tests.
 type TestCmd struct {
-	TapeFlags `embed:""`
+	TapeFlags  `embed:""`
+	LimitFlags `embed:""`
 
 	Paths     []string `arg:"" type:"path" placeholder:"TAPE|DIR" help:"Tapes to run, and directories of *.tape files."`
 	Update    bool     `name:"update" short:"u" help:"Write each Snapshot's screen to its golden file, instead of comparing them."`
@@ -68,7 +69,12 @@ func (c *TestCmd) run(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
-	res, err := tp.Run(ctx, play.WithoutRecording())
+	lim, err := c.limits()
+	if err != nil {
+		return err
+	}
+	// The limits hold the tape's terminal, and its artifacts' export.
+	res, err := tp.Run(ctx, play.WithoutRecording(), play.WithProfile(reel.Profile{Limits: lim}))
 	if err == nil || c.Artifacts == "" || res.Timeline == nil {
 		return err
 	}
@@ -79,7 +85,7 @@ func (c *TestCmd) run(ctx context.Context, path string) error {
 // .cast, and a .gif as the tape would have written it.
 func (c *TestCmd) writeArtifacts(ctx context.Context, path string, res *play.Result) error {
 	base := filepath.Join(c.Artifacts, strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)))
-	err := writeCast(res.Timeline, base+".cast", reel.CastV2)
+	err := writeCast(ctx, res.Timeline, base+".cast", reel.CastV2)
 	if err != nil {
 		return err
 	}

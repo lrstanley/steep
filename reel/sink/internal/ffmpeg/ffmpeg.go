@@ -168,9 +168,13 @@ type Job struct {
 }
 
 // Start runs the ffmpeg binary at path with args, which name the output.
-func Start(path string, args []string) (*Job, error) {
-	// No context: the encode runs until its input closes, and Kill stops it.
-	cmd := exec.Command(path, args...) //nolint:gosec,noctx // path is from LookPath, args from fixed profiles.
+// The encode runs until its input closes, and [Job.Kill] or ctx being done
+// stops it.
+func Start(ctx context.Context, path string, args []string) (*Job, error) {
+	cmd := exec.CommandContext(ctx, path, args...) //nolint:gosec // path is from LookPath, args from fixed profiles.
+	// Once killed, a wrapper's children may hold its output open; Wait
+	// stops waiting on them after this.
+	cmd.WaitDelay = 2 * time.Second
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err

@@ -5,6 +5,7 @@
 package reel
 
 import (
+	"context"
 	"image"
 	"math"
 	"time"
@@ -31,11 +32,17 @@ const maxFreeImages = 3
 // scaled timeline to within half a step (a step if the last frame is
 // stretched to its minimum). A frame whose end rounds to its start is
 // dropped in favor of the newer one.
+//
+// Frames are checked against the [Limits] before they are drawn or passed
+// on, and after the first error, nothing more is drawn or passed on.
 type pipeline struct {
+	settings
+
+	// ctx stops long holds when canceled.
+	ctx  context.Context
 	rast Rasterizer
 	// anim is rast as an [Animator], or nil.
 	anim Animator
-	settings
 	// sweep is sweepStep rounded up to a whole number of steps.
 	sweep time.Duration
 
@@ -48,9 +55,11 @@ type pipeline struct {
 
 	stages []stageState
 	out    sink.Sink
-	// written counts frames written to out; err is the first write error,
-	// after which frames are dropped.
+	// written counts frames written to out, and played their delays; err
+	// is the first error, writing or over a limit, after which frames are
+	// dropped.
 	written int
+	played  time.Duration
 	err     error
 	// free holds images for reuse. Only images no stage could have kept are
 	// put here.
@@ -65,8 +74,8 @@ type stageState struct {
 	started bool
 }
 
-func newPipeline(rast Rasterizer, s settings, stages []Stage, out sink.Sink) *pipeline {
-	p := &pipeline{rast: rast, settings: s, out: out}
+func newPipeline(ctx context.Context, rast Rasterizer, s settings, stages []Stage, out sink.Sink) *pipeline {
+	p := &pipeline{ctx: ctx, rast: rast, settings: s, out: out}
 	p.sweep = sweepStep + (s.step-sweepStep%s.step)%s.step
 	p.anim, _ = rast.(Animator)
 	for _, st := range stages {
@@ -76,10 +85,17 @@ func newPipeline(rast Rasterizer, s settings, stages []Stage, out sink.Sink) *pi
 }
 
 // record draws cf as the newest frame and sends the previous one on. It
-// returns the first write error.
+// returns the first error.
 func (p *pipeline) record(cf CellFrame) error {
+	if p.err != nil {
+		return p.err
+	}
 	b := cf.Screen.Bounds()
-	img := p.newImage(p.rast.Layout(b.Dx(), b.Dy()).Image)
+	r := p.rast.Layout(b.Dx(), b.Dy()).Image
+	if p.err = p.limits.checkPixels(r); p.err != nil {
+		return p.err
+	}
+	img := p.newImage(r)
 	p.rast.Draw(img, cf.Screen, cf.State, cf.At)
 	if !p.started {
 		p.origin, p.started = cf.At, true
@@ -91,10 +107,13 @@ func (p *pipeline) record(cf CellFrame) error {
 
 // finish ends the newest frame at end, then flushes each stage's held frame
 // as its last, in stage order so each stage has all its input first. It
-// returns the first write error.
+// returns the first error.
 func (p *pipeline) finish(end time.Duration) error {
 	p.release(end, true)
 	for i := range p.stages {
+		if p.err != nil {
+			break
+		}
 		s := &p.stages[i]
 		if f := s.held; f.Image != nil {
 			s.held = Frame{}
@@ -106,7 +125,9 @@ func (p *pipeline) finish(end time.Duration) error {
 
 // release sends the newest frame on, ending at until on the grid, or drops
 // it if that is the step it starts on. The last frame plays at least one
-// step.
+// step. An end past [Limits.Playback] is an error, checked as a float so a
+// tiny speed cannot overflow it. It counts footage effects such as Hide
+// cut, since repainting it before they do is work too.
 func (p *pipeline) release(until time.Duration, last bool) {
 	f := p.newest
 	if f.Image == nil {
@@ -114,6 +135,14 @@ func (p *pipeline) release(until time.Duration, last bool) {
 	}
 	p.newest = Frame{}
 	steps := math.Round(float64(until-p.origin) / p.speed / float64(p.step))
+	if p.err == nil {
+		p.err = p.limits.checkPlayback(steps * float64(p.step))
+	}
+	if p.err != nil {
+		// No stage has seen the image, so it can be reused.
+		p.reuse(f.Image)
+		return
+	}
 	end := time.Duration(steps) * p.step
 	if last {
 		end = max(end, p.shown+p.step)
@@ -135,7 +164,7 @@ func (p *pipeline) release(until time.Duration, last bool) {
 // frames p.sweep apart, each repainted for its time. Steps that would look
 // unchanged extend the previous frame instead, and the last takes the
 // remainder. Copies come from a clone because f's image may be reused once
-// written.
+// written. It stops at the first error, or when the context is canceled.
 func (p *pipeline) sweepHold(f Frame) {
 	step := p.sweep
 	base := p.newImage(f.Image.Rect)
@@ -144,7 +173,7 @@ func (p *pipeline) sweepHold(f Frame) {
 	start, left := f.At, f.Delay
 	var shown Frame
 	var played time.Duration
-	for k := 0; left > 0; k++ {
+	for k := 0; left > 0 && p.err == nil; k++ {
 		cur := f
 		cur.At = start + time.Duration(float64(played)*p.speed)
 		cur.Delay = step
@@ -172,9 +201,17 @@ func (p *pipeline) sweepHold(f Frame) {
 	p.reuse(base)
 }
 
-// push hands f to stage i, or past the last stage to out.
+// push hands f to stage i, or past the last stage to out. A frame longer
+// than [Limits.Playback] is an error, so a stage that splits it, such as
+// one easing an effect in, never works through more.
 func (p *pipeline) push(i int, f Frame) {
-	if f.Image == nil {
+	if f.Image == nil || p.err != nil {
+		return
+	}
+	if p.err = p.ctx.Err(); p.err != nil {
+		return
+	}
+	if p.err = p.limits.checkPlayback(float64(f.Delay)); p.err != nil {
 		return
 	}
 	if i == len(p.stages) {
@@ -196,15 +233,23 @@ func (p *pipeline) run(i int, f Frame, last bool) {
 }
 
 // write sends f to out with its delay rounded to whole steps, at least one,
-// since effect-made frames may be off the grid.
+// since effect-made frames may be off the grid. Playing past
+// [Limits.Playback], counting the frames effects inserted, is an error.
+// Since each frame plays at least a step, this also bounds the number of
+// frames.
 func (p *pipeline) write(f Frame) {
 	if p.err != nil {
 		return
 	}
 	steps := max(1, math.Round(float64(f.Delay)/float64(p.step)))
+	if p.err = p.limits.checkPlayback(float64(p.played) + steps*float64(p.step)); p.err != nil {
+		return
+	}
+	delay := time.Duration(steps) * p.step
+	p.played += delay
 	p.err = p.out.WriteFrame(sink.Frame{
 		Image:    f.Image,
-		Delay:    time.Duration(steps) * p.step,
+		Delay:    delay,
 		Isolated: f.Isolated,
 	})
 	p.written++

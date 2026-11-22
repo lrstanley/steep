@@ -67,7 +67,7 @@ func WithBadgeCorner(c Corner) PauseOption {
 
 // WithBadgeSize sets the badge's diameter in pixels. Zero, the default, is
 // one and a half times the height of a terminal cell, and at least 8. Any
-// other size below 8 is an error from Start.
+// other size below 8, or above [MaxSizePX], is an error from Start.
 func WithBadgeSize(px int) PauseOption {
 	return func(p *pause) { p.size = px }
 }
@@ -187,8 +187,8 @@ func (e pause) Start(ctx *reel.Context) (reel.Stage, error) {
 		switch {
 		case size == 0:
 			size = max(badgeMinSize, ctx.Layout.Cell.Y*3/2)
-		case size < badgeMinSize:
-			return nil, fmt.Errorf("effects: pause badge size %d below %d", size, badgeMinSize)
+		case size < badgeMinSize || size > MaxSizePX:
+			return nil, fmt.Errorf("effects: pause badge size %d is outside %d to %d", size, badgeMinSize, MaxSizePX)
 		}
 		s.corner, s.size, s.glyph = e.corner, size, pauseGlyph(size, e.color)
 	}

@@ -69,8 +69,9 @@ func WithLook(l look.Look) RunOption {
 
 // WithProfile sets outputs and effects over the tape's: p's outputs, when
 // it has any, replace the tape's Output commands (but not its Screenshots),
-// and its effects are added to the tape's. Its encoding options and path
-// variables are kept; the rest of it comes from the tape and [WithLook].
+// and its effects are added to the tape's. Its encoding options, path
+// variables, and limits are kept; the rest of it comes from the tape and
+// [WithLook]. A tape cannot set limits, so it cannot raise its own.
 func WithProfile(p reel.Profile) RunOption {
 	return func(cfg *runConfig) { cfg.profile = p }
 }
@@ -120,7 +121,7 @@ func (t *Tape) Run(ctx context.Context, opts ...RunOption) (*Result, error) {
 	}
 	res.Profile = pl.profile
 
-	s, err := reel.Open(ctx, pl.cols, pl.rows, reel.WithTitle(pl.profile.Title), reel.WithCursorBlink(st.cursorBlink))
+	s, err := reel.Open(ctx, pl.cols, pl.rows, reel.WithTitle(pl.profile.Title), reel.WithCursorBlink(st.cursorBlink), reel.WithLimits(pl.profile.Limits))
 	if err != nil {
 		return res, err
 	}

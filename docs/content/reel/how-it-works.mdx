@@ -92,7 +92,7 @@ A timeline saves as an [asciicast](https://docs.asciinema.org/manual/asciicast/v
 ```go
 f, err := os.Create("demo.cast")
 // ...
-_, err = tl.WriteCast(f, reel.CastV2)
+_, err = tl.WriteCast(ctx, f, reel.CastV2)
 ```
 
 `reel.ReadTimeline` reads a v2 or v3 file back, whether reel wrote it or asciinema recorded it. Comment and blank lines, unknown header fields, and unknown event codes are skipped.

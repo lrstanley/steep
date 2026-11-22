@@ -542,7 +542,8 @@ func (c *SessionScreenCmd) Run(ctx context.Context, sc *SessionCmd) error {
 
 // SessionStillCmd renders the screen.
 type SessionStillCmd struct {
-	look.Look `embed:""`
+	look.Look  `embed:""`
+	LimitFlags `embed:""`
 
 	Output string `short:"o" name:"output" required:"" placeholder:"FILE" help:"File to write: .png, .snap, or .json."`
 }
@@ -553,7 +554,7 @@ func (c *SessionStillCmd) Run(ctx context.Context, sc *SessionCmd) error {
 	if err != nil {
 		return err
 	}
-	still := StillCmd{Output: c.Output, Look: c.Look}
+	still := StillCmd{Output: c.Output, Look: c.Look, LimitFlags: c.LimitFlags}
 	return still.render(ctx, tl)
 }
 

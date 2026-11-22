@@ -144,6 +144,7 @@ type RenderFlags struct {
 	look.Look   `embed:""`
 	EffectFlags `embed:""`
 	OutputFlags `embed:""`
+	LimitFlags  `embed:""`
 }
 
 // profile returns the profile the flags describe, with base effects first,
@@ -174,7 +175,11 @@ func (f RenderFlags) profile(base ...reel.Effect) (reel.Profile, error) {
 	if err != nil {
 		return reel.Profile{}, err
 	}
-	p := reel.Profile{Outputs: outputs, Render: opts, Encode: f.encode(), Vars: f.Vars}
+	lim, err := f.limits()
+	if err != nil {
+		return reel.Profile{}, err
+	}
+	p := reel.Profile{Outputs: outputs, Render: opts, Encode: f.encode(), Vars: f.Vars, Limits: lim}
 	f.Profile(&p)
 	// Captions draw by default. One --caption-pause sets up replaces the
 	// file's own; without it, the file's own is kept.

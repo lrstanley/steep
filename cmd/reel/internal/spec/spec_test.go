@@ -78,7 +78,7 @@ func TestCaption(t *testing.T) {
 		{spec: "pause=0s", want: `{"text":"x","pause_ms":0}`},
 		{spec: "spotlight=false", want: `{"text":"x"}`},
 		{spec: "pause=-1s", err: "pause -1s below zero"},
-		{spec: "pause=6m", err: "pause 6m0s is longer than 5m0s"},
+		{spec: "pause=6m", want: `{"text":"x","pause_ms":360000}`},
 		{spec: "pause=soon", err: `pause "soon" is not a duration or auto`},
 		{spec: "side=diagonal", err: `"diagonal" is not top, bottom, left, or right`},
 		{spec: "until=", err: "no mark"},

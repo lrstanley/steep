@@ -30,7 +30,7 @@ var (
 func writeCast(t *testing.T, tl *Timeline, v CastVersion) []byte {
 	t.Helper()
 	var buf bytes.Buffer
-	n, err := tl.WriteCast(&buf, v)
+	n, err := tl.WriteCast(t.Context(), &buf, v)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestCastFormat(t *testing.T) {
 		t.Fatalf("WriteTo = %v:\n%s", err, buf.String())
 	}
 
-	if _, err := tl.WriteCast(&buf, 1); err == nil {
+	if _, err := tl.WriteCast(t.Context(), &buf, 1); err == nil {
 		t.Fatal("WriteCast(1) succeeded")
 	}
 }
@@ -593,7 +593,7 @@ func TestCastBetweenReplays(t *testing.T) {
 func assertSameReplay(t *testing.T, ha Header, a []Event, hb Header, b []Event) {
 	t.Helper()
 	replayAll := func(h Header, events []Event) (vt.State, string) {
-		r, err := newReplay(t.Context(), replayRuntime, h, 0, 0)
+		r, err := newReplay(t.Context(), replayRuntime, h, 0, 0, Limits{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -787,7 +787,7 @@ func TestCastCursorBlink(t *testing.T) {
 	if !back.header.CursorBlink {
 		t.Error("read header lost the cursor blink")
 	}
-	r, err := newReplay(t.Context(), replayRuntime, back.header, 0, 0)
+	r, err := newReplay(t.Context(), replayRuntime, back.header, 0, 0, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}

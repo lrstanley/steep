@@ -19,6 +19,11 @@ import (
 // otherwise.
 const DefaultKittyStorage = 32 << 20
 
+// MaxKittyStorage is the most bytes of decoded Kitty graphics a terminal
+// keeps. A larger limit is lowered to it, so a recording from someone else
+// cannot fill the terminal's memory with images.
+const MaxKittyStorage = 64 << 20
+
 // Kitty graphics are libghostty-vt's own, through ghostty_kitty_graphics_*:
 // the module is built with them on (see vt/build/kitty-freestanding.patch).
 // Only direct payloads are accepted, since there is no filesystem. PNG
@@ -97,14 +102,16 @@ func (k *kittyState) reset() {
 }
 
 // SetKittyImageStorageLimit sets how many bytes of decoded image data Kitty
-// graphics may keep. Zero turns Kitty graphics off and deletes every image.
-// A full reset restores the limit [WithKittyStorage] set.
+// graphics may keep, at most [MaxKittyStorage]. Zero turns Kitty graphics
+// off and deletes every image. A full reset restores the limit
+// [WithKittyStorage] set.
 func (t *Terminal) SetKittyImageStorageLimit(n uint64) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.idle {
 		return errClosed
 	}
+	n = min(n, MaxKittyStorage)
 	t.kitty.limit = n
 	t.gridFresh = false
 	return t.mod.SetU64Option(t.term, wasmvt.TerminalOptionKittyImageStorageLimit, n)

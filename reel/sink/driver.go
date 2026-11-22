@@ -5,6 +5,7 @@
 package sink
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -25,8 +26,10 @@ type Driver interface {
 	Check(format Format, cfg VideoConfig) error
 	// Start begins encoding format at size into out, a new, empty temporary
 	// file, which Start may close and reopen by name. It is called on the
-	// first frame, after Check reported nil.
-	Start(out *os.File, format Format, size image.Point, cfg VideoConfig) (Job, error)
+	// first frame, after Check reported nil. Once ctx is done, the job should
+	// stop soon after, failing its WriteFrame or Close; a job that encodes
+	// each frame in WriteFrame may ignore it, as it is checked between them.
+	Start(ctx context.Context, out *os.File, format Format, size image.Point, cfg VideoConfig) (Job, error)
 }
 
 // Job is one encode a [Driver] runs. Its methods are called from one

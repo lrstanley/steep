@@ -14,9 +14,9 @@ import (
 const (
 	// minFitFontPx is the smallest font size [FitScale] tries.
 	minFitFontPx = 1.0
-	// maxFitFontPx is the largest font size [FitScale] tries, as drawing
-	// glyphs much larger than any screen is slow and uses a lot of memory.
-	maxFitFontPx = 4096.0
+	// maxFitFontPx is the largest font size [FitScale] tries, that of
+	// [MaxScale].
+	maxFitFontPx = MaxScale * config.BaseFontSizePx
 	// fitFontPxStep is the finest font size [FitScale] tells apart: faces are
 	// sized in 26.6 fixed point, so a smaller step draws the same cells.
 	fitFontPxStep = 1.0 / 64
@@ -52,7 +52,7 @@ func (d *Renderer) Fit(width, height int) (cols, rows int) {
 //
 // It is an error for opts to include [WithScale], for width and height to be
 // negative or both 0, or when the image does not fit at the smallest font
-// size tried (1px) or still fits at the largest (4096px).
+// size tried (1px) or still fits at the largest ([MaxScale], 576px).
 func FitScale(cols, rows, width, height int, opts ...Option) (float64, error) {
 	if cols < 1 || rows < 1 {
 		return 0, fmt.Errorf("render: fit: screen %dx%d must be at least 1x1", cols, rows)
@@ -88,12 +88,12 @@ func FitScale(cols, rows, width, height int, opts ...Option) (float64, error) {
 	}
 	// The image grows with the scale, so double until it no longer fits, then
 	// bisect. Every scale lo takes has been checked to fit.
-	hi := lo
+	hi, top := lo, ScaleForFontSize(maxFitFontPx)
 	for ok {
-		lo, hi = hi, hi*2
-		if hi > ScaleForFontSize(maxFitFontPx) {
+		if hi >= top {
 			return 0, fmt.Errorf("render: fit: %dx%d cells still fit in %dx%d pixels at the largest font size (%gpx)", cols, rows, width, height, maxFitFontPx)
 		}
+		lo, hi = hi, min(hi*2, top)
 		if ok, err = fits(hi); err != nil {
 			return 0, err
 		}

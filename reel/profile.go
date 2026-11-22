@@ -56,6 +56,11 @@ type Profile struct {
 	Meta any
 	// Vars are extra path variables (see [Export]), by name without braces.
 	Vars map[string]string
+	// Limits bound how long the recording plays and how large its terminal
+	// and frames get. Zero fields are the defaults, which are enough for
+	// demos and tests, so only timelines you trust that need more should
+	// raise them.
+	Limits Limits
 }
 
 // File is one output a [Profile] writes.
@@ -127,7 +132,8 @@ func MustFiles(outputs ...string) []File {
 }
 
 // Merge returns p with every non-zero field of o replacing p's. Slices are
-// replaced, not appended to. Vars merge by name, with o winning.
+// replaced, not appended to. Vars merge by name, with o winning, and so do
+// the fields of Limits.
 func (p Profile) Merge(o Profile) Profile {
 	if o.Outputs != nil {
 		p.Outputs = o.Outputs
@@ -167,6 +173,7 @@ func (p Profile) Merge(o Profile) Profile {
 		maps.Copy(vars, o.Vars)
 		p.Vars = vars
 	}
+	p.Limits = p.Limits.merge(o.Limits)
 	return p
 }
 
@@ -176,6 +183,8 @@ const defaultFPS = 20
 type settings struct {
 	step  time.Duration
 	speed float64
+	// limits are the profile's; zero fields are the defaults.
+	limits Limits
 }
 
 // settings validates p's timing and applies defaults.
@@ -189,6 +198,7 @@ func (p Profile) settings() (settings, error) {
 		return s, fmt.Errorf("reel: FPS %d out of range [1, %d]", p.FPS, sink.MaxFrameRate)
 	}
 	s.step = time.Duration(max(1, 100/fps)) * 10 * time.Millisecond
+	s.limits = p.Limits
 	s.speed = p.Speed
 	if s.speed == 0 {
 		s.speed = 1

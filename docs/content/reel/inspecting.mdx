@@ -91,10 +91,10 @@ A session opened `WithSource` records where in Go source each mark and annotatio
 
 ### Player
 
-`reel.Player` steps through a timeline's events, replaying them as `Export` does, so you can look at the terminal after any event. It's what the [inspector](/reel/inspecting#the-inspector) is built on.
+`reel.Player` steps through a timeline's events, replaying them as `Export` does, so you can look at the terminal after any event. It's what the [inspector](/reel/inspecting#the-inspector) is built on. It holds the timeline to [limits](/reel/exporting#limits) on terminal and image size, and a zero `reel.Limits` is the defaults.
 
 ```go
-p, err := reel.NewPlayer(ctx, tl, render.WithWindowChrome(true))
+p, err := reel.NewPlayer(ctx, tl, reel.Limits{}, render.WithWindowChrome(true))
 if err != nil {
 	return err
 }

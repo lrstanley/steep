@@ -72,7 +72,7 @@ Without `Captions` in the profile, an export leaves the captions out. steep, tap
 | `WithoutCaptionPauses()` | Leaves out every pause, the captions' own too, so a recording made as a demo plays at its own pace |
 | `WithCaptionAccent(c)` | The color of a callout's edge and caret, a caption's dot, and a spotlight's ring. The default is a soft violet. |
 
-`AutoPause` is 700ms and 260ms a word, at least 1.4s. A pause, and `CaptionFor`, are at most `effects.MaxDuration`, 5 minutes unless you raise it (see [Effects and `.cast`](/reel/effects#effects-and-cast)).
+`AutoPause` is 700ms and 260ms a word, at least 1.4s and at most 5 minutes. Pauses count toward the export's [`Limits.Playback`](/reel/exporting#limits), 10 minutes unless you raise it (see [Effects and `.cast`](/reel/effects#effects-and-cast)).
 
 A profile draws its captions once: a `Captions` effect after another in the same profile does nothing, and `effects.HasCaptions(fx)` reports whether a list has one, for code that adds a default.
 

@@ -87,7 +87,7 @@ func TestCastKeepsKittyImages(t *testing.T) {
 	images := func(h Header, events []Event) []vt.Placement {
 		// Closed here, not in a cleanup: writing a cut below needs a terminal
 		// from the same pool, which may have only one.
-		r, rerr := newReplay(t.Context(), replayRuntime, h, 0, 0)
+		r, rerr := newReplay(t.Context(), replayRuntime, h, 0, 0, Limits{})
 		if rerr != nil {
 			t.Fatal(rerr)
 		}
@@ -179,7 +179,7 @@ func TestCastCellSize(t *testing.T) {
 	if back.header.CellWidth != 8 || back.header.CellHeight != 16 {
 		t.Errorf("read cell size %dx%d", back.header.CellWidth, back.header.CellHeight)
 	}
-	r, err := newReplay(t.Context(), replayRuntime, back.header, 0, 0)
+	r, err := newReplay(t.Context(), replayRuntime, back.header, 0, 0, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -172,13 +172,24 @@ func Serve(ctx context.Context, cfg Config) (err error) {
 	}
 }
 
+// MaxRequestBytes bounds a request, so a client cannot make the server
+// read one without end, such as an unterminated string.
+const MaxRequestBytes = 1 << 20
+
+// errRequestTooLarge is the error reading a request past MaxRequestBytes.
+var errRequestTooLarge = fmt.Errorf("request is larger than %d bytes", MaxRequestBytes)
+
 // serve answers the one request of conn.
 func (srv *server) serve(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 	defer context.AfterFunc(ctx, func() { _ = conn.Close() })()
 	var req Request
 	var resp *Response
-	if err := json.NewDecoder(conn).Decode(&req); err != nil {
+	in := &io.LimitedReader{R: conn, N: MaxRequestBytes}
+	if err := json.NewDecoder(in).Decode(&req); err != nil {
+		if in.N == 0 {
+			err = errRequestTooLarge
+		}
 		resp = &Response{Error: fmt.Sprintf("invalid request: %v", err), Code: CodeInvalid}
 	} else {
 		resp = srv.handle(ctx, req)
@@ -315,7 +326,7 @@ func (srv *server) handle(ctx context.Context, req Request) *Response {
 		}
 	case OpCast:
 		var buf bytes.Buffer
-		_, err = s.Timeline().WriteCast(&buf, reel.CastV2)
+		_, err = s.Timeline().WriteCast(ctx, &buf, reel.CastV2)
 		resp.Cast = buf.Bytes()
 	case OpDo:
 		var tp *play.Tape

@@ -661,7 +661,7 @@ func TestSessionReplaysScrollback(t *testing.T) {
 		t.Fatalf("ScrollbackLen after ClearScrollback = %d, want 0", n)
 	}
 
-	r, err := newReplay(t.Context(), replayRuntime, s.Timeline().Header(), 0, 0)
+	r, err := newReplay(t.Context(), replayRuntime, s.Timeline().Header(), 0, 0, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}

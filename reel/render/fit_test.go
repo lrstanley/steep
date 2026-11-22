@@ -191,3 +191,32 @@ func TestFitScale(t *testing.T) {
 		}
 	})
 }
+
+// TestOptionBounds checks that pixel lengths and scales too large to lay
+// out, as a tape's Set Padding 1000000 asks for, are errors from New.
+func TestOptionBounds(t *testing.T) {
+	t.Parallel()
+
+	for name, opt := range map[string]Option{
+		"padding":    WithPadding(1_000_000),
+		"margin":     WithMargin(MaxPx+1, nil),
+		"radius":     WithBorderRadius(MaxPx + 1),
+		"progress":   WithProgressBarHeight(MaxPx + 1),
+		"scrollbar":  WithScrollbarWidth(MaxPx + 1),
+		"scale":      WithScale(MaxScale * 2),
+		"box stroke": WithBoxThickness(MaxPx + 1),
+	} {
+		if d, err := New(opt); err == nil {
+			d.Close()
+			t.Errorf("%s: New succeeded", name)
+		}
+	}
+	d, err := New(WithPadding(MaxPx), WithMargin(MaxPx, nil), WithScale(MaxScale))
+	if err != nil {
+		t.Fatalf("New at the maxima: %v", err)
+	}
+	defer d.Close()
+	if got := d.Layout(1, 1).Image.Dx(); got < 4*MaxPx {
+		t.Errorf("image %d wide, want at least %d", got, 4*MaxPx)
+	}
+}

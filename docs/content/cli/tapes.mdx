@@ -128,6 +128,22 @@ reel run untrusted.tape --deny Env,Source,Require --skip Screenshot
 
 `--deny` makes tapes that use those commands fail, and `--skip` ignores them.
 
+A tape, or a `.cast` file, from someone else also can't make reel run for hours or use gigabytes. Each recording is held to limits, which are well above what a demo or a test needs:
+
+| Limit | Bounds | Default |
+| --- | --- | --- |
+| `--max-playback DUR` | How long the recording plays, with its pauses, cards, and `PlaybackSpeed` | `10m` |
+| `--max-cells N\|COLSxROWS` | The terminal's size, at the start and after a resize | `250000` |
+| `--max-pixels N\|WxH` | The size of one frame, with the window, padding, and margin | `4096x4096` |
+
+Going over one is an error that names the flag to raise. Each takes `none` for no limit, and has an environment variable, such as `REEL_MAX_PLAYBACK`. A tape can't set them, so it can't raise its own.
+
+```console
+reel run long-demo.tape --max-playback 30m
+```
+
+A few sizes have fixed caps instead: at most 100,000 lines of scrollback, 64 MiB of Kitty images, 4096px for `Padding`, `Margin`, and other pixel settings, and 1024px for an effect's sizes, such as a pointer's. A request for more is lowered to the cap or fails.
+
 ## Tape language
 
 Tapes use the syntax of [VHS](https://github.com/charmbracelet/vhs). Commands and their arguments are separated by whitespace, newlines included, and `#` starts a comment. A token is a word, a string quoted with `"`, `'`, or `` ` ``, a number with an optional unit such as `500ms`, a regular expression between slashes, or JSON between braces.

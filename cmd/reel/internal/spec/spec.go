@@ -157,8 +157,9 @@ func keyValues(s string, flags ...string) (map[string]string, error) {
 	return opts, nil
 }
 
-// CaptionPause reads the pause of a caption: a duration of at most
-// [effects.MaxDuration], or auto for a reading time ([effects.AutoPause]).
+// CaptionPause reads the pause of a caption: a duration, or auto for a
+// reading time ([effects.AutoPause]). How long it can be is up to the
+// export's [reel.Limits.Playback].
 func CaptionPause(v string) (time.Duration, error) {
 	if v == "auto" {
 		return effects.AutoPause, nil
@@ -169,9 +170,6 @@ func CaptionPause(v string) (time.Duration, error) {
 	}
 	if d < 0 {
 		return 0, fmt.Errorf("pause %v below zero", d)
-	}
-	if d > effects.MaxDuration {
-		return 0, fmt.Errorf("pause %v is longer than %v", d, effects.MaxDuration)
 	}
 	return d, nil
 }

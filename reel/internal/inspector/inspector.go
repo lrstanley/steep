@@ -71,7 +71,7 @@ func load(ctx context.Context, data []byte, scale float64) (*inspector, error) {
 	if err != nil {
 		return nil, err
 	}
-	player, err := reel.NewPlayer(ctx, tl, opts...)
+	player, err := reel.NewPlayer(ctx, tl, reel.Limits{}, opts...)
 	if err != nil {
 		return nil, err
 	}
