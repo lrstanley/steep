@@ -13,7 +13,6 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"getsteep.dev/steep/internal/typeobserver"
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/vt"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -33,9 +32,12 @@ func (terminalProbe) View() tea.View {
 	return tea.NewView("")
 }
 
-func newTerminalHarness(tb testing.TB, w, h int) *Harness {
+// newTerminalHarness returns a harness over a [terminalProbe], and the
+// recorder of its messages.
+func newTerminalHarness(tb testing.TB, w, h int) (*Harness, *recorder) {
 	tb.Helper()
-	return NewHarness(tb, terminalProbe{}, WithWindowSize(w, h))
+	r := record(terminalProbe{})
+	return NewHarness(tb, r, WithWindowSize(w, h)), r
 }
 
 func colorEqual(a, b color.Color) bool {
@@ -44,61 +46,32 @@ func colorEqual(a, b color.Color) bool {
 	return ar == br && ag == bg && ab == bb && aa == ba
 }
 
-// waitMessagesContainWindowSize polls until a matching [tea.WindowSizeMsg] or
-// in-band [uv.WindowSizeEvent] inside [uv.MultiEvent] appears (in-band resize
-// uses CSI 48 ; … t per [ansi.InBandResize]).
-func waitMessagesContainWindowSize(tb testing.TB, h *Harness, wantW, wantH int) {
+// waitWindowSize waits for the model to receive a [tea.WindowSizeMsg] of
+// wantW by wantH.
+func waitWindowSize(tb testing.TB, r *recorder, wantW, wantH int) {
 	tb.Helper()
-	cfg := collectOptions(tb)
-	deadline := time.Now().Add(cfg.timeout)
-
-	for time.Now().Before(deadline) {
-		for msg := range h.MessageHistory() {
-			switch msg := msg.(type) {
-			case tea.WindowSizeMsg:
-				if msg.Width == wantW && msg.Height == wantH {
-					return
-				}
-			}
-		}
-		select {
-		case <-tb.Context().Done():
-			tb.Fatalf("context canceled: %v", tb.Context().Err())
-		case <-time.After(cfg.checkInterval):
-		}
-	}
-	observed := typeobserver.New()
-	for msg := range h.MessageHistory() {
-		observed.Observe(msg)
-	}
-	tb.Fatalf("timed out waiting for terminal size %#v in observed messages:\n%s",
-		tea.WindowSizeMsg{Width: wantW, Height: wantH},
-		observed,
-	)
+	waitMsg(tb, r, func(m tea.WindowSizeMsg) bool {
+		return m.Width == wantW && m.Height == wantH
+	})
 }
 
 func TestHarness_terminalInitialWindowSizeMsg(t *testing.T) {
 	t.Parallel()
 	wantW, wantH := 11, 7
-	h := newTerminalHarness(t, wantW, wantH)
-
-	h.WaitMessageWhere(func(m tea.WindowSizeMsg) bool {
-		return m.Width == wantW && m.Height == wantH
-	})
+	_, r := newTerminalHarness(t, wantW, wantH)
+	waitWindowSize(t, r, wantW, wantH)
 }
 
 func TestHarness_terminalDimensionsResizeInBandMsgs(t *testing.T) {
 	t.Parallel()
 	const wantW, wantH = 11, 7
-	h := newTerminalHarness(t, wantW, wantH)
-	h.WaitMessageWhere(func(m tea.WindowSizeMsg) bool {
-		return m.Width == wantW && m.Height == wantH
-	})
+	h, r := newTerminalHarness(t, wantW, wantH)
+	waitWindowSize(t, r, wantW, wantH)
 
 	const nextW, nextH = 30, 12
 	_ = writeString(h, ansi.SetModeInBandResize)
 	h.Resize(nextW, nextH)
-	waitMessagesContainWindowSize(t, h, nextW, nextH)
+	waitWindowSize(t, r, nextW, nextH)
 
 	if h.Width() != nextW || h.Height() != nextH {
 		t.Fatalf("TerminalWidth/Height = %dx%d, want %dx%d", h.Width(), h.Height(), nextW, nextH)
@@ -115,14 +88,14 @@ func TestHarness_terminalDimensionsResizeInBandMsgs(t *testing.T) {
 
 func TestHarness_resizeSendsWindowSize(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 11, 7)
+	h, r := newTerminalHarness(t, 11, 7)
 	h.Resize(30, 12)
-	waitMessagesContainWindowSize(t, h, 30, 12)
+	waitWindowSize(t, r, 30, 12)
 }
 
 func TestHarness_terminalColors(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 5, 3)
+	h, _ := newTerminalHarness(t, 5, 3)
 
 	fg := color.NRGBA{R: 0x11, G: 0x22, B: 0x33, A: 0xff}
 	bg := color.NRGBA{R: 0xaa, G: 0xbb, B: 0xcc, A: 0xff}
@@ -165,7 +138,7 @@ func TestHarness_terminalColors(t *testing.T) {
 
 func TestHarness_terminalCursorPosition(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 8, 4)
+	h, _ := newTerminalHarness(t, 8, 4)
 	pt := h.CursorPosition()
 	if pt.X != 0 || pt.Y != 0 {
 		t.Fatalf("initial cursor (%d,%d), want (0,0)", pt.X, pt.Y)
@@ -174,7 +147,7 @@ func TestHarness_terminalCursorPosition(t *testing.T) {
 
 func TestHarness_terminalScrollbackCopyAndCount(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 5, 4)
+	h, _ := newTerminalHarness(t, 5, 4)
 	var rows strings.Builder
 	rows.WriteString("start\n")
 	for i := range 18 {
@@ -213,7 +186,7 @@ func TestHarness_terminalScrollbackCopyAndCount(t *testing.T) {
 
 func TestHarness_terminalSetScrollbackSize(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 4, 3)
+	h, _ := newTerminalHarness(t, 4, 3)
 	h.SetScrollbackSize(0)
 	for i := range 20 {
 		_, _ = fmt.Fprintf(h.session, "x%d\n", i)
@@ -225,7 +198,7 @@ func TestHarness_terminalSetScrollbackSize(t *testing.T) {
 
 func TestHarness_terminalAltScreen(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 6, 3)
+	h, _ := newTerminalHarness(t, 6, 3)
 	if h.IsAltScreen() {
 		t.Fatal("expected main screen initially")
 	}
@@ -241,19 +214,19 @@ func TestHarness_terminalAltScreen(t *testing.T) {
 
 func TestHarness_terminalFocusBlurMsgs(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 4, 2)
+	h, r := newTerminalHarness(t, 4, 2)
 	_ = writeString(h, ansi.SetModeFocusEvent)
 
 	h.Focus()
-	h.WaitMessage[tea.FocusMsg]()
+	waitMsg[tea.FocusMsg](t, r, nil)
 
 	h.Blur()
-	h.WaitMessage[tea.BlurMsg]()
+	waitMsg[tea.BlurMsg](t, r, nil)
 }
 
 func TestHarness_terminalTrackedHarnessFocus(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 4, 2)
+	h, _ := newTerminalHarness(t, 4, 2)
 	if !h.IsFocused() {
 		t.Fatal("expected initially focused harness state")
 	}
@@ -269,8 +242,10 @@ func TestHarness_terminalTrackedHarnessFocus(t *testing.T) {
 
 func TestHarness_terminalTrackedCursorDefaults(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 4, 2)
-	if !h.CursorVisible() || h.CursorBlink() || h.CursorStyle() != vt.CursorBlock {
+	h, _ := newTerminalHarness(t, 4, 2)
+	// NewHarness waits for the first paint, in which Bubble Tea hides the
+	// cursor of a view without one.
+	if h.CursorVisible() || h.CursorBlink() || h.CursorStyle() != vt.CursorBlock {
 		t.Fatalf("defaults: visible=%v blink=%v style=%v", h.CursorVisible(), h.CursorBlink(), h.CursorStyle())
 	}
 	pt := h.CursorPosition()
@@ -282,7 +257,7 @@ func TestHarness_terminalTrackedCursorDefaults(t *testing.T) {
 func TestHarness_terminalTrackedTitle(t *testing.T) {
 	t.Parallel()
 	const want = "steep-tracked-title"
-	h := newTerminalHarness(t, 4, 2)
+	h, _ := newTerminalHarness(t, 4, 2)
 	_ = writeString(h, ansi.SetWindowTitle(want))
 	if got := h.Title(); got != want {
 		t.Fatalf("Title() = %q, want %q", got, want)
@@ -291,7 +266,7 @@ func TestHarness_terminalTrackedTitle(t *testing.T) {
 
 func TestHarness_controlStrings(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 4, 2)
+	h, _ := newTerminalHarness(t, 4, 2)
 	before := len(h.ControlStrings())
 	_ = writeString(h, "\x1b]2;bel\x07\x1b]2;st\x1b\\\x1bP1|unknown\x1b\\")
 	got := h.ControlStrings()[before:]
@@ -319,7 +294,7 @@ func TestHarness_controlStrings(t *testing.T) {
 
 func TestHarness_terminalTrackedBell(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 4, 2)
+	h, _ := newTerminalHarness(t, 4, 2)
 	if got := h.Bell(); got != (vt.Bell{}) {
 		t.Fatalf("Bell() = %+v, want none before first bell", got)
 	}
@@ -366,7 +341,7 @@ func TestHarness_terminalTrackedModeDEC(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			local := newTerminalHarness(t, 4, 2)
+			local, _ := newTerminalHarness(t, 4, 2)
 			_ = writeString(local, tt.seq)
 			if got := local.ModeSetting(tt.mode); got != tt.want {
 				t.Fatalf("after enable: ModeSetting(%v)=%v want %v", tt.mode, got, tt.want)
@@ -381,7 +356,7 @@ func TestHarness_terminalTrackedModeDEC(t *testing.T) {
 
 func TestHarness_terminalTrackedModeUnsetKey(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 3, 2)
+	h, _ := newTerminalHarness(t, 3, 2)
 	unset := ansi.DECMode(0xbeef)
 	if h.ModeSetting(unset) != ansi.ModeNotRecognized {
 		t.Fatalf("unset mode setting = %v, want ModeNotRecognized", h.ModeSetting(unset))
@@ -390,7 +365,7 @@ func TestHarness_terminalTrackedModeUnsetKey(t *testing.T) {
 
 func TestHarness_terminalTrackedCursorHideShow(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 6, 2)
+	h, _ := newTerminalHarness(t, 6, 2)
 	_ = writeString(h, ansi.HideCursor)
 	if h.CursorVisible() {
 		t.Fatal("expected hidden cursor after HideCursor sequence")
@@ -403,13 +378,13 @@ func TestHarness_terminalTrackedCursorHideShow(t *testing.T) {
 
 func TestHarness_terminalPasteMsg(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 4, 2)
+	h, r := newTerminalHarness(t, 4, 2)
 	_ = writeString(h, ansi.SetModeBracketedPaste)
 
 	const pasted = "hello"
 	h.Paste(pasted)
 
-	got := h.WaitMessageWhere(func(m tea.PasteMsg) bool {
+	got := waitMsg(t, r, func(m tea.PasteMsg) bool {
 		return m.Content == pasted
 	})
 	if got.Content != pasted {
@@ -494,14 +469,19 @@ type mouseStep struct {
 	tea.Mouse
 }
 
-func collectMouseTail(tb testing.TB, h *Harness, nBefore int) []mouseStep {
+func collectMouseTail(tb testing.TB, r *recorder, nBefore int) []mouseStep {
 	tb.Helper()
-	all := slices.Collect(h.MessageHistory())
+	all := r.all()
 	if nBefore > len(all) {
 		tb.Fatalf("nBefore=%d longer than history len=%d", nBefore, len(all))
 	}
+	return mouseTail(all[nBefore:])
+}
+
+// mouseTail returns the mouse messages of msgs as steps.
+func mouseTail(msgs []uv.Event) []mouseStep {
 	var out []mouseStep
-	for _, msg := range all[nBefore:] {
+	for _, msg := range msgs {
 		switch m := msg.(type) {
 		case tea.MouseClickMsg:
 			out = append(out, mouseStep{"click", m.Mouse()})
@@ -516,18 +496,35 @@ func collectMouseTail(tb testing.TB, h *Harness, nBefore int) []mouseStep {
 	return out
 }
 
+// waitMouseTail waits for want mouse messages after the first nBefore, and
+// then for no more to come for a moment, and returns those after nBefore.
+func waitMouseTail(tb testing.TB, r *recorder, nBefore, want int) []mouseStep {
+	tb.Helper()
+	deadline := time.After(recorderTimeout)
+	for {
+		msgs, changed := r.history()
+		if len(mouseTail(msgs[min(nBefore, len(msgs)):])) >= want {
+			break
+		}
+		select {
+		case <-changed:
+		case <-deadline:
+			tb.Fatalf("fewer than %d mouse messages after %s, got:\n%s", want, recorderTimeout, describeMsgs(msgs[min(nBefore, len(msgs)):]))
+		}
+	}
+	r.settle(tb, recorderQuiet)
+	return collectMouseTail(tb, r, nBefore)
+}
+
 func TestHarness_TerminalMouse_deliversClick(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 14, 5)
-	h.WaitMessage[tea.WindowSizeMsg]()
+	h, r := newTerminalHarness(t, 14, 5)
 
 	enableEmulatorMouseReporting(t, h)
-	n := len(slices.Collect(h.MessageHistory()))
+	n := r.count()
 
 	h.Mouse(vt.MousePress, vt.MouseLeft, 4, 2)
-	WaitSettleMessages(t, h)
-
-	got := collectMouseTail(t, h, n)
+	got := waitMouseTail(t, r, n, 1)
 	if len(got) != 1 || got[0].kind != "click" || got[0].X != 4 || got[0].Y != 2 || got[0].Button != tea.MouseLeft {
 		t.Fatalf("unexpected mouse tail: %#v", got)
 	}
@@ -535,15 +532,12 @@ func TestHarness_TerminalMouse_deliversClick(t *testing.T) {
 
 func TestHarness_TerminalMouseClick_deliversPressAndRelease(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 12, 4)
-	h.WaitMessage[tea.WindowSizeMsg]()
+	h, r := newTerminalHarness(t, 12, 4)
 	enableEmulatorMouseReporting(t, h)
-	n := len(slices.Collect(h.MessageHistory()))
+	n := r.count()
 
 	h.MouseClick(vt.MouseLeft, 3, 2)
-	WaitSettleMessages(t, h)
-
-	got := collectMouseTail(t, h, n)
+	got := waitMouseTail(t, r, n, 2)
 	want := []mouseStep{
 		{"click", tea.Mouse{X: 3, Y: 2, Button: tea.MouseLeft}},
 		{"release", tea.Mouse{X: 3, Y: 2, Button: tea.MouseLeft}},
@@ -572,15 +566,12 @@ func TestHarness_TerminalLeftMiddleRightClick_buttons(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			h := newTerminalHarness(t, 10, 5)
-			h.WaitMessage[tea.WindowSizeMsg]()
+			h, r := newTerminalHarness(t, 10, 5)
 			enableEmulatorMouseReporting(t, h)
-			n := len(slices.Collect(h.MessageHistory()))
+			n := r.count()
 
 			tt.fn(h, 2, 1)
-			WaitSettleMessages(t, h)
-
-			got := collectMouseTail(t, h, n)
+			got := waitMouseTail(t, r, n, 2)
 			if len(got) != 2 || got[0].Button != tt.want || got[1].Button != tt.want {
 				t.Fatalf("got %#v, want click+release with button %v", got, tt.want)
 			}
@@ -590,16 +581,13 @@ func TestHarness_TerminalLeftMiddleRightClick_buttons(t *testing.T) {
 
 func TestHarness_TerminalMouseDrag_sequence(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 16, 6)
-	h.WaitMessage[tea.WindowSizeMsg]()
+	h, r := newTerminalHarness(t, 16, 6)
 	enableEmulatorMouseReporting(t, h)
-	n := len(slices.Collect(h.MessageHistory()))
+	n := r.count()
 
 	// (1,1) -> (3,1): press, motion at (2,1), motion at (3,1), release.
 	h.MouseDrag(vt.MouseLeft, 1, 1, 3, 1)
-	WaitSettleMessages(t, h)
-
-	got := collectMouseTail(t, h, n)
+	got := waitMouseTail(t, r, n, 4)
 	want := []mouseStep{
 		{"click", tea.Mouse{X: 1, Y: 1, Button: tea.MouseLeft}},
 		{"motion", tea.Mouse{X: 2, Y: 1, Button: tea.MouseLeft}},
@@ -618,19 +606,16 @@ func TestHarness_TerminalMouseDrag_sequence(t *testing.T) {
 
 func TestHarness_TerminalLeftDrag_equivalentToMouseDragLeft(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 12, 4)
-	h.WaitMessage[tea.WindowSizeMsg]()
+	h, r := newTerminalHarness(t, 12, 4)
 	enableEmulatorMouseReporting(t, h)
 
-	n0 := len(slices.Collect(h.MessageHistory()))
+	n0 := r.count()
 	h.MouseDrag(vt.MouseLeft, 0, 0, 1, 0)
-	WaitSettleMessages(t, h)
-	a := collectMouseTail(t, h, n0)
+	a := waitMouseTail(t, r, n0, 3)
 
-	n1 := len(slices.Collect(h.MessageHistory()))
+	n1 := r.count()
 	h.LeftDrag(0, 0, 1, 0)
-	WaitSettleMessages(t, h)
-	b := collectMouseTail(t, h, n1)
+	b := waitMouseTail(t, r, n1, 3)
 
 	if len(a) != len(b) {
 		t.Fatalf("TerminalMouseDrag len=%d vs TerminalLeftDrag len=%d", len(a), len(b))
@@ -644,15 +629,12 @@ func TestHarness_TerminalLeftDrag_equivalentToMouseDragLeft(t *testing.T) {
 
 func TestHarness_TerminalMouseDrag_sameCellIsClickAndRelease(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 8, 4)
-	h.WaitMessage[tea.WindowSizeMsg]()
+	h, r := newTerminalHarness(t, 8, 4)
 	enableEmulatorMouseReporting(t, h)
-	n := len(slices.Collect(h.MessageHistory()))
+	n := r.count()
 
 	h.MouseDrag(vt.MouseRight, 2, 2, 2, 2)
-	WaitSettleMessages(t, h)
-
-	got := collectMouseTail(t, h, n)
+	got := waitMouseTail(t, r, n, 2)
 	if len(got) != 2 || got[0].kind != "click" || got[1].kind != "release" {
 		t.Fatalf("want click+release only, got %#v", got)
 	}
@@ -663,12 +645,11 @@ func TestHarness_TerminalMouseDrag_sameCellIsClickAndRelease(t *testing.T) {
 
 func TestHarness_TerminalMouse_ignoredWithoutMouseModes(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 8, 4)
-	h.WaitMessage[tea.WindowSizeMsg]()
-	n := len(slices.Collect(h.MessageHistory()))
+	h, r := newTerminalHarness(t, 8, 4)
+	n := r.count()
 	h.LeftClick(2, 2)
-	WaitSettleMessages(t, h)
-	for _, msg := range slices.Collect(h.MessageHistory())[n:] {
+	r.settle(t, recorderQuiet)
+	for _, msg := range r.all()[n:] {
 		switch msg.(type) {
 		case tea.MouseClickMsg, tea.MouseMotionMsg, tea.MouseReleaseMsg, tea.MouseWheelMsg:
 			t.Fatalf("unexpected mouse message without DEC mouse modes: %T", msg)
@@ -694,7 +675,7 @@ func writeVT(t *testing.T, h *Harness, s string) {
 
 func TestProgramStatusProtocol(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 8, 2)
+	h, r := newTerminalHarness(t, 8, 2)
 	before := h.session.Terminal().Text()
 
 	stream := osc7501("?") + osc7501("state=blocked:kind=question:progress=42:app=agent:id=job:title=VGl0bGU=:msg=SGVsbG8=")
@@ -708,7 +689,7 @@ func TestProgramStatusProtocol(t *testing.T) {
 	if before != after {
 		t.Fatal("program status changed the screen")
 	}
-	h.WaitMessage[tea.ProgramStatusSupportMsg]()
+	waitMsg[tea.ProgramStatusSupportMsg](t, r, nil)
 
 	got := h.ProgramStatuses()
 	if len(got) != 1 {
@@ -749,7 +730,7 @@ func TestProgramStatusProtocol(t *testing.T) {
 
 func TestProgramStatusLifecycle(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 8, 2)
+	h, _ := newTerminalHarness(t, 8, 2)
 	writeVT(t, h, osc7501("state=idle:app=root")+
 		osc7501("state=working:id=build:app=compiler")+
 		osc7501("state=blocked:id=build/test")+
@@ -794,7 +775,7 @@ const programStatusMaxRecords = 256
 
 func TestProgramStatusBoundedEviction(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 4, 1)
+	h, _ := newTerminalHarness(t, 4, 1)
 	var b strings.Builder
 	for i := range programStatusMaxRecords {
 		fmt.Fprintf(&b, osc7501("state=working:id=j%03d"), i)
@@ -825,7 +806,7 @@ func TestProgramStatusBoundedEviction(t *testing.T) {
 
 func TestProgramStatusInSnapshot(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 4, 1)
+	h, _ := newTerminalHarness(t, 4, 1)
 	writeVT(t, h, osc7501("state=working:id=job:progress=0:app=demo"))
 	snap := h.session.Screen()
 	if len(snap.ProgramStatus) != 1 || snap.ProgramStatus[0].State != "working" {
@@ -838,7 +819,7 @@ func TestProgramStatusInSnapshot(t *testing.T) {
 
 func TestHarness_terminalScrollViewport(t *testing.T) {
 	t.Parallel()
-	h := newTerminalHarness(t, 6, 3)
+	h, _ := newTerminalHarness(t, 6, 3)
 	var rows strings.Builder
 	for i := range 12 {
 		fmt.Fprintf(&rows, "row-%d\r\n", i)
@@ -929,9 +910,10 @@ func TestHarness_TerminalKey_mapsNamedKeys(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			h := NewHarness(t, rootTestModel{}, WithWindowSize(80, 3))
+			r := record(rootTestModel{})
+			h := NewHarness(t, r, WithWindowSize(80, 3))
 			h.Key(tt.key)
-			h.WaitMessageWhere(func(km tea.KeyPressMsg) bool {
+			waitMsg(t, r, func(km tea.KeyPressMsg) bool {
 				k := km.Key()
 				if k.Code != tt.wantCode || k.Mod != tt.wantMod {
 					return false

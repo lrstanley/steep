@@ -162,17 +162,20 @@ func TestWaitSettle(t *testing.T) {
 		Assert("Sencha is ready")
 }
 
-func TestMessages(t *testing.T) {
-	h := steep.NewHarness(t, NewModel(), steep.WithWindowSize(72, 16), steep.WithSettleIgnoreMsgs(brewTick{}))
-	size := h.WaitMessage[tea.WindowSizeMsg]()
-	if size.Width != 72 {
-		t.Errorf("width = %d, want 72", size.Width)
+// TestUpdate checks the model's state without a harness, by calling Update
+// as the program would. steep tests what the program draws, and keeps none
+// of the messages its model receives.
+func TestUpdate(t *testing.T) {
+	m := NewModel()
+	if _, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter}); cmd == nil || m.brew != "Sencha" {
+		t.Fatalf("brew = %q, want Sencha to start brewing", m.brew)
 	}
-	h.Key("enter").WaitLiveMessage[brewTick]()
-	h.RequireHasMessage[tea.KeyPressMsg]()
-	m := h.Wait("Sencha is ready").QuitProgram().FinalModelAs[*Model]()
-	if len(m.Served) != 1 {
-		t.Errorf("served = %v", m.Served)
+	// The command is a tick: send its message rather than wait for it.
+	for m.brewing != 0 {
+		m.Update(brewTick{})
+	}
+	if len(m.Served) != 1 || m.Served[0] != "Sencha" {
+		t.Errorf("served = %v, want [Sencha]", m.Served)
 	}
 }
 

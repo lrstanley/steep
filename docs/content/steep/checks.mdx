@@ -67,12 +67,11 @@ Each of these has an `Assert` and a `Require` form. On a harness, they return th
 | `AssertNot(content)` | The text isn't. With a `[]string`, none of them is. |
 | `AssertFor(cond)` | A [condition](/steep/checks#conditions) holds |
 | `AssertWidth(n)`, `AssertHeight(n)`, `AssertDimensions(w, h)` | The output has that size |
-| `AssertHasMessage[T]()` | The model has received a `T` (see [Messages](/steep/program#messages)) |
 | `AssertSnapshot()`, `AssertJSON()` | The screen matches a [snapshot](/steep/snapshots) |
 
-The `Require` forms are `Require`, `RequireNot`, `RequireFor`, `RequireWidth`, `RequireHeight`, `RequireDimensions`, `RequireHasMessage`, `RequireSnapshot`, and `RequireJSON`.
+The `Require` forms are `Require`, `RequireNot`, `RequireFor`, `RequireWidth`, `RequireHeight`, `RequireDimensions`, `RequireSnapshot`, and `RequireJSON`.
 
-The `Wait` family blocks on the same kinds of thing: `Wait(content)`, `WaitNot(content)`, `WaitFor(cond)`, `WaitSettle()`, `WaitSettleMessages()`, `WaitMessage[T]()`, and `WaitFinished()`.
+The `Wait` family blocks on the same kinds of thing: `Wait(content)`, `WaitNot(content)`, `WaitFor(cond)`, `WaitSettle()`, and `WaitFinished()`.
 
 ## Checks without a harness
 
@@ -166,21 +165,6 @@ h.Key("r").WaitSettle(steep.WithSettleOnly(region.Text("results")))
 
 Both accumulate, and as harness options they apply to every `WaitSettle`.
 
-### Settling on messages
-
-`WaitSettleMessages` waits until the model hasn't received a message for the settle period. That's useful for programs that are still working but not drawing, or for a screen with an animation that never stops. You can tell it which messages don't count:
-
-```go
-h := steep.NewHarness(t, newModel(), steep.WithSettleIgnoreMsgs(spinner.TickMsg{}))
-h.Key("enter").WaitSettleMessages()
-```
-
-Pass a value of each type to ignore. Types have to match exactly. It needs a `tea.Program`, so an exec harness can't use it.
-
-### Waiting for messages
-
-To wait for a specific message rather than a quiet period, use [`WaitMessage`](/steep/program#messages).
-
 ### Which to use
 
 <Mermaid chart={`flowchart TD
@@ -188,18 +172,15 @@ To wait for a specific message rather than a quiet period, use [`WaitMessage`](/
   A -->|No| B{Does the screen stop changing?}
   B -->|Yes| S[WaitSettle]
   B -->|Only a clock or spinner does| R[WaitSettle with WithSettleIgnore]
-  B -->|No, it animates| C{Do you know the message that ends it?}
-  C -->|Yes| M[WaitMessage]
-  C -->|No| Q[WaitSettleMessages with WithSettleIgnoreMsgs]
+  B -->|No, it animates| O[WaitSettle with WithSettleOnly on the part you care about]
 `} />
 
 ### The timers
 
 | Option | Variable | Default | Controls |
 | --- | --- | --- | --- |
-| `WithTimeout` | `STEEP_TIMEOUT` | 2s | How long any blocking wait may take: startup, waits, settles, and mutations |
+| `WithTimeout` | `STEEP_TIMEOUT` | 2s | How long any blocking wait may take: startup, waits, and settles |
 | `WithSettle` | `STEEP_SETTLE` | 100ms | The quiet period. Capped at 80% of the timeout. |
-| `WithCheck` | `STEEP_CHECK` | 10ms | How often `WaitSettleMessages` re-checks. Screen waits don't poll. |
 | `WithSlow` | `STEEP_SLOW` | Off | A sleep after every action, for programs that need real time between them |
 
 A variable overrides its option unless the harness has `WithIgnoreEnv(true)`. So a slow CI machine can be handled with no code changes:

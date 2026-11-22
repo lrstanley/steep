@@ -7,20 +7,16 @@ package steep
 import (
 	"context"
 	"errors"
-	"iter"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"getsteep.dev/steep/reel"
-	uv "github.com/charmbracelet/ultraviolet"
 )
 
 // WaitFinished waits for the program to finish. It fails the test if the
 // program failed: it returned an error other than [tea.ErrProgramKilled],
 // or it panicked, which Bubble Tea reports as killed. A command's nonzero
 // exit status is not an error (see [Harness.ExitStatus]).
-//
-// See also [Harness.FinalModel].
 func (h *Harness) WaitFinished(opts ...Option) {
 	h.tb.Helper()
 	meta := WaitMeta{Kind: WaitKindFinished}
@@ -87,8 +83,6 @@ func (h *Harness) Sleep(d time.Duration, opts ...Option) *Harness {
 
 // WaitSettle waits until [Harness.View] has not changed for the settle
 // timeout ([WithSettle]) (see [reel.Session.WaitSettle]).
-//
-// See also [Harness.WaitSettleMessages].
 func (h *Harness) WaitSettle(opts ...Option) *Harness {
 	h.tb.Helper()
 	meta := WaitMeta{Kind: WaitKindSettle}
@@ -292,80 +286,4 @@ func (h *Harness) RequireDimensions(width, height int, opts ...Option) *Harness 
 	defer h.hook(HookAssert, AssertMeta{Kind: AssertKindDimensions, Required: true})()
 	RequireDimensions(h.tb, h.View, width, height, h.mergedOpts(opts...)...)
 	return h
-}
-
-// WaitSettleMessages waits until the model has received no messages for the
-// settle timeout ([WithSettle]), ignoring types from [WithSettleIgnoreMsgs].
-//
-// See also [Harness.WaitSettle].
-func (h *Harness) WaitSettleMessages(opts ...Option) *Harness {
-	h.tb.Helper()
-	defer h.hook(HookWait, WaitMeta{Kind: WaitKindSettleMessages})()
-	WaitSettleMessages(h.tb, h, h.mergedOpts(opts...)...)
-	return h
-}
-
-// WaitMessage waits until at least one message with concrete type T has been
-// observed, then returns the first match.
-func (h *Harness) WaitMessage[T uv.Event](opts ...Option) T {
-	h.tb.Helper()
-	defer h.hook(HookWait, WaitMeta{Kind: WaitKindMessage})()
-	return WaitMessage[T](h.tb, h, h.mergedOpts(opts...)...)
-}
-
-// WaitLiveMessage waits until a new message with concrete type T arrives
-// after this call, then returns the first match.
-func (h *Harness) WaitLiveMessage[T uv.Event](opts ...Option) T {
-	h.tb.Helper()
-	defer h.hook(HookWait, WaitMeta{Kind: WaitKindMessage, Live: true})()
-	return WaitLiveMessage[T](h.tb, h, h.mergedOpts(opts...)...)
-}
-
-// WaitMessageWhere waits until fn returns true for a message of type T
-// across history and later messages. T is inferred from fn. fn should be
-// quick: a wait that falls 32 messages behind misses the newer ones (see
-// [Harness.Messages]).
-func (h *Harness) WaitMessageWhere[T uv.Event](fn func(T) bool, opts ...Option) T {
-	h.tb.Helper()
-	defer h.hook(HookWait, WaitMeta{Kind: WaitKindMessage})()
-	return waitMessage(h.tb, h, false, fn, h.mergedOpts(opts...)...)
-}
-
-// WaitLiveMessageWhere waits until fn returns true for a message of type T
-// received after this call. T is inferred from fn. fn should be quick, as
-// for [Harness.WaitMessageWhere].
-func (h *Harness) WaitLiveMessageWhere[T uv.Event](fn func(T) bool, opts ...Option) T {
-	h.tb.Helper()
-	defer h.hook(HookWait, WaitMeta{Kind: WaitKindMessage, Live: true})()
-	return waitMessage(h.tb, h, true, fn, h.mergedOpts(opts...)...)
-}
-
-// AssertHasMessage reports an error unless history contains a message of
-// type T.
-func (h *Harness) AssertHasMessage[T uv.Event](opts ...Option) bool {
-	h.tb.Helper()
-	defer h.hook(HookAssert, AssertMeta{Kind: AssertKindHasMessage})()
-	return AssertHasMessage[T](h.tb, h, h.mergedOpts(opts...)...)
-}
-
-// RequireHasMessage fails the test immediately unless history contains a
-// message of type T.
-func (h *Harness) RequireHasMessage[T uv.Event](opts ...Option) *Harness {
-	h.tb.Helper()
-	defer h.hook(HookAssert, AssertMeta{Kind: AssertKindHasMessage, Required: true})()
-	RequireHasMessage[T](h.tb, h, h.mergedOpts(opts...)...)
-	return h
-}
-
-// FilterMessagesType yields history messages whose concrete type is T.
-func (h *Harness) FilterMessagesType[T uv.Event]() iter.Seq[T] {
-	h.tb.Helper()
-	return FilterMessagesType[T](h.tb, h.MessageHistory())
-}
-
-// FilterMessagesFunc yields history messages of type T for which fn returns
-// true.
-func (h *Harness) FilterMessagesFunc[T uv.Event](fn func(T) bool) iter.Seq[T] {
-	h.tb.Helper()
-	return FilterMessagesFunc[T](h.tb, h.MessageHistory(), fn)
 }

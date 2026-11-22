@@ -1,6 +1,6 @@
 ---
 title: Debugging
-description: "See what a test did: logs, the inspector, marks, messages and source lines, and hooks."
+description: "See what a test did: logs, the inspector, marks, source lines, and hooks."
 ---
 
 ## Step through a failure in the inspector
@@ -17,7 +17,6 @@ Record with everything the inspector can show:
 STEEP_EXPORT_MODE=failure \
 STEEP_EXPORT='{name}.cast' \
 STEEP_SOURCE=on \
-STEEP_RECORD_MESSAGES=on \
 go test -artifacts -run TestMenu ./...
 ```
 
@@ -46,7 +45,6 @@ Some questions this answers quickly:
 - **Did the key arrive?** Look for its input event, and the output after it.
 - **Did the program respond late?** Compare the time of the output with the wait's timeout.
 - **Was the text there and gone again?** Step through the frames around the wait.
-- **Did the model get the message?** With messages recorded, they're in the event list too.
 </Step>
 </Steps>
 
@@ -130,33 +128,19 @@ Calls apply in order. Annotations are still recorded. A category that an output 
 
 A profile can look for a mark that never happened, such as a pause on `step:3` in a test that failed at `step:1`. That doesn't stop an export. For a failed test it's logged, and for a passing test it's a test error, since a passing test should reach its own marks. `failure:n` marks are the exception, so one profile can pause on `failure:1` whatever the result.
 
-## Messages and source lines
+## Source lines
 
-Two options add more to a recording. They're off by default, and you can turn them on from the environment for one run:
+Source lines are off by default, and you can turn them on from the environment for one run:
 
 ```console
-STEEP_RECORD_MESSAGES=on STEEP_SOURCE=on STEEP_EXPORT_MODE=failure go test -artifacts ./...
+STEEP_SOURCE=on STEEP_EXPORT_MODE=failure go test -artifacts ./...
 ```
-
-### Messages
-
-`WithRecordMessages(true)` records each message the model receives as a `steep.message` annotation, of its type and `%+v` value. Then the [inspector](/steep/debugging#step-through-a-failure-in-the-inspector) shows what the model received between two frames.
-
-It's off by default because programs that tick or animate get many messages, and each one grows the timeline and the `.cast` file.
-
-<Callout type="warn" title="Secrets">
-  `tea.EnvMsg` is never recorded, since it holds the whole environment. Other messages are recorded as they are, including any secret they hold. Don't share a recording with messages if your model handles secrets.
-</Callout>
-
-An exec harness has no messages, so this does nothing there.
-
-### Source lines
 
 `WithSource(true)` records where in your test each annotation and mark came from: the file, line, and function of the test's line that led to it, past any helpers. In the inspector, each mark and failure then links back to its line.
 
 File paths are relative to the module's root, so a recording doesn't contain home or build directories. `steep.start` also gets the test's package, its module, and its directory in the module.
 
-Annotations and marks that no line of the test led to don't get a source. That includes messages the model receives, and anything `Close` does as a cleanup.
+Annotations and marks that no line of the test led to don't get a source, such as anything `Close` does as a cleanup. An action's mark gets the action's line, even when it's placed later (see [When an action's mark lands](/steep/how-it-works#when-an-actions-mark-lands)).
 
 While it's off, no stack is walked, so it costs nothing.
 
@@ -206,4 +190,4 @@ See [pkg.go.dev](https://pkg.go.dev/getsteep.dev/steep#Hook) for every field.
 
 ### Order
 
-A mark is placed once an action is done, before its After hooks run. So an After hook can look at a timeline that already has the action's mark.
+A wait, assertion, or capture is marked once it's done, before its After hooks run, so an After hook can look at a timeline that already has its mark. An input, terminal, or program action is marked later, at the test's next step (see [When an action's mark lands](/steep/how-it-works#when-an-actions-mark-lands)), so its After hooks run before its mark is placed.

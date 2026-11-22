@@ -34,13 +34,13 @@ func (m locateProbe) Update(msg uv.Event) (tea.Model, tea.Cmd) {
 func (m locateProbe) View() tea.View { return tea.NewView(m.view) }
 
 // newLocateHarness returns a harness over tb, with mouse reporting on, that
-// has drawn view.
-func newLocateHarness(tb testing.TB, view string) *Harness {
+// has drawn view, and the recorder of its messages.
+func newLocateHarness(tb testing.TB, view string) (*Harness, *recorder) {
 	tb.Helper()
-	h := NewHarness(tb, locateProbe{view: view}, WithWindowSize(20, 4))
-	h.WaitMessage[tea.WindowSizeMsg]()
+	r := record(locateProbe{view: view})
+	h := NewHarness(tb, r, WithWindowSize(20, 4))
 	enableEmulatorMouseReporting(tb, h)
-	return h
+	return h, r
 }
 
 func TestHarness_Locate_clicksWhereConditionMatched(t *testing.T) {
@@ -70,13 +70,11 @@ func TestHarness_Locate_clicksWhereConditionMatched(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			h := newLocateHarness(t, tt.view)
-			n := len(slices.Collect(h.MessageHistory()))
+			h, r := newLocateHarness(t, tt.view)
+			n := r.count()
 
 			tt.loc(h).LeftClick()
-			WaitSettleMessages(t, h)
-
-			got := collectMouseTail(t, h, n)
+			got := waitMouseTail(t, r, n, 2)
 			want := tea.Mouse{X: tt.x, Y: tt.y, Button: tea.MouseLeft}
 			if len(got) != 2 || got[0].kind != "click" || got[0].Mouse != want || got[1].kind != "release" {
 				t.Fatalf("got %#v, want click+release of %+v", got, want)
@@ -98,13 +96,11 @@ func TestHarness_Locate_buttons(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			h := newLocateHarness(t, "OK")
-			n := len(slices.Collect(h.MessageHistory()))
+			h, r := newLocateHarness(t, "OK")
+			n := r.count()
 
 			tt.fn(h.Locate(reel.Contains("OK")), reel.Repeat(2))
-			WaitSettleMessages(t, h)
-
-			got := collectMouseTail(t, h, n)
+			got := waitMouseTail(t, r, n, 4)
 			if len(got) != 4 || got[0].Button != tt.want {
 				t.Fatalf("got %#v, want two clicks with button %v", got, tt.want)
 			}
@@ -123,15 +119,13 @@ func mouseSteps(steps []mouseStep) string {
 
 func TestHarness_Locate_hover(t *testing.T) {
 	t.Parallel()
-	h := newLocateHarness(t, "\n  [ OK ]")
+	h, r := newLocateHarness(t, "\n  [ OK ]")
 	// Motion with no button held is only reported with any-event tracking.
 	_ = writeString(h, ansi.SetModeMouseAnyEvent)
-	n := len(slices.Collect(h.MessageHistory()))
+	n := r.count()
 
 	h.Locate(reel.Contains("OK")).Hover()
-	WaitSettleMessages(t, h)
-
-	got := collectMouseTail(t, h, n)
+	got := waitMouseTail(t, r, n, 1)
 	want := mouseStep{"motion", tea.Mouse{X: 4, Y: 1, Button: tea.MouseNone}}
 	if len(got) != 1 || got[0] != want {
 		t.Fatalf("got %s, want %s", mouseSteps(got), mouseSteps([]mouseStep{want}))
@@ -176,13 +170,12 @@ func TestHarness_Locate_drag(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			h := newLocateHarness(t, tt.view)
-			n := len(slices.Collect(h.MessageHistory()))
+			h, r := newLocateHarness(t, tt.view)
+			n := r.count()
 
 			tt.drag(h)
-			WaitSettleMessages(t, h)
 
-			if got := collectMouseTail(t, h, n); !slices.Equal(got, tt.want) {
+			if got := waitMouseTail(t, r, n, len(tt.want)); !slices.Equal(got, tt.want) {
 				t.Fatalf("got %s\nwant %s", mouseSteps(got), mouseSteps(tt.want))
 			}
 		})
@@ -206,13 +199,11 @@ func TestHarness_Locate_wheel(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			h := newLocateHarness(t, "\n  [ OK ]")
-			n := len(slices.Collect(h.MessageHistory()))
+			h, r := newLocateHarness(t, "\n  [ OK ]")
+			n := r.count()
 
 			h.Locate(reel.Contains("OK")).Wheel(tt.button, tt.opts...)
-			WaitSettleMessages(t, h)
-
-			got := collectMouseTail(t, h, n)
+			got := waitMouseTail(t, r, n, tt.count)
 			want := slices.Repeat([]mouseStep{{"wheel", tea.Mouse{X: 4, Y: 1, Button: tt.want}}}, tt.count)
 			if !slices.Equal(got, want) {
 				t.Fatalf("got %s\nwant %d of %s", mouseSteps(got), tt.count, mouseSteps(want[:1]))
@@ -223,7 +214,7 @@ func TestHarness_Locate_wheel(t *testing.T) {
 
 func TestHarness_Locate_waits(t *testing.T) {
 	t.Parallel()
-	h := newLocateHarness(t, "loading")
+	h, _ := newLocateHarness(t, "loading")
 	time.AfterFunc(20*time.Millisecond, func() { h.SendProgram(setTextMsg("  ready")) })
 
 	loc := h.Locate(reel.Contains("ready"))
@@ -236,7 +227,7 @@ func TestHarness_Locate_waits(t *testing.T) {
 // A wait for the nth match waits for it to be drawn, not just the first.
 func TestHarness_Locate_waitsForNth(t *testing.T) {
 	t.Parallel()
-	h := newLocateHarness(t, "revoke")
+	h, _ := newLocateHarness(t, "revoke")
 	time.AfterFunc(20*time.Millisecond, func() { h.SendProgram(setTextMsg("revoke\n  revoke")) })
 
 	loc := h.Locate(reel.Nth(2, reel.Contains("revoke")))
@@ -310,8 +301,8 @@ func TestHarness_Locate_fails(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			tb := &fakeTB{TB: t}
-			h := newLocateHarness(tb, "OK")
-			n := len(slices.Collect(h.MessageHistory()))
+			h, r := newLocateHarness(tb, "OK")
+			n := r.count()
 
 			runFailing(func() { tt.fn(h) })
 
@@ -319,7 +310,7 @@ func TestHarness_Locate_fails(t *testing.T) {
 			if !strings.Contains(errs, tt.want) {
 				t.Fatalf("errors %q, want %q", errs, tt.want)
 			}
-			if got := collectMouseTail(t, h, n); len(got) != 0 {
+			if got := collectMouseTail(t, r, n); len(got) != 0 {
 				t.Fatalf("sent mouse messages: %#v", got)
 			}
 		})

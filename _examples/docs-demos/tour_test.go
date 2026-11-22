@@ -29,7 +29,7 @@ import (
 // shows, exported with one change at a time.
 func record(t *testing.T) *reel.Timeline {
 	t.Helper()
-	opts := append(demo("tour", true), steep.WithSource(true), steep.WithRecordMessages(true))
+	opts := append(demo("tour", true), steep.WithSource(true))
 	// Time to follow along, only when recording, so the test stays quick
 	// otherwise.
 	var typing, hold time.Duration

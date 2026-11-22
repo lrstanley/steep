@@ -17,7 +17,6 @@ The `STEEP_*` variables override options set in code, unless the harness has `Wi
 | --- | --- | --- |
 | `STEEP_TIMEOUT` | A duration, default `2s` | [`WithTimeout`](/steep/checks#the-timers) |
 | `STEEP_SETTLE` | A duration, default `100ms` | [`WithSettle`](/steep/checks#the-timers) |
-| `STEEP_CHECK` | A duration, default `10ms` | [`WithCheck`](/steep/checks#the-timers) |
 | `STEEP_SLOW` | A duration | [`WithSlow`](/steep/checks#the-timers) |
 | `STEEP_TYPING_DELAY` | A duration to pause after each key press of `Type` and `Key`, unless a call passes `reel.Delay` | `reel.WithTypingDelay` |
 
@@ -26,8 +25,7 @@ The `STEEP_*` variables override options set in code, unless the harness has `Wi
 | Variable | Value | Replaces |
 | --- | --- | --- |
 | `STEEP_LOG` | `on`, `true`, or `1` adds the logging hook | [`WithLog`](/steep/debugging#logging) |
-| `STEEP_RECORD_MESSAGES` | `on` or `off` (or `true`, `1`, `false`, `0`) | [`WithRecordMessages`](/steep/debugging#messages-and-source-lines) |
-| `STEEP_SOURCE` | `on` or `off` (or `true`, `1`, `false`, `0`) | [`WithSource`](/steep/debugging#messages-and-source-lines) |
+| `STEEP_SOURCE` | `on` or `off` (or `true`, `1`, `false`, `0`) | [`WithSource`](/steep/debugging#source-lines) |
 
 ## Exports
 

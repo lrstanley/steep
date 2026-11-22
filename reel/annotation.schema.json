@@ -47,7 +47,6 @@
     {"if": {"properties": {"kind": {"const": "steep.assert"}}, "required": ["kind"]}, "then": {"$ref": "#/$defs/steep.assert"}},
     {"if": {"properties": {"kind": {"const": "steep.snapshot"}}, "required": ["kind"]}, "then": {"$ref": "#/$defs/steep.snapshot"}},
     {"if": {"properties": {"kind": {"const": "steep.failure"}}, "required": ["kind"]}, "then": {"$ref": "#/$defs/steep.failure"}},
-    {"if": {"properties": {"kind": {"const": "steep.message"}}, "required": ["kind"]}, "then": {"$ref": "#/$defs/steep.message"}},
     {"if": {"properties": {"kind": {"const": "steep.exit"}}, "required": ["kind"]}, "then": {"$ref": "#/$defs/steep.exit"}},
     {"if": {"properties": {"kind": {"const": "steep.result"}}, "required": ["kind"]}, "then": {"$ref": "#/$defs/steep.result"}}
   ],
@@ -592,15 +591,14 @@
     "steep.start": {
       "description": "The start of a test run with steep, a test harness for Bubble Tea programs, with the harness's configuration, after any STEEP_ environment variables applied. steep writes it once, as the first event of the recording, before the program starts.",
       "type": "object",
-      "required": ["kind", "test", "cols", "rows", "timeout_ms", "check_ms", "settle_ms", "ansi", "export"],
+      "required": ["kind", "test", "cols", "rows", "timeout_ms", "settle_ms", "ansi", "export"],
       "properties": {
         "kind": {"const": "steep.start"},
         "test": {"description": "The name of the Go test, such as \"TestLogin/bad_password\".", "type": "string"},
         "cols": {"description": "The terminal's width in cells as the program starts.", "type": "integer"},
         "rows": {"description": "The terminal's height in cells as the program starts.", "type": "integer"},
         "timeout_ms": {"description": "How long a wait may take before it fails the test.", "type": "integer"},
-        "check_ms": {"description": "How often a wait checks the screen.", "type": "integer"},
-        "settle_ms": {"description": "How long the screen, or the program's messages, must stay unchanged for a settle wait to be satisfied.", "type": "integer"},
+        "settle_ms": {"description": "How long the screen must stay unchanged for a settle wait to be satisfied.", "type": "integer"},
         "slow_ms": {"description": "How long the harness sleeps after each action. Left out for none.", "type": "integer"},
         "typing_ms": {"description": "How long the harness pauses after each key it types or presses. Left out for none.", "type": "integer"},
         "ansi": {"description": "Whether assertions, waits, and snapshots compare the screen with its ANSI sequences kept. When false they are stripped first.", "type": "boolean"},
@@ -612,20 +610,19 @@
           "description": "When the harness exports its recording: \"off\" never, \"failure\" when the test fails, and \"always\".",
           "type": "string", "examples": ["off", "failure", "always"]
         },
-        "messages": {"description": "True when the harness records each message the program's model receives, as steep.message annotations. Left out otherwise.", "const": true},
         "package": {"description": "When sources are recorded: the import path of the test's package, such as \"example.com/app\", or \"example.com/app_test\" for an external test package. Its source is the test's function and the line that started the harness.", "type": "string"},
         "module": {"description": "When sources are recorded: the path of the Go module the source files are relative to.", "type": "string"},
         "dir": {"description": "When sources are recorded: the test's working directory, its package's directory, relative to the module's root, with forward slashes, \".\" at the root. Snapshot paths are relative to it.", "type": "string"}
       }
     },
     "steep.ready": {
-      "description": "The end of the harness's wait for the program to start, which ends when the program's model handles its first message. steep writes it once, after steep.start.",
+      "description": "The end of the harness's wait for the program to start, which ends when the program first paints the terminal, or at once for a command. steep writes it once, after steep.start.",
       "type": "object",
       "required": ["kind", "outcome", "elapsed_ms"],
       "properties": {
         "kind": {"const": "steep.ready"},
         "outcome": {
-          "description": "How the wait ended: \"ready\" when the program started, \"timeout\" when it did not start within the timeout, and \"canceled\" when the test's context was canceled first. The test goes on after a timeout or a cancelation.",
+          "description": "How the wait ended: \"ready\" when the program started, \"timeout\" when it painted nothing within the timeout, and \"canceled\" when the test's context was canceled first. The test goes on after a timeout or a cancelation.",
           "type": "string", "examples": ["ready", "timeout", "canceled"]
         },
         "elapsed_ms": {"description": "How long the harness had run when the wait ended, in wall-clock time.", "type": "integer", "minimum": 0}
@@ -676,40 +673,37 @@
       "properties": {
         "kind": {"const": "steep.program"},
         "action": {
-          "description": "The action: \"send\" sent the program a message, \"quit\" asked it to quit, and \"mutate\" changed its model directly.",
-          "type": "string", "examples": ["send", "quit", "mutate"]
+          "description": "The action: \"send\" sent the program a message, and \"quit\" asked it to quit.",
+          "type": "string", "examples": ["send", "quit"]
         },
-        "type": {"description": "For \"send\": the message's Go type, such as \"tea.KeyPressMsg\". For \"mutate\": the Go type of the model changed.", "type": "string"},
+        "type": {"description": "For \"send\": the message's Go type, such as \"tea.KeyPressMsg\".", "type": "string"},
         "value": {"description": "For \"send\": the message's value, as Go's fmt package prints it with %+v. Left out for the environment (tea.EnvMsg), which may hold secrets.", "type": "string"},
         "truncated": {"$ref": "#/$defs/steep.truncated"}
       },
-      "if": {"properties": {"action": {"enum": ["send", "mutate"]}}, "required": ["action"]},
+      "if": {"properties": {"action": {"const": "send"}}, "required": ["action"]},
       "then": {"required": ["type"]}
     },
     "steep.wait.start": {
-      "description": "The start of a wait of the test, for what the screen shows, for the program's messages, or for time to pass. The steep.wait.end with the same id ends it, unless the test ended first, such as by a panic.",
+      "description": "The start of a wait of the test, for what the screen shows, for the program to end, or for time to pass. The steep.wait.end with the same id ends it, unless the test ended first, such as by a panic.",
       "type": "object",
       "required": ["kind", "id", "wait"],
       "properties": {
         "kind": {"const": "steep.wait.start"},
         "id": {"description": "The wait's number, counted from 1 for each test, which its steep.wait.end has too.", "type": "integer", "minimum": 1},
         "wait": {
-          "description": "What the test waits for: \"text\" every one of some text to be on the screen, \"not_text\" none of it to be, \"condition\" another condition on the screen, such as a regular expression to match it, or one of the test's own, \"settle\" the screen to stay unchanged for the settle time, \"settle_messages\" the program's model to receive no message for the settle time, \"message\" the program's model to receive a message of a type, \"finished\" the program to end, and \"sleep\" time to pass.",
-          "type": "string", "examples": ["text", "not_text", "condition", "settle", "settle_messages", "message", "finished", "sleep"]
+          "description": "What the test waits for: \"text\" every one of some text to be on the screen, \"not_text\" none of it to be, \"condition\" another condition on the screen, such as a regular expression to match it, or one of the test's own, \"settle\" the screen to stay unchanged for the settle time, \"finished\" the program to end, and \"sleep\" time to pass.",
+          "type": "string", "examples": ["text", "not_text", "condition", "settle", "finished", "sleep"]
         },
         "text": {"description": "For \"text\" and \"not_text\": the text.", "type": "array", "items": {"type": "string"}},
         "condition": {"description": "For \"condition\": the condition, as it describes itself, such as \"matches \\\"v[0-9]+\\\"\" or \"contains [\\\"$ \\\"] on the cursor line\".", "type": "string"},
-        "type": {"description": "For \"message\": the Go type of message waited for, such as \"tea.WindowSizeMsg\", which may be an interface type.", "type": "string"},
-        "live": {"description": "For \"message\": true when only messages received after the wait starts count. Left out otherwise.", "const": true},
         "timeout_ms": {"description": "How long the wait may take before it fails the test. Left out for \"sleep\".", "type": "integer"},
-        "settle_ms": {"description": "For \"settle\" and \"settle_messages\": how long nothing must change.", "type": "integer"},
+        "settle_ms": {"description": "For \"settle\": how long nothing must change.", "type": "integer"},
         "duration_ms": {"description": "For \"sleep\": how long it sleeps. Left out for no time.", "type": "integer"},
         "truncated": {"$ref": "#/$defs/steep.truncated"}
       },
       "allOf": [
         {"if": {"properties": {"wait": {"enum": ["text", "not_text"]}}, "required": ["wait"]}, "then": {"required": ["text"]}},
-        {"if": {"properties": {"wait": {"const": "condition"}}, "required": ["wait"]}, "then": {"required": ["condition"]}},
-        {"if": {"properties": {"wait": {"const": "message"}}, "required": ["wait"]}, "then": {"required": ["type"]}}
+        {"if": {"properties": {"wait": {"const": "condition"}}, "required": ["wait"]}, "then": {"required": ["condition"]}}
       ]
     },
     "steep.wait.end": {
@@ -719,7 +713,7 @@
       "properties": {
         "kind": {"const": "steep.wait.end"},
         "id": {"description": "The wait's number, as its steep.wait.start has it.", "type": "integer", "minimum": 1},
-        "wait": {"description": "What the test waited for, as its steep.wait.start has it.", "type": "string", "examples": ["text", "not_text", "condition", "settle", "settle_messages", "message", "finished", "sleep"]},
+        "wait": {"description": "What the test waited for, as its steep.wait.start has it.", "type": "string", "examples": ["text", "not_text", "condition", "settle", "finished", "sleep"]},
         "outcome": {
           "description": "How the wait ended: \"satisfied\" when what it waited for happened, \"timeout\" when it did not within the timeout, \"canceled\" when the test's context was canceled first, and \"failed\" for another failure, such as the session closing or a program that ended with an error.",
           "type": "string", "examples": ["satisfied", "timeout", "canceled", "failed"]
@@ -730,25 +724,23 @@
           "type": "array",
           "items": {"$ref": "#/$defs/steep.match"}
         },
-        "type": {"description": "For a satisfied \"message\" wait: the Go type of the message that satisfied it.", "type": "string"},
         "truncated": {"$ref": "#/$defs/steep.truncated"}
       }
     },
     "steep.assert": {
-      "description": "An assertion of the test, on one sample of the screen or on the messages the program's model received, and whether it passed. One that fails fails the test, and a steep.failure with the reason comes before it. A required one that fails stops the test.",
+      "description": "An assertion of the test, on one sample of the screen, and whether it passed. One that fails fails the test, and a steep.failure with the reason comes before it. A required one that fails stops the test.",
       "type": "object",
       "required": ["kind", "assert", "required", "pass"],
       "properties": {
         "kind": {"const": "steep.assert"},
         "assert": {
-          "description": "What was asserted: \"contains\" every one of some text is on the screen, \"not_contains\" none of it is, \"condition\" another condition holds for it, such as a regular expression matching it, \"width\", \"height\", and \"dimensions\" the size of the screen's text, and \"has_message\" the program's model received a message of a type.",
-          "type": "string", "examples": ["contains", "not_contains", "condition", "width", "height", "dimensions", "has_message"]
+          "description": "What was asserted: \"contains\" every one of some text is on the screen, \"not_contains\" none of it is, \"condition\" another condition holds for it, such as a regular expression matching it, and \"width\", \"height\", and \"dimensions\" the size of the screen's text.",
+          "type": "string", "examples": ["contains", "not_contains", "condition", "width", "height", "dimensions"]
         },
         "required": {"description": "Whether a failure stops the test, as steep's Require methods do, rather than letting it go on, as its Assert methods do.", "type": "boolean"},
         "pass": {"description": "Whether the assertion held.", "type": "boolean"},
         "text": {"description": "For \"contains\" and \"not_contains\": the text.", "type": "array", "items": {"type": "string"}},
         "condition": {"description": "For \"condition\": the condition, as it describes itself, such as \"matches \\\"v[0-9]+\\\"\".", "type": "string"},
-        "type": {"description": "For \"has_message\": the Go type of message asserted, which may be an interface type.", "type": "string"},
         "expected": {"description": "For \"width\", \"height\", and \"dimensions\": the size asserted.", "$ref": "#/$defs/steep.dims"},
         "actual": {"description": "For \"width\", \"height\", and \"dimensions\": the size of the screen's text, both width and height.", "$ref": "#/$defs/steep.dims"},
         "matches": {
@@ -761,8 +753,7 @@
       "allOf": [
         {"if": {"properties": {"assert": {"enum": ["contains", "not_contains"]}}, "required": ["assert"]}, "then": {"required": ["text"]}},
         {"if": {"properties": {"assert": {"const": "condition"}}, "required": ["assert"]}, "then": {"required": ["condition"]}},
-        {"if": {"properties": {"assert": {"enum": ["width", "height", "dimensions"]}}, "required": ["assert"]}, "then": {"required": ["expected", "actual"]}},
-        {"if": {"properties": {"assert": {"const": "has_message"}}, "required": ["assert"]}, "then": {"required": ["type"]}}
+        {"if": {"properties": {"assert": {"enum": ["width", "height", "dimensions"]}}, "required": ["assert"]}, "then": {"required": ["expected", "actual"]}}
       ]
     },
     "steep.snapshot": {
@@ -791,17 +782,6 @@
       "properties": {
         "kind": {"const": "steep.failure"},
         "message": {"description": "The failure message, as the test's output shows it.", "type": "string"},
-        "truncated": {"$ref": "#/$defs/steep.truncated"}
-      }
-    },
-    "steep.message": {
-      "description": "A message the program's model received, before it handled it. steep writes these only when the test asks it to, since a program that ticks or animates receives many, and never for the environment (tea.EnvMsg), which may hold secrets.",
-      "type": "object",
-      "required": ["kind", "type", "value"],
-      "properties": {
-        "kind": {"const": "steep.message"},
-        "type": {"description": "The message's Go type, such as \"tea.KeyPressMsg\".", "type": "string"},
-        "value": {"description": "The message's value, as Go's fmt package prints it with %+v.", "type": "string"},
         "truncated": {"$ref": "#/$defs/steep.truncated"}
       }
     },

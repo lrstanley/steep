@@ -19,7 +19,13 @@ h.Wait("Sencha").
 	Key("enter")
 ```
 
-A caption starts where you place it. After an action, such as `Key`, the harness has already waited for the program to paint its response (see [`Mark`](/steep/recording#stills)), so a caption placed after it shows with the response, not before.
+A caption starts where you place it. An action, such as `Key`, returns as soon as its input is sent, before the program has responded. To start a caption on the response, `Wait` for it first:
+
+```go
+h.Key("enter").
+	Wait("Brewing").
+	Caption("The status line shows how far along it is")
+```
 
 It shows until the next caption, or until the recording ends. There's nothing to add to the [recording profile](/steep/recording#the-recording-profile): when a test places a caption, the export draws it with `effects.Captions` unless the profile has a `Captions` effect of its own.
 

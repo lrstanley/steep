@@ -74,6 +74,10 @@ type Session struct {
 	// source is [WithSource], skipping the packages of sourceSkip.
 	source     bool
 	sourceSkip []string
+	// painted is set once the program has painted (see [Session.WaitPainted]),
+	// and drew once its output has changed what a paint changes, while
+	// synchronized output may still hold it. Both are guarded by mu.
+	painted, drew bool
 }
 
 // SessionOption configures [Open].
@@ -344,6 +348,9 @@ func (s *Session) writeLocked(p []byte) error {
 		return nil
 	}
 	s.timeline.append(Output{Data: bytes.Clone(p)})
+	if !s.painted {
+		defer s.notePaintLocked(s.paintStateLocked())
+	}
 	if s.noQueries {
 		_, err := s.term.Write(p)
 		return err
@@ -521,11 +528,28 @@ func (s *Session) Resize(cols, rows int) error {
 // can group marks by category (see [SplitLabel]). [WithSource] sets its
 // [Mark.Source].
 func (s *Session) Mark(label string) error {
-	if label == "" {
-		return errors.New("reel: empty mark label")
+	return s.Marks(Mark{Label: label, Source: s.caller()})
+}
+
+// Marks appends marks, in order and with no other event between them, as
+// [Session.Mark] does each. Each mark's [Mark.Source] is as given, such as a
+// [Caller] read where the step it is for took place, before it could be
+// placed, and nil for none. It appends none if a label is empty.
+func (s *Session) Marks(marks ...Mark) error {
+	for _, m := range marks {
+		if m.Label == "" {
+			return errors.New("reel: empty mark label")
+		}
 	}
-	mark := Mark{Label: label, Source: s.caller()}
-	return s.change(func() (Event, error) { return mark, nil })
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed.Load() {
+		return ErrClosed
+	}
+	for _, m := range marks {
+		s.timeline.append(m)
+	}
+	return nil
 }
 
 // Annotate appends a. It returns an error wrapping [ErrInvalidAnnotation]

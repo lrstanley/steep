@@ -6,7 +6,6 @@ package steep
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"maps"
 	"path"
@@ -326,20 +325,20 @@ const markVar = "{mark}"
 // events' names and [MarkFailure], are reserved: a label in one of them is
 // a test error, and is not placed.
 //
-// The harness marks every hook event once its action is done, before its
-// After hooks run, labeled with the event's name and count, such as
-// "input:1" or "wait:1". While exporting, input, terminal, and program
-// actions are marked once the program has painted its response: when its
-// output has been quiet for the [WithCheck] interval, or, if it writes
-// nothing, after the [WithSettle] period (at least 50ms). For input and
-// program actions, only output after the model has handled the action counts,
-// so a still of one shows the response even when other output came first.
-// Input the program does not hear of, such as a click without mouse tracking,
-// takes that period too. A response made later, such as by a command, need
-// not be painted yet. Any output counts for terminal actions, which the
-// program may not hear of. A very large check interval slows those actions.
-// [Harness.Close] places its
-// mark as it starts, where the recording ends.
+// The harness marks every hook event, labeled with the event's name and
+// count, such as "input:1" or "wait:1". Waits, assertions, and captures are
+// marked once they are done, before their After hooks run. Input, terminal,
+// and program actions are marked at the test's next step instead, as the
+// program's response comes after the action returns: at the end of the next
+// wait, assertion, or capture, at the start of the next input, terminal, or
+// program action, at a mark of the test's own, at a failure, or at
+// [Harness.Close]. So the still of
+// an action shows the screen the test went on with, which is its response
+// when the test waited for that, whatever else the program drew first. An
+// action followed straight by another, with no wait between, is marked as
+// the next one starts, before the program may have responded. Several marks
+// placed at once keep the order of their actions. [Harness.Close] places
+// its mark as it starts, where the recording ends.
 //
 // The harness also marks each failure it reports as it reports it,
 // "failure:1", "failure:2", and so on, numbered as in [Result.Failures],
@@ -347,11 +346,19 @@ const markVar = "{mark}"
 // [WithAutoMarks] turns the harness's marks off.
 func (h *Harness) Mark(label string) *Harness {
 	h.tb.Helper()
+	// Checked here, as the queued marks of actions are placed with it.
+	if label == "" {
+		h.tb.Errorf("steep: mark: the label is empty")
+		return h
+	}
 	if category, _ := reel.SplitLabel(label); slices.Contains(autoMarkCategories, category) {
 		h.tb.Errorf("steep: mark %q: the category %q is reserved for the harness's own marks", label, category)
 		return h
 	}
-	h.check(h.session.Mark(label))
+	h.marksMu.Lock()
+	err := h.placeMarksLocked(reel.Mark{Label: label, Source: h.caller()})
+	h.marksMu.Unlock()
+	h.check(err)
 	return h
 }
 
@@ -362,24 +369,62 @@ func (h *Harness) Session() *reel.Session { return h.session }
 // program runs.
 func (h *Harness) Timeline() *reel.Timeline { return h.session.Timeline() }
 
+// caller is the line of the test that led here, for [WithSource], or nil.
+func (h *Harness) caller() *reel.Source {
+	if !h.cfg.source {
+		return nil
+	}
+	if src, ok := reel.Caller(sourceSkip...); ok {
+		return &src
+	}
+	return nil
+}
+
+// deferredMark reports whether the marks of event wait for the test's next
+// step (see [Harness.Mark]).
+func deferredMark(event HookEvent) bool {
+	return event == HookInput || event == HookProgram || event == HookTerminal
+}
+
 // markEvent marks event (see [Harness.Mark]), unless [WithAutoMarks] turns
-// its marks off or the session is closed.
+// its marks off. The mark of an action that waits for the test's next step
+// is only queued. Any other mark is placed with those queued before it. A
+// closed session takes no marks, which is no error for the harness's own.
 func (h *Harness) markEvent(event HookEvent) {
 	h.tb.Helper()
-	if !h.autoMarks[event.String()] {
+	h.marksMu.Lock()
+	var marks []reel.Mark
+	if h.autoMarks[event.String()] {
+		h.markCount[event]++
+		marks = append(marks, reel.Mark{Label: autoLabel(event.String(), h.markCount[event]), Source: h.caller()})
+	}
+	if deferredMark(event) {
+		h.pendingMarks = append(h.pendingMarks, marks...)
+		h.marksMu.Unlock()
 		return
 	}
+	// The labels are the harness's own, so the only error is a closed
+	// session, which takes no marks.
+	_ = h.placeMarksLocked(marks...)
+	h.marksMu.Unlock()
+}
+
+// placeMarks places the queued marks of actions.
+func (h *Harness) placeMarks() {
 	h.marksMu.Lock()
 	defer h.marksMu.Unlock()
-	err := h.session.Mark(autoLabel(event.String(), h.markCount[event]+1))
-	if errors.Is(err, reel.ErrClosed) {
-		return
+	_ = h.placeMarksLocked()
+}
+
+// placeMarksLocked places the queued marks of actions, then marks, with
+// nothing between them. Caller must hold marksMu.
+func (h *Harness) placeMarksLocked(marks ...reel.Mark) error {
+	marks = append(h.pendingMarks, marks...)
+	h.pendingMarks = nil
+	if len(marks) == 0 {
+		return nil
 	}
-	if err != nil {
-		h.check(err)
-		return
-	}
-	h.markCount[event]++
+	return h.session.Marks(marks...)
 }
 
 // endRecording records the result and returns the recording, which ends

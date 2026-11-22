@@ -6,11 +6,10 @@ package steep
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"iter"
 	"os"
 	"os/signal"
-	"reflect"
 	"runtime"
 	"slices"
 	"strings"
@@ -24,8 +23,6 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
-var _ MessageCollector = (*Harness)(nil)
-
 // Harness is a test harness for a [tea.Program].
 //
 // Its checks follow one naming convention:
@@ -38,27 +35,31 @@ var _ MessageCollector = (*Harness)(nil)
 //     first.
 //
 // Most methods return the harness for chaining. Waits on the screen are
-// built on [reel.Session.Wait]. The package-level Assert*, Require*, and
-// message Wait* functions of the same names check any [Viewable] or
-// [MessageCollector] and return a result instead: whether an Assert*
-// passed, or the message that satisfied a Wait*.
+// built on [reel.Session.Wait]. The package-level Assert* and Require*
+// functions of the same names check any [Viewable], and Assert* returns
+// whether it passed.
+//
+// The harness tests a program from outside, as a user would: through the
+// terminal it draws on. It does not keep or inspect the messages the model
+// receives. Check a model's state in an ordinary unit test that calls its
+// Update method instead.
 //
 // A harness from [NewExecHarness] runs a command rather than a [tea.Program]:
-// methods that need the program or its model fail the test.
+// methods that need the program fail the test.
 type Harness struct {
 	tb       testing.TB
 	failures *failureTB
 	session  *reel.Session
-	// program and observer are nil for a command, and process is nil for a
-	// [tea.Program].
-	program  *tea.Program
-	observer *observer
-	process  *reel.Process
-	opts     []Option
-	cfg      options
+	// program is nil for a command, and process is nil for a [tea.Program].
+	program *tea.Program
+	process *reel.Process
+	opts    []Option
+	cfg     options
 
 	// stop ends the program for [Harness.Close].
 	stop func(cfg options)
+	// kill cancels the context of the [tea.Program], which kills it.
+	kill context.CancelFunc
 
 	// endMu keeps what the program notes out of the end of the recording,
 	// between the result and where [Harness.Close] cuts it.
@@ -74,10 +75,13 @@ type Harness struct {
 
 	// autoMarks is whether each of autoMarkCategories is marked.
 	autoMarks map[string]bool
-	// marksMu guards markCount.
+	// marksMu guards markCount and pendingMarks.
 	marksMu   sync.Mutex
 	markCount map[HookEvent]int
-	closed    atomic.Bool
+	// pendingMarks are the marks of actions that wait for the test's next
+	// step (see [Harness.Mark]), oldest first.
+	pendingMarks []reel.Mark
+	closed       atomic.Bool
 	// waits numbers recorded waits, for their annotation ids.
 	waits atomic.Int64
 	// controls are the strings the program wrote, for
@@ -87,17 +91,15 @@ type Harness struct {
 
 // NewHarness runs the root [tea.Model] in a [tea.Program] and returns a
 // harness to drive and assert on it. It waits up to the [WithTimeout]
-// timeout for the model's first message, and registers [Harness.Close] as a
-// test cleanup.
+// timeout for the program's first paint, when its first view and the modes
+// it asks for, such as mouse tracking, are on the terminal, so input is
+// encoded as the program expects. A program that paints nothing is taken as
+// started at the timeout. It registers [Harness.Close] as a test cleanup.
 func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
 	tb.Helper()
 	h := newHarness(tb, opts)
 	cfg := h.cfg
 	h.stop = h.stopProgram
-	h.observer = newObserver(model)
-	if cfg.recordMessages {
-		h.observer.onMessage = h.noteMessage
-	}
 
 	env, programOpts := cfg.envVars, cfg.programOpts
 	if env == nil {
@@ -108,12 +110,16 @@ func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
 		env = cfg.color.env(env)
 		programOpts = append([]tea.ProgramOption{tea.WithColorProfile(cfg.color.teaProfile())}, programOpts...)
 	}
+	// The program's own context, as canceling it is a Kill that cannot be lost
+	// to Run not having started yet.
+	ctx, kill := context.WithCancel(cfg.ctx)
+	h.kill = kill
 	h.program = tea.NewProgram(
-		h.observer,
+		model,
 		append(
 			programOpts,
 			tea.WithEnvironment(env),
-			tea.WithContext(cfg.ctx),
+			tea.WithContext(ctx),
 			tea.WithInput(h.session),
 			tea.WithOutput(h.session),
 			tea.WithoutSignals(),
@@ -121,11 +127,9 @@ func NewHarness(tb testing.TB, model tea.Model, opts ...Option) *Harness {
 		)...,
 	)
 
-	h.observer.outputSeq = h.session.Terminal().OutputSeq
-	h.observer.send = h.program.Send
-
 	go func() {
 		_, h.runErr = h.program.Run()
+		kill()
 		h.noteExit(h.runErr)
 		close(h.done)
 	}()
@@ -239,7 +243,7 @@ func (h *Harness) Close() {
 }
 
 // stopProgram asks the [tea.Program] to quit, and kills it if it has not by
-// the timeout.
+// the timeout, by canceling its context.
 func (h *Harness) stopProgram(cfg options) {
 	// Unblock the program's input loop before Quit.
 	h.session.Terminal().CloseReader()
@@ -252,31 +256,45 @@ func (h *Harness) stopProgram(cfg options) {
 	select {
 	case <-h.done:
 	case <-ctx.Done():
-		// Kill races with the setup in Run, which a dead context or a test that
-		// ends early can still be in. Waiting for it can't hang the test, as
-		// waitFinished gives up on the program.
-		go func() {
-			select {
-			case <-h.observer.started:
-				h.program.Kill()
-			case <-h.done:
-			}
-		}()
+		// Not Program.Kill, whose shutdown a Kill before Run starts uses up, so
+		// Run then leaks its renderer. Run notices the context once its setup,
+		// which runs the model's Init, is done, and shuts down as it would for a
+		// Kill. A program stuck before then is given up on by waitFinished.
+		h.kill()
 	}
 }
 
+// errProgramEnded ends the wait of [Harness.waitStarted] when the program
+// ends before it paints.
+var errProgramEnded = errors.New("the program ended")
+
+// waitStarted waits up to the timeout for the program's first paint (see
+// [reel.Session.WaitPainted]). Bubble Tea writes its frames on a timer, so
+// this is when the program's first view, and the modes it asks for, are on
+// the terminal, and input is encoded as it expects. A program that paints
+// nothing is taken as started at the timeout, and the test goes on. One that
+// ends first, such as by quitting from Init, has started.
 func (h *Harness) waitStarted(cfg options) {
 	h.tb.Helper()
 
 	ctx, cancel := context.WithTimeoutCause(cfg.ctx, cfg.timeout, errWaitTimeout)
 	defer cancel()
+	wait, stop := context.WithCancelCause(ctx)
+	defer stop(nil)
+	go func() {
+		select {
+		case <-h.done:
+			stop(errProgramEnded)
+		case <-wait.Done():
+		}
+	}()
 
-	select {
-	case <-h.observer.firstEvent:
+	err := h.session.WaitPainted(wait)
+	if err == nil || ctx.Err() == nil && errors.Is(err, errProgramEnded) {
 		h.ready()
-	case <-ctx.Done():
-		h.noteReady(doneOutcome(ctx))
+		return
 	}
+	h.noteReady(doneOutcome(ctx))
 }
 
 // ready records that the program has started.
@@ -319,13 +337,7 @@ func (h *Harness) mergedOpts(call ...Option) []Option {
 func (h *Harness) SendProgram(msg uv.Event) *Harness {
 	h.tb.Helper()
 	h.requireProgram("SendProgram")
-	msgType := reflect.TypeOf(msg)
-	defer h.hook(HookProgram, nil, func(got uv.Event) int {
-		if reflect.TypeOf(got) == msgType {
-			return 1
-		}
-		return 0
-	})()
+	defer h.hook(HookProgram, nil)()
 	n := &programNote{Action: "send"}
 	n.Type, n.Value = valueNote(msg)
 	h.annotate(n)
@@ -341,100 +353,6 @@ func (h *Harness) QuitProgram() *Harness {
 	h.annotate(&programNote{Action: "quit"})
 	h.program.Quit()
 	return h
-}
-
-// Mutate applies fn to the model on the program's goroutine, as part of its
-// Update handling. Use it sparingly, for scenarios that are otherwise
-// impossible to set up or would pollute the model with test-only state.
-//
-// fn must take and return the model type passed to [NewHarness] or
-// [NewComponentHarness], such as func(Model) Model or func(*Model) *Model,
-// or the test fails.
-func (h *Harness) Mutate[M any](fn func(M) M, opts ...Option) *Harness {
-	h.tb.Helper()
-	h.requireProgram("Mutate")
-	defer h.hook(HookProgram, nil, responseTo[mutateMsg])()
-
-	if fn == nil {
-		h.tb.Fatalf("mutate function must not be nil")
-	}
-	h.annotate(&programNote{Action: "mutate", Type: typeName[M]()})
-
-	cfg := collectOptions(h.tb, h.mergedOpts(opts...)...)
-	done := make(chan error, 1)
-	// Not SendProgram, which would record and hook it as a test message.
-	h.program.Send(mutateMsg{done: done, apply: func(model any) (any, error) {
-		current, ok := model.(M)
-		if !ok {
-			var zero M
-			return nil, fmt.Errorf("mutate function must accept %T, current model is %T", zero, model)
-		}
-		return fn(current), nil
-	}})
-
-	timer := time.NewTimer(cfg.timeout)
-	defer timer.Stop()
-
-	select {
-	case err := <-done:
-		if err != nil {
-			h.tb.Fatalf("mutate failed: %v", err)
-		}
-	case <-timer.C:
-		h.tb.Fatalf("timeout waiting for mutation after %s", cfg.timeout)
-	case <-cfg.ctx.Done():
-		h.tb.Fatalf("test context canceled waiting for mutation: %v", cfg.ctx.Err())
-	}
-
-	return h
-}
-
-// FinalModel waits for the [tea.Program] to finish and returns the root
-// model.
-func (h *Harness) FinalModel(opts ...Option) tea.Model {
-	h.tb.Helper()
-	h.requireProgram("FinalModel")
-	h.WaitFinished(opts...)
-	return h.observer.currentModel()
-}
-
-// FinalModelAs is [Harness.FinalModel], with the model as M. It fails the
-// test when the model is not M.
-func (h *Harness) FinalModelAs[M any](opts ...Option) M {
-	h.tb.Helper()
-	model := h.FinalModel(opts...)
-	typed, ok := model.(M)
-	if !ok {
-		var zero M
-		h.tb.Fatalf("final model type = %T, want %T", model, zero)
-	}
-	return typed
-}
-
-// MessageHistory returns a copy of all messages the model received.
-func (h *Harness) MessageHistory() iter.Seq[uv.Event] {
-	h.tb.Helper()
-	h.requireProgram("MessageHistory")
-	return h.observer.messages.History()
-}
-
-// Messages returns an iterator over all messages the model received, past
-// and future, until ctx is done. Past messages are complete, but the iterator
-// buffers only 32 new ones: a loop that falls further behind misses the
-// newer messages, which [Harness.MessageHistory] still has.
-func (h *Harness) Messages(ctx context.Context) iter.Seq[uv.Event] {
-	h.tb.Helper()
-	h.requireProgram("Messages")
-	return h.observer.messages.SubscribeAll(ctx)
-}
-
-// LiveMessages returns an iterator over messages the model receives after
-// the call returns, until ctx is done. Like [Harness.Messages], it buffers
-// only 32 messages, and a loop that falls further behind misses the newer ones.
-func (h *Harness) LiveMessages(ctx context.Context) iter.Seq[uv.Event] {
-	h.tb.Helper()
-	h.requireProgram("LiveMessages")
-	return h.observer.messages.Subscribe(ctx)
 }
 
 // failureTB records the failure messages the harness reports through it, for

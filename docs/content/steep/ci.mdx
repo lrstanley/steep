@@ -35,7 +35,7 @@ Record failures to one directory, and upload it if the job fails:
 - **`.gif`** can be watched right away, with no tools. `max-bytes` keeps it from growing too large.
 - **`.mp4`, `.webm`, `.webp`** need ffmpeg on the runner.
 
-Add `STEEP_SOURCE: "on"` to link failures in the inspector back to their lines, and `STEEP_RECORD_MESSAGES: "on"` if you're debugging model behavior. Mind that messages can hold secrets, and artifacts are visible to anyone who can see the run.
+Add `STEEP_SOURCE: "on"` to link failures in the inspector back to their lines. Mind that artifacts are visible to anyone who can see the run.
 
 ## Secrets
 

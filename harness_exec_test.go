@@ -18,7 +18,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"getsteep.dev/steep/reel"
-	uv "github.com/charmbracelet/ultraviolet"
 )
 
 // execTimeout is long enough for bash to start on a busy machine.
@@ -183,14 +182,6 @@ func TestExecHarnessProgramMethods(t *testing.T) {
 	}{
 		{"SendProgram", "SendProgram", func() { h.SendProgram(tea.KeyPressMsg{}) }},
 		{"QuitProgram", "QuitProgram", func() { h.QuitProgram() }},
-		{"Mutate", "Mutate", func() { h.Mutate(func(m tea.Model) tea.Model { return m }) }},
-		{"FinalModel", "FinalModel", func() { h.FinalModel() }},
-		{"MessageHistory", "MessageHistory", func() { h.MessageHistory() }},
-		{"Messages", "Messages", func() { h.Messages(t.Context()) }},
-		{"LiveMessages", "LiveMessages", func() { h.LiveMessages(t.Context()) }},
-		{"WaitMessage", "Messages", func() { h.WaitMessage[uv.WindowSizeEvent]() }},
-		{"Harness.WaitSettleMessages", "LiveMessages", func() { h.WaitSettleMessages() }},
-		{"WaitSettleMessages", "LiveMessages", func() { WaitSettleMessages(ftb, h) }},
 	}
 	for _, tt := range tests {
 		var returned bool

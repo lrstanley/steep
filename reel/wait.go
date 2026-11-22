@@ -645,6 +645,57 @@ func (v settleView) content(x, y int) string {
 	return v.screen.CellAt(b.Min.X+x, b.Min.Y+y).Content
 }
 
+// paintModes are the modes a program's first frame may set without drawing
+// anything: the alternate screen, bracketed paste, mouse tracking, and focus
+// reporting.
+var paintModes = [...]vt.Mode{{Number: 1049}, {Number: 2004}, {Number: 1000}, {Number: 1002}, {Number: 1003}, {Number: 1004}}
+
+// paintState is what of the terminal a program's first frame changes: its
+// grid, and [paintModes].
+type paintState struct {
+	generation uint64
+	modes      [len(paintModes)]bool
+}
+
+// paintStateLocked returns the terminal's [paintState]. Caller must hold mu.
+func (s *Session) paintStateLocked() paintState {
+	st := paintState{generation: s.term.GridGeneration()}
+	for i, mode := range paintModes {
+		st.modes[i], _ = s.term.Mode(mode)
+	}
+	return st
+}
+
+// notePaintLocked notes whether the program output just written, after the
+// terminal was in state before, has painted (see [Session.WaitPainted]).
+// Caller must hold mu.
+func (s *Session) notePaintLocked(before paintState) {
+	s.drew = s.drew || s.paintStateLocked() != before
+	s.painted = s.drew && !s.term.Held()
+}
+
+// WaitPainted waits until the program has painted the terminal: until its
+// output has changed the grid, or one of the modes a frame may set without
+// drawing anything (the alternate screen, bracketed paste, mouse tracking,
+// and focus reporting), and synchronized output does not hold the screen.
+// A program that only queries the terminal has not painted, and neither do
+// the session's own changes, such as a resize. It returns a [*WaitError]
+// when ctx is done or the session closes first.
+func (s *Session) WaitPainted(ctx context.Context) error {
+	err := s.await(ctx, nil, func(bool) (bool, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.closed.Load() {
+			return false, ErrClosed
+		}
+		return s.painted, nil
+	})
+	if err != nil {
+		return &WaitError{Wait: "paint", Err: err}
+	}
+	return nil
+}
+
 // outputState returns the terminal's output count and whether
 // synchronized output holds its screen, under s.mu.
 func (s *Session) outputState() (seq uint64, held bool, err error) {

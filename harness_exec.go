@@ -21,16 +21,14 @@ import (
 // It registers [Harness.Close] as a test cleanup, which kills cmd if it is
 // still running. It fails the test if cmd cannot be started.
 //
-// Unlike [NewHarness], it does not wait for cmd to do anything, as a command
-// has no first message to wait for. Wait for what it draws, such as with
-// [Harness.Wait].
+// Unlike [NewHarness], it does not wait for cmd to paint, as a command may
+// wait for input before it draws anything. Wait for what it draws, such as
+// with [Harness.Wait].
 //
 // The environment is cmd.Env, or the host's when nil, changed by [WithEnvVars]
-// and [WithColor]. [WithProgramOptions], [WithRecordMessages], and
-// [WithSettleIgnoreMsgs] have no effect. Methods that need the program or its
-// model fail the test: [Harness.SendProgram], [Harness.QuitProgram],
-// [Harness.Mutate], [Harness.FinalModel], and those that read messages, such as
-// [Harness.WaitMessage].
+// and [WithColor]. [WithProgramOptions] has no effect. Methods that need a
+// [tea.Program] fail the test: [Harness.SendProgram] and
+// [Harness.QuitProgram].
 func NewExecHarness(tb testing.TB, cmd *exec.Cmd, opts ...Option) *Harness {
 	tb.Helper()
 	h := newHarness(tb, opts)
@@ -68,7 +66,7 @@ func NewExecHarness(tb testing.TB, cmd *exec.Cmd, opts ...Option) *Harness {
 func (h *Harness) ExitStatus(opts ...Option) int {
 	h.tb.Helper()
 	if h.process == nil {
-		h.tb.Fatalf("steep: Harness.ExitStatus needs a command, and this harness runs a tea.Program (see FinalModel)")
+		h.tb.Fatalf("steep: Harness.ExitStatus needs a command, and this harness runs a tea.Program (see WaitFinished)")
 	}
 	h.WaitFinished(opts...)
 	status, _ := h.process.Wait()

@@ -29,7 +29,6 @@ export type Config = {
     packages: string;
     run: string;
     scale: string;
-    messages: boolean;
     source: boolean;
     log: boolean;
     // The CLI.
@@ -52,7 +51,6 @@ export function defaultConfig(): Config {
         packages: "./...",
         run: "",
         scale: "",
-        messages: false,
         source: false,
         log: false,
         from: "export",
@@ -96,7 +94,6 @@ export function steepEnv(cfg: Config): [string, string][] {
     if (cfg.speed) env.push(["STEEP_EXPORT_SPEED", cfg.speed]);
     if (cfg.scale) env.push(["STEEP_RENDERER_SCALE", cfg.scale]);
     if (cfg.font) env.push(["STEEP_RENDERER_FONT_FAMILY", cfg.font]);
-    if (cfg.messages) env.push(["STEEP_RECORD_MESSAGES", "on"]);
     if (cfg.source) env.push(["STEEP_SOURCE", "on"]);
     if (cfg.log) env.push(["STEEP_LOG", "on"]);
     return env;
@@ -156,7 +153,6 @@ export function steepGo(cfg: Config) {
         ["steep.WithRecording(reel.Profile{", ...profile.map((p) => `\t${p}`), "}),"].join("\n\t"),
         cfg.mode === "failure" ? "steep.WithExportOnFailure()," : "steep.WithExportAlways(),",
         cfg.dir && `steep.WithArtifacts(${JSON.stringify(cfg.dir)}),`,
-        cfg.messages && "steep.WithRecordMessages(true),",
         cfg.source && "steep.WithSource(true),",
         cfg.log && "steep.WithLog(t),",
     ].filter(Boolean);

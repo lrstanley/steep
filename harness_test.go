@@ -5,7 +5,10 @@
 package steep
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"io"
 	"runtime"
 	"slices"
 	"strings"
@@ -111,18 +114,8 @@ func TestHarness(t *testing.T) {
 		Type("ab").Wait([]byte("text=ab")).
 		SendProgram(setTextMsg("done")).Wait("text=done").WaitNot("text=ab").RequireNot("text=ab")
 
-	msgs := slices.Collect(h.MessageHistory())
-	if len(msgs) < 4 {
-		t.Fatalf("expected at least 4 messages, got %d", len(msgs))
-	}
-
 	h.QuitProgram()
 	h.WaitFinished(WithTimeout(time.Second))
-
-	finalModel := h.FinalModelAs[rootTestModel]()
-	if finalModel.text != "done" {
-		t.Fatalf("final model text = %q, want done", finalModel.text)
-	}
 }
 
 // stuckInitModel blocks in Init until release closes.
@@ -197,7 +190,6 @@ func TestPanicFailsTest(t *testing.T) {
 	}{
 		{"Update, WaitFinished", "u", func(h *Harness) { h.WaitFinished() }},
 		{"command, WaitFinished", "c", func(h *Harness) { h.WaitFinished() }},
-		{"Update, FinalModel", "u", func(h *Harness) { h.FinalModel() }},
 		{"Update, Close", "u", func(h *Harness) { <-h.done; h.Close() }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -211,5 +203,32 @@ func TestPanicFailsTest(t *testing.T) {
 			}
 			findNote(t, notes(t, h.Timeline()), kindExit, map[string]any{"error": "program was killed: " + tea.ErrProgramPanic.Error()})
 		})
+	}
+}
+
+// TestCancelBeforeRun checks what [Harness.stopProgram] relies on of Bubble
+// Tea: canceling the program's context before Run starts, as when a test
+// closes a harness on a dead context before the program's goroutine runs,
+// kills the program as it starts, rather than being lost.
+func TestCancelBeforeRun(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	p := tea.NewProgram(rootTestModel{},
+		tea.WithInput(nil), tea.WithOutput(io.Discard), tea.WithoutSignals(),
+		tea.WithEnvironment([]string{"TTY_FORCE=1", term256}), tea.WithContext(ctx),
+	)
+	cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := p.Run()
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, tea.ErrProgramKilled) {
+			t.Fatalf("Run = %v, want %v", err, tea.ErrProgramKilled)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return after an earlier cancel")
 	}
 }

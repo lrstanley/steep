@@ -211,19 +211,16 @@ func TestExportStills(t *testing.T) {
 		WithStills(StillPNG, HookInput),
 		WithStills(StillSnapshot, HookInput, HookWait),
 		WithExportAlways(),
-		// An input's mark waits this long for its response, so a loaded machine
-		// has time to deliver it. The response ends the wait early.
 		WithTimeout(10*time.Second),
-		WithSettle(5*time.Second),
 	)...)
-	h.Type("a").Type("b").Wait("text=ab")
+	h.Type("a").Wait("text=a").Type("b").Wait("text=ab")
 	h.Close()
 
 	stem := "TestExportStills_passed_"
 	want := []string{
 		stem + "input-1.png", stem + "input-1.snap",
 		stem + "input-2.png", stem + "input-2.snap",
-		stem + "wait-1.snap",
+		stem + "wait-1.snap", stem + "wait-2.snap",
 		"rec",
 	}
 	slices.Sort(want)
@@ -233,7 +230,7 @@ func TestExportStills(t *testing.T) {
 	if got := dirNames(t, filepath.Join(dir, "rec")); !slices.Equal(got, []string{"TestExportStills.cast"}) {
 		t.Fatalf("rec = %q", got)
 	}
-	// The mark of an input is placed once the program has painted it.
+	// The mark of an input is placed with that of the wait after it.
 	for file, text := range map[string]string{"input-1": "text=a", "input-2": "text=ab"} {
 		snap, err := os.ReadFile(filepath.Join(dir, stem+file+".snap"))
 		if err != nil {
@@ -454,11 +451,17 @@ func TestExportSkipped(t *testing.T) {
 	})
 }
 
-// slowModel blocks in Update when it is sent a "z", so it cannot quit.
-type slowModel struct{ rootTestModel }
+// slowModel blocks in Update when it is sent a "z", so it cannot quit. It
+// sends on busy as it starts to.
+type slowModel struct {
+	rootTestModel
+
+	busy chan struct{}
+}
 
 func (m slowModel) Update(msg uv.Event) (tea.Model, tea.Cmd) {
 	if k, ok := msg.(tea.KeyPressMsg); ok && k.Key().Text == "z" {
+		m.busy <- struct{}{}
 		time.Sleep(time.Second)
 	}
 	next, cmd := m.rootTestModel.Update(msg)
@@ -472,12 +475,14 @@ func TestExportWhenStopFails(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	ftb := &fakeTB{TB: t}
-	h := NewHarness(ftb, slowModel{}, exportOptions(dir,
+	m := slowModel{busy: make(chan struct{}, 1)}
+	h := NewHarness(ftb, m, exportOptions(dir,
 		WithTimeout(200*time.Millisecond),
 		WithRecording(reel.Profile{Outputs: reel.MustFiles("rec.cast")}),
 		WithExportOnFailure(),
 	)...)
 	h.Wait("size=20x4").Type("z")
+	<-m.busy
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -510,14 +515,14 @@ func TestExportError(t *testing.T) {
 }
 
 // TestFailureMarks checks that each failure the harness reports is marked,
-// numbered as in [Result.Failures], just after its "steep.failure"
-// annotation.
+// numbered as in [Result.Failures], after its "steep.failure" annotation,
+// together with the marks of actions waiting for the test's next step.
 func TestFailureMarks(t *testing.T) {
 	t.Parallel()
 	ftb := &fakeTB{TB: t}
-	h := NewHarness(ftb, rootTestModel{}, WithIgnoreEnv(true), WithTimeout(50*time.Millisecond))
+	h := NewHarness(ftb, rootTestModel{}, WithIgnoreEnv(true))
 	h.Assert("missing").Type("a")
-	runFailing(func() { h.Wait("gone") })
+	runFailing(func() { h.Wait("gone", WithTimeout(50*time.Millisecond)) })
 	h.Close()
 
 	var got []string
@@ -532,8 +537,8 @@ func TestFailureMarks(t *testing.T) {
 		}
 	}
 	want := []string{
-		"@ready:1", kindFailure, "@failure:1", "@assert:1", "@input:1",
-		kindFailure, "@failure:2", "@wait:1", "@close:1",
+		"@ready:1", kindFailure, "@failure:1", "@assert:1",
+		kindFailure, "@input:1", "@failure:2", "@wait:1", "@close:1",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("events:\n%q\nwant\n%q", got, want)
@@ -734,7 +739,7 @@ func (m animatedModel) View() tea.View {
 }
 
 // TestExportStillsShowResponse checks that the still of an action shows the
-// program's response to it, despite other output before the response.
+// program's response the test waited for, despite other output before it.
 func TestExportStillsShowResponse(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
@@ -747,9 +752,6 @@ func TestExportStillsShowResponse(t *testing.T) {
 		"paste": {func(h *Harness) { h.Paste("ab") }, "input-1", "text=ab"},
 		"click": {func(h *Harness) { h.Wait("frame=").LeftClick(0, 0) }, "input-1", "text=clicked"},
 		"send":  {func(h *Harness) { h.SendProgram(setTextMsg("sent")) }, "program-1", "text=sent"},
-		"mutate": {func(h *Harness) {
-			h.Mutate(func(m animatedModel) animatedModel { m.text = "mutated"; return m })
-		}, "program-1", "text=mutated"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -758,9 +760,9 @@ func TestExportStillsShowResponse(t *testing.T) {
 				WithStills(StillSnapshot, HookInput, HookProgram),
 				WithExportAlways(),
 				WithTimeout(10*time.Second),
-				WithSettle(5*time.Second),
 			)...)
 			tc.action(h)
+			h.Wait(tc.want)
 			h.Close()
 			files, err := filepath.Glob(filepath.Join(dir, "*"+tc.label+".snap"))
 			if err != nil || len(files) != 1 {
@@ -774,6 +776,55 @@ func TestExportStillsShowResponse(t *testing.T) {
 				t.Errorf("still does not show %q:\n%s", tc.want, snap)
 			}
 		})
+	}
+}
+
+// TestExportMarksDeferred checks where the marks of actions go: with the
+// mark of the next wait or assertion, at the start of the next action, at a
+// failure, or at Close, in the order of their actions.
+func TestExportMarksDeferred(t *testing.T) {
+	t.Parallel()
+	ftb := &fakeTB{TB: t}
+	h := NewHarness(ftb, rootTestModel{}, WithWindowSize(20, 4), WithIgnoreEnv(true))
+	h.Wait("size=20x4").
+		Type("a").Key("b").Wait("text=ab").
+		SendProgram(setTextMsg("x")).Wait("text=x").
+		Type("c").Assert("missing").
+		Resize(20, 5)
+	h.Close()
+
+	var labels []string
+	for m := range h.Timeline().Marks() {
+		labels = append(labels, m.Label)
+	}
+	want := []string{
+		"ready:1", "wait:1",
+		"input:1", "input:2", "wait:2",
+		"program:1", "wait:3",
+		"input:3", "failure:1", "assert:1",
+		"terminal:1", "close:1",
+	}
+	if !slices.Equal(labels, want) {
+		t.Fatalf("marks = %q, want %q", labels, want)
+	}
+	// input:1 is placed as the second input starts, before its annotation, and
+	// input:2 after the end of the wait that follows it.
+	var events []string
+	for ev := range h.Timeline().Events() {
+		switch ev := ev.(type) {
+		case reel.Mark:
+			events = append(events, "@"+ev.Label)
+		case reel.Annotation:
+			if ev.Kind == kindInput || ev.Kind == kindWaitEnd {
+				events = append(events, ev.Kind)
+			}
+		}
+	}
+	if i := slices.Index(events, "@input:1"); i < 1 || events[i-1] != kindInput || events[i+1] != kindInput {
+		t.Fatalf("input:1 not between the inputs: %q", events)
+	}
+	if i := slices.Index(events, "@input:2"); i < 1 || events[i-1] != kindWaitEnd || events[i+1] != "@wait:2" {
+		t.Fatalf("input:2 not between the wait's end and its mark: %q", events)
 	}
 }
 
@@ -820,7 +871,6 @@ func TestRecordingEndsOnResult(t *testing.T) {
 	dir := t.TempDir()
 	h := NewHarness(t, busyModel{}, exportOptions(dir,
 		WithRecording(reel.Profile{Outputs: reel.MustFiles("rec.cast")}),
-		WithRecordMessages(true),
 		WithExportAlways(),
 	)...)
 	h.Wait("busy")
@@ -988,5 +1038,22 @@ func TestNormalizeTestName(t *testing.T) {
 		if got := normalizeTestName(in); got != want {
 			t.Errorf("normalizeTestName(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// TestMarkEmptyKeepsQueued checks that an empty label is a test error that
+// keeps the queued marks of actions, which its failure then places.
+func TestMarkEmptyKeepsQueued(t *testing.T) {
+	t.Parallel()
+	ftb := &fakeTB{TB: t}
+	h := NewHarness(ftb, rootTestModel{}, WithWindowSize(20, 4), WithIgnoreEnv(true))
+	h.Wait("size=20x4").Type("a").Mark("").Wait("text=a")
+	h.Close()
+	if errs := ftb.errors(); len(errs) != 1 || !strings.Contains(errs[0], "empty") {
+		t.Fatalf("errors = %q, want the empty label", errs)
+	}
+	want := []string{"ready:1", "wait:1", "input:1", "failure:1", "wait:2", "close:1"}
+	if got := markLabels(h.Timeline()); !slices.Equal(got, want) {
+		t.Fatalf("marks = %q, want %q", got, want)
 	}
 }

@@ -151,7 +151,6 @@ export function ConfiguratorClient() {
                 {target === "steep" && (
                     <fieldset>
                         <legend>Debug data</legend>
-                        <Check label="Record each message" value={cfg.messages} onChange={(messages) => set({ messages })} />
                         <Check label="Record the test's line" value={cfg.source} onChange={(source) => set({ source })} />
                         <Check label="Log each action" value={cfg.log} onChange={(log) => set({ log })} />
                     </fieldset>

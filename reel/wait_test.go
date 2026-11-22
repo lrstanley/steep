@@ -11,6 +11,7 @@ import (
 	"math"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -485,4 +486,126 @@ func TestSessionWaitIdle(t *testing.T) {
 			t.Fatalf("WaitIdle returned after %s, want the hold to end at 50ms and be quiet for 5ms", elapsed)
 		}
 	})
+}
+
+// TestSessionWaitPainted checks what counts as a first paint: drawing, or
+// a mode a blank frame may set, but not a query or a frame synchronized
+// output still holds.
+func TestSessionWaitPainted(t *testing.T) {
+	t.Parallel()
+	unpainted := func(t *testing.T, s *Session) {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+		defer cancel()
+		if err := s.WaitPainted(ctx); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("WaitPainted = %v, want a timeout", err)
+		}
+	}
+	for name, tc := range map[string]struct{ before, paint string }{
+		"text":            {"\x1b[c", "x"},
+		"bracketed paste": {"\x1b[c", "\x1b[?2004h"},
+		"focus reporting": {"", "\x1b[?1004h"},
+		"held":            {"\x1b[?2026hx", "\x1b[?2026l"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			s := openSession(t, 4, 1)
+			if _, err := s.Write([]byte(tc.before)); err != nil {
+				t.Fatal(err)
+			}
+			unpainted(t, s)
+			if _, err := s.Write([]byte(tc.paint)); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.WaitPainted(t.Context()); err != nil {
+				t.Fatalf("WaitPainted = %v", err)
+			}
+		})
+	}
+	t.Run("resized", func(t *testing.T) {
+		t.Parallel()
+		s := openSession(t, 4, 1)
+		if err := s.Resize(6, 2); err != nil {
+			t.Fatal(err)
+		}
+		unpainted(t, s)
+		if _, err := s.Write([]byte("x")); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Resize(8, 2); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.WaitPainted(t.Context()); err != nil {
+			t.Fatalf("WaitPainted after a paint and a resize = %v", err)
+		}
+	})
+	t.Run("held through a change", func(t *testing.T) {
+		t.Parallel()
+		s := openSession(t, 4, 1)
+		if _, err := s.Write([]byte("\x1b[?2026h\x1b[?2004h")); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Focus(false); err != nil {
+			t.Fatal(err)
+		}
+		unpainted(t, s)
+		if _, err := s.Write([]byte("\x1b[?2026l")); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.WaitPainted(t.Context()); err != nil {
+			t.Fatalf("WaitPainted = %v", err)
+		}
+	})
+	// A resize ends synchronized output, so its new grid is not the first
+	// frame the release shows.
+	t.Run("resized while held", func(t *testing.T) {
+		t.Parallel()
+		s := openSession(t, 4, 1)
+		if _, err := s.Write([]byte("\x1b[?2026h")); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Resize(6, 2); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.Write([]byte("\x1b[?2026l")); err != nil {
+			t.Fatal(err)
+		}
+		unpainted(t, s)
+	})
+	t.Run("closed", func(t *testing.T) {
+		t.Parallel()
+		s := openSession(t, 4, 1)
+		_ = s.Close()
+		if err := s.WaitPainted(t.Context()); !errors.Is(err, ErrClosed) {
+			t.Fatalf("WaitPainted = %v, want ErrClosed", err)
+		}
+	})
+}
+
+// TestSessionMarks checks that marks placed together are adjacent, and that
+// an empty label places none of them.
+func TestSessionMarks(t *testing.T) {
+	t.Parallel()
+	s := openSession(t, 4, 1)
+	if err := s.Marks(Mark{Label: "a"}, Mark{}); err == nil {
+		t.Fatal("Marks with an empty label succeeded")
+	}
+	src := &Source{File: "x_test.go", Line: 3}
+	if err := s.Marks(Mark{Label: "a", Source: src}, Mark{Label: "b"}); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for m := range s.Timeline().Marks() {
+		got = append(got, m.Label)
+		if m.Label == "a" && m.Source != src {
+			t.Errorf("mark a source = %+v, want %+v", m.Source, src)
+		}
+	}
+	if !slices.Equal(got, []string{"a", "b"}) {
+		t.Fatalf("marks = %q, want [a b]", got)
+	}
+	_ = s.Close()
+	if err := s.Marks(Mark{Label: "c"}); !errors.Is(err, ErrClosed) {
+		t.Fatalf("Marks after Close = %v, want ErrClosed", err)
+	}
 }

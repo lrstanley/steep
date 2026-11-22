@@ -83,17 +83,6 @@ func TestApplyEnvTypingDelay(t *testing.T) {
 	}
 }
 
-func TestApplyEnvRecordMessages(t *testing.T) {
-	t.Setenv("STEEP_RECORD_MESSAGES", "1")
-	if cfg := collectOptions(t); !cfg.recordMessages {
-		t.Fatal("STEEP_RECORD_MESSAGES=1 did not record messages")
-	}
-	t.Setenv("STEEP_RECORD_MESSAGES", "false")
-	if cfg := collectOptions(t, WithRecordMessages(true)); cfg.recordMessages {
-		t.Fatal("STEEP_RECORD_MESSAGES=false did not override the option")
-	}
-}
-
 // TestApplyEnvProfile checks the environment's patch of the recording
 // profile: timing, outputs, and stills replace the profile's, and render
 // options are added after its own.
@@ -185,8 +174,9 @@ func TestWithColor(t *testing.T) {
 		{[]Option{WithColor(ColorTrueColor), WithProgramOptions(tea.WithColorProfile(colorprofile.ANSI))}, colorprofile.ANSI},
 	}
 	for _, tt := range tests {
-		h := NewHarness(t, terminalProbe{}, append(tt.opts, WithIgnoreEnv(true))...)
-		got := h.WaitMessage[tea.ColorProfileMsg]()
+		r := record(terminalProbe{})
+		NewHarness(t, r, append(tt.opts, WithIgnoreEnv(true))...)
+		got := waitMsg[tea.ColorProfileMsg](t, r, nil)
 		if got.Profile != tt.want {
 			t.Errorf("WithColor options %d: program detected %v, want %v", len(tt.opts), got.Profile, tt.want)
 		}

@@ -32,12 +32,12 @@ func TestSource(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	h := NewHarness(&fakeTB{TB: t}, rootTestModel{}, exportOptions(dir,
-		WithSource(true), WithRecordMessages(true), WithSettle(20*time.Millisecond),
+		WithSource(true), WithSettle(20*time.Millisecond),
 		WithRecording(reel.Profile{Outputs: reel.MustFiles("rec.cast")}), WithExportAlways(),
 	)...)
 	typeAndWait(t, h, "ab")
 	h.Mark("mine").Assert("missing")
-	h.SendProgram(setTextMsg("x")).WaitMessage[setTextMsg]()
+	h.SendProgram(setTextMsg("x")).Wait("text=x")
 	h.Close()
 
 	got := sourceListing(t, h.Timeline())
@@ -66,8 +66,8 @@ func TestSource(t *testing.T) {
 }
 
 // sourceListing returns a line for each annotation and mark of tl, of its
-// kind or label and its source, leaving out queries and messages, which
-// have no source, as it checks.
+// kind or label and its source, leaving out queries, which have no source,
+// as it checks.
 func sourceListing(t *testing.T, tl *reel.Timeline) string {
 	t.Helper()
 	var b strings.Builder
@@ -78,8 +78,8 @@ func sourceListing(t *testing.T, tl *reel.Timeline) string {
 			fmt.Fprintf(&b, "mark %-15s", ev.Label)
 			src = ev.Source
 		case reel.Annotation:
-			if ev.Kind == reel.QueryKind || ev.Kind == kindMessage {
-				// Neither comes from the test's goroutine.
+			if ev.Kind == reel.QueryKind {
+				// It does not come from the test's goroutine.
 				if ev.Source != nil {
 					t.Errorf("%s annotation has a source: %+v", ev.Kind, ev.Source)
 				}

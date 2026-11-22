@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -71,42 +70,17 @@ func TestComponentHarnessMutableUpdate(t *testing.T) {
 	h.SendProgram(appendMsg("?")).Wait("text=ab?!").WaitNot([]byte("missing")).
 		Require("text=ab?!").RequireNot("missing").
 		RequireWidth(80).RequireHeight(1).RequireDimensions(80, 1)
-
-	msgCount := len(slices.Collect(h.MessageHistory()))
-	if msgCount < 5 {
-		t.Fatalf("messages = %d, want at least 5", msgCount)
-	}
 }
 
 func TestComponentHarnessReplacementUpdate(t *testing.T) {
 	t.Parallel()
 	h := NewComponentHarness(t, replacementViewModel{}, WithWindowSize(80, 1))
 
-	h.Type("go").WaitSettle().SendProgram(appendMsg("!")).WaitFor(reel.ScreenFunc(func(text string) bool {
+	// Typed input and a sent message take different paths, so the input must
+	// be on the screen before the message is sent.
+	h.Type("go").Wait("text=go").SendProgram(appendMsg("!")).WaitFor(reel.ScreenFunc(func(text string) bool {
 		return strings.Contains(text, "text=go!")
 	}))
-}
-
-func TestComponentHarnessMutateMutableModel(t *testing.T) {
-	t.Parallel()
-	h := NewComponentHarness(t, &mutableViewModel{text: "start"}, WithWindowSize(80, 1))
-
-	h.Mutate(func(m *mutableViewModel) *mutableViewModel {
-		m.text = "mutated"
-		return m
-	})
-	h.SendProgram(appendMsg("!")).Wait("text=mutated!")
-}
-
-func TestComponentHarnessMutateReplacementModel(t *testing.T) {
-	t.Parallel()
-	h := NewComponentHarness(t, replacementViewModel{text: "start"}, WithWindowSize(80, 1))
-
-	h.Mutate(func(m replacementViewModel) replacementViewModel {
-		m.text = "mutated"
-		return m
-	})
-	h.SendProgram(appendMsg("!")).Wait("text=mutated!")
 }
 
 type sizeViewModel struct {
@@ -133,10 +107,6 @@ func TestComponentHarnessInitialSize(t *testing.T) {
 		h := NewComponentHarness(t, &sizeViewModel{})
 
 		h.Wait("size=80x24")
-		msg := h.WaitMessage[tea.WindowSizeMsg]()
-		if msg.Width != 80 || msg.Height != 24 {
-			t.Fatalf("initial size = %dx%d, want 80x24", msg.Width, msg.Height)
-		}
 	})
 
 	t.Run("explicit size", func(t *testing.T) {
@@ -144,17 +114,15 @@ func TestComponentHarnessInitialSize(t *testing.T) {
 		h := NewComponentHarness(t, &sizeViewModel{}, WithWindowSize(70, 10))
 
 		h.Wait("size=70x10")
-		msg := h.WaitMessage[tea.WindowSizeMsg]()
-		if msg.Width != 70 || msg.Height != 10 {
-			t.Fatalf("initial size = %dx%d, want 70x10", msg.Width, msg.Height)
-		}
 	})
 
 	t.Run("explicit zero size", func(t *testing.T) {
 		t.Parallel()
-		h := NewComponentHarness(t, &sizeViewModel{}, WithWindowSize(0, 0))
+		// The terminal is 1x1, too small to show the size.
+		r := record(&componentWrapper[*sizeViewModel]{model: &sizeViewModel{}})
+		NewHarness(t, r, WithWindowSize(0, 0))
 
-		msg := h.WaitMessage[tea.WindowSizeMsg]()
+		msg := waitMsg[tea.WindowSizeMsg](t, r, nil)
 		if msg.Width != 0 || msg.Height != 0 {
 			t.Fatalf("initial size = %dx%d, want 0x0", msg.Width, msg.Height)
 		}
@@ -193,112 +161,6 @@ func TestComponentHarnessAsyncBridge(t *testing.T) {
 	h := NewComponentHarness(t, &asyncViewModel{}, WithWindowSize(33, 4))
 
 	h.Wait([]string{"size=33x4", "text=ready"})
-
-	msg := h.WaitMessage[appendMsg]()
-	if msg != "ready" {
-		t.Fatalf("message = %q, want ready", msg)
-	}
-}
-
-type settleMsg struct{}
-
-type settlingViewModel struct {
-	updates int
-}
-
-func (m *settlingViewModel) View() string {
-	return fmt.Sprintf("updates=%d", m.updates)
-}
-
-func (m *settlingViewModel) Update(msg uv.Event) tea.Cmd {
-	if _, ok := msg.(settleMsg); !ok {
-		return nil
-	}
-
-	m.updates++
-	if m.updates >= 3 {
-		return nil
-	}
-
-	return tea.Tick(10*time.Millisecond, func(time.Time) uv.Event {
-		return settleMsg{}
-	})
-}
-
-func TestComponentHarnessWaitSettled(t *testing.T) {
-	t.Parallel()
-	h := NewComponentHarness(t, &settlingViewModel{}, WithWindowSize(80, 1))
-	h.SendProgram(settleMsg{}).Wait("updates=3")
-
-	WaitSettleMessages(t, h,
-		WithSettle(25*time.Millisecond),
-		WithTimeout(500*time.Millisecond),
-		WithCheck(5*time.Millisecond),
-	)
-	out := h.View()
-	if !strings.Contains(out, "updates=3") {
-		t.Fatalf("output = %q, want updates=3", out)
-	}
-
-	matches := slices.Collect(h.FilterMessagesType[settleMsg]())
-	if len(matches) != 3 {
-		t.Fatalf("settle messages = %d, want 3", len(matches))
-	}
-}
-
-type settleNoiseTick struct{}
-
-type settlingWithNoiseModel struct {
-	updates int
-}
-
-func (m *settlingWithNoiseModel) View() string {
-	return fmt.Sprintf("updates=%d", m.updates)
-}
-
-func (m *settlingWithNoiseModel) Init() tea.Cmd {
-	return tea.Tick(5*time.Millisecond, func(time.Time) uv.Event {
-		return settleNoiseTick{}
-	})
-}
-
-func (m *settlingWithNoiseModel) Update(msg uv.Event) tea.Cmd {
-	if _, ok := msg.(settleNoiseTick); ok {
-		return tea.Tick(5*time.Millisecond, func(time.Time) uv.Event {
-			return settleNoiseTick{}
-		})
-	}
-	if _, ok := msg.(settleMsg); !ok {
-		return nil
-	}
-	m.updates++
-	if m.updates >= 2 {
-		return nil
-	}
-	return tea.Tick(10*time.Millisecond, func(time.Time) uv.Event {
-		return settleMsg{}
-	})
-}
-
-func TestComponentHarnessWaitSettledIgnoreMsgs(t *testing.T) {
-	t.Parallel()
-	h := NewComponentHarness(t, &settlingWithNoiseModel{}, WithWindowSize(80, 1))
-	h.SendProgram(settleMsg{}).Wait("updates=2")
-
-	WaitSettleMessages(t, h,
-		WithSettleIgnoreMsgs(settleNoiseTick{}),
-		WithSettle(25*time.Millisecond),
-		WithTimeout(500*time.Millisecond),
-		WithCheck(5*time.Millisecond),
-	)
-	if !strings.Contains(h.View(), "updates=2") {
-		t.Fatalf("output = %q, want updates=2", h.View())
-	}
-	// The noise is still coming, so the settle above ignored it rather than
-	// finding it quiet. How many ticks came before now depends on the machine.
-	for range 3 {
-		h.WaitLiveMessageWhere(func(settleNoiseTick) bool { return true }, WithTimeout(10*time.Second))
-	}
 }
 
 type viewSettleTick struct{}
@@ -338,19 +200,9 @@ func TestComponentHarnessWaitSettledView(t *testing.T) {
 	h.WaitSettle(
 		WithSettle(25*time.Millisecond),
 		WithTimeout(2*time.Second),
-		WithCheck(5*time.Millisecond),
 	)
 	if !strings.Contains(h.View(), "stable") {
 		t.Fatalf("view = %q, want stable", h.View())
-	}
-	// The ticks keep coming while the view stays stable, though how many came
-	// before now depends on the machine.
-	deadline := time.Now().Add(10 * time.Second)
-	for len(slices.Collect(h.FilterMessagesType[viewSettleTick]())) < 2 {
-		if time.Now().After(deadline) {
-			t.Fatal("want at least 2 viewSettleTick messages while the view stayed stable")
-		}
-		time.Sleep(5 * time.Millisecond)
 	}
 }
 
@@ -404,23 +256,4 @@ func readSteepSnapshot(t *testing.T, path string) string {
 		t.Fatalf("failed to read snapshot: %v", err)
 	}
 	return string(bts)
-}
-
-func TestHarnessMutateRootModel(t *testing.T) {
-	t.Parallel()
-	h := NewHarness(t, rootTestModel{text: "start"}, WithWindowSize(80, 3))
-
-	h.Mutate(func(m rootTestModel) rootTestModel {
-		m.text = "mutated"
-		return m
-	})
-
-	h.Wait("text=mutated")
-	got := h.View()
-	if !strings.Contains(got, "text=mutated") {
-		t.Fatalf("view = %q, want text=mutated", got)
-	}
-	if len(slices.Collect(h.FilterMessagesType[mutateMsg]())) != 0 {
-		t.Fatalf("mutate messages should not be exposed")
-	}
 }

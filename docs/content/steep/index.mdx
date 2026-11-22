@@ -70,7 +70,7 @@ You can, and those tests are quick. Calling `Update` with a message and checking
 - **Real input.** A real key press is bytes through a terminal, encoded by whatever keyboard mode your program asked for. A `tea.KeyPressMsg` you built by hand skips all of it.
 - **What the terminal shows.** `View()` is a string with escape sequences. It isn't what's on the screen after the terminal handles wrapping, wide characters, and the alternate screen.
 
-steep runs your program in a real `tea.Program`, attached to a terminal emulator. So a test sees the screen a user would, and you can still use [`Mutate`](/steep/program) to reach into the model when you need to.
+steep runs your program in a real `tea.Program`, attached to a terminal emulator. So a test sees the screen a user would. Keep unit tests of `Update` for state the screen doesn't show (see [Messages and the model](/steep/program#messages-and-the-model)).
 
 ### What a test costs
 

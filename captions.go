@@ -26,10 +26,11 @@ import (
 // effects.Captions(effects.DefaultCaptionPause(effects.AutoPause)) to the
 // profile.
 //
-// A caption starts where it is placed: after an action, such as
-// [Harness.Press], once the program has painted its response (see
-// [Harness.Mark]). Text that is empty once read as plain text, or options
-// that conflict, are a test error.
+// A caption starts where it is placed. An action, such as [Harness.Press],
+// returns as soon as its input is sent, so wait for the program's response
+// first, such as with [Harness.Wait], for a caption to start on it. Text
+// that is empty once read as plain text, or options that conflict, are a
+// test error.
 func (h *Harness) Caption(text string, opts ...effects.CaptionOption) *Harness {
 	h.tb.Helper()
 	h.placeCaption(nil, text, opts)

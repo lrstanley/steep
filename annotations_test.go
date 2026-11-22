@@ -21,7 +21,6 @@ import (
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/vt"
 	"getsteep.dev/steep/snapshot"
-	uv "github.com/charmbracelet/ultraviolet"
 )
 
 // recorded is a steep annotation, decoded.
@@ -140,15 +139,14 @@ func TestAnnotations(t *testing.T) {
 	h.Wait("size=20x4").
 		Type("ab").Key("enter").Paste("p").
 		LeftClick(1, 2).LeftDrag(0, 0, 2, 1).Wheel(vt.MouseWheelDown, 3, 1, reel.Repeat(4)).
+		Wait("text=ab").
 		Assert([]string{"size", "text=ab"}).
 		Assert("missing").
 		RequireNot("missing").
 		AssertFor(reel.Matches(regexp.MustCompile(`text=\w+`))).
 		AssertDimensions(20, 4).
-		SendProgram(setTextMsg("x")).WaitMessage[setTextMsg]()
-	h.AssertHasMessage[setTextMsg]()
-	h.SetClipboard("clip").SetScrollbackSize(10).ClearScrollback().
-		Mutate(func(m rootTestModel) rootTestModel { return m }).
+		SendProgram(setTextMsg("x")).Wait("text=x").
+		SetClipboard("clip").SetScrollbackSize(10).ClearScrollback().
 		Sleep(time.Millisecond).
 		QuitProgram().
 		WaitFinished()
@@ -159,13 +157,12 @@ func TestAnnotations(t *testing.T) {
 		kindStart, kindReady,
 		kindWaitStart, kindWaitEnd,
 		kindInput, kindInput, kindInput, kindInput, kindInput, kindInput,
+		kindWaitStart, kindWaitEnd,
 		kindAssert,
 		kindFailure, kindAssert,
 		kindAssert, kindAssert, kindAssert,
 		kindProgram, kindWaitStart, kindWaitEnd,
-		kindAssert,
 		kindTerminal,
-		kindProgram,
 		kindWaitStart, kindWaitEnd,
 		kindProgram,
 		kindWaitStart, kindWaitEnd,
@@ -176,7 +173,7 @@ func TestAnnotations(t *testing.T) {
 	}
 
 	findNote(t, got, kindStart, map[string]any{
-		"test": t.Name(), "cols": 20, "rows": 4, "timeout_ms": 2000, "check_ms": 10,
+		"test": t.Name(), "cols": 20, "rows": 4, "timeout_ms": 2000,
 		"settle_ms": 20, "ansi": true, "export": "always",
 	})
 	findNote(t, got, kindReady, map[string]any{"outcome": "ready"})
@@ -216,12 +213,10 @@ func TestAnnotations(t *testing.T) {
 		"actual":   map[string]any{"width": 20, "height": 4},
 	})
 	findNote(t, got, kindProgram, map[string]any{"action": "send", "type": "steep.setTextMsg", "value": "x"})
-	findNote(t, got, kindWaitEnd, map[string]any{"wait": "message", "outcome": "satisfied", "type": "steep.setTextMsg"})
-	findNote(t, got, kindAssert, map[string]any{"assert": "has_message", "pass": true, "type": "steep.setTextMsg"})
+	findNote(t, got, kindWaitEnd, map[string]any{"wait": "text", "outcome": "satisfied", "matches": []any{map[string]any{"text": "text=x", "row": 1, "col": 0}}})
 	if n := findNote(t, got, kindTerminal, map[string]any{"action": "clipboard"}); n.fields["text"] != nil {
 		t.Errorf("clipboard note holds its text: %v", n.fields)
 	}
-	findNote(t, got, kindProgram, map[string]any{"action": "mutate", "type": "steep.rootTestModel"})
 	findNote(t, got, kindWaitStart, map[string]any{"wait": "sleep", "duration_ms": 1})
 	findNote(t, got, kindProgram, map[string]any{"action": "quit"})
 	findNote(t, got, kindWaitEnd, map[string]any{"wait": "finished", "outcome": "satisfied"})
@@ -273,9 +268,6 @@ func TestAnnotationsWaitOutcomes(t *testing.T) {
 		{"timeout", func(h *Harness) { h.Wait("never", WithTimeout(30*time.Millisecond)) }, outcomeTimeout},
 		{"canceled", func(h *Harness) { h.WaitSettle(WithContext(canceled)) }, outcomeCanceled},
 		{"canceled with no timeout left", func(h *Harness) { h.Wait("never", WithContext(canceled), WithTimeout(time.Nanosecond)) }, outcomeTimeout},
-		{"message timeout", func(h *Harness) { h.WaitLiveMessage[setTextMsg](WithTimeout(30 * time.Millisecond)) }, outcomeTimeout},
-		{"message canceled", func(h *Harness) { h.WaitLiveMessage[setTextMsg](WithContext(canceled)) }, outcomeCanceled},
-		{"settle messages canceled", func(h *Harness) { h.WaitSettleMessages(WithContext(canceled)) }, outcomeCanceled},
 		{"sleep canceled", func(h *Harness) { h.Sleep(time.Hour, WithContext(canceled)) }, outcomeCanceled},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -294,21 +286,6 @@ func TestAnnotationsWaitOutcomes(t *testing.T) {
 	}
 }
 
-// TestDoneOutcome checks how a wait's context says it ended: a wait that
-// ended for another reason, such as the session closing, failed.
-// stuckModel blocks in Update until release closes, so the harness never sees
-// its first message.
-type stuckModel struct {
-	rootTestModel
-
-	release chan struct{}
-}
-
-func (m stuckModel) Update(uv.Event) (tea.Model, tea.Cmd) {
-	<-m.release
-	return m, nil
-}
-
 // TestAnnotationsReadyOutcomes checks the outcome of a harness whose program
 // never becomes ready, which is decided as it is for any other wait.
 func TestAnnotationsReadyOutcomes(t *testing.T) {
@@ -322,13 +299,14 @@ func TestAnnotationsReadyOutcomes(t *testing.T) {
 		opt  Option
 		want outcome
 	}{
-		{"timeout", WithTimeout(30 * time.Millisecond), outcomeTimeout},
+		// Long enough for the program, released from Init, to quit at Close.
+		{"timeout", WithTimeout(250 * time.Millisecond), outcomeTimeout},
 		{"canceled", WithContext(canceled), outcomeCanceled},
 		{"parent deadline", WithContext(expired), outcomeTimeout},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			m := stuckModel{release: make(chan struct{})}
+			m := stuckInitModel{release: make(chan struct{})}
 			h := NewHarness(t, m, WithIgnoreEnv(true), WithWindowSize(20, 2), tc.opt)
 			close(m.release)
 			findNote(t, notes(t, h.Timeline()), kindReady, map[string]any{"outcome": string(tc.want)})
@@ -336,6 +314,8 @@ func TestAnnotationsReadyOutcomes(t *testing.T) {
 	}
 }
 
+// TestDoneOutcome checks how a wait's context says it ended: a wait that
+// ended for another reason, such as the session closing, failed.
 func TestDoneOutcome(t *testing.T) {
 	t.Parallel()
 	canceled, cancel := context.WithCancel(context.Background())
@@ -405,32 +385,15 @@ func TestAnnotationsSnapshot(t *testing.T) {
 	}
 }
 
-func TestAnnotationsMessages(t *testing.T) {
-	t.Parallel()
-	h := NewHarness(t, rootTestModel{}, WithWindowSize(20, 2), WithIgnoreEnv(true))
-	h.SendProgram(setTextMsg("x")).Wait("text=x")
-	if got := notes(t, h.Timeline()); slices.Contains(kinds(got), kindMessage) {
-		t.Fatal("recorded messages without WithRecordMessages")
-	}
-
-	h = NewHarness(t, rootTestModel{}, WithWindowSize(20, 2), WithIgnoreEnv(true), WithRecordMessages(true))
-	h.SendProgram(setTextMsg("x")).Wait("text=x").Wait("size=20x2")
-	got := notes(t, h.Timeline())
-	findNote(t, got, kindStart, map[string]any{"messages": true})
-	findNote(t, got, kindMessage, map[string]any{"type": "tea.WindowSizeMsg", "value": "{Width:20 Height:2}"})
-	findNote(t, got, kindMessage, map[string]any{"type": "steep.setTextMsg", "value": "x"})
-}
-
-// TestAnnotationsMessagesEnv checks that the exported ".cast" leaves out the
-// environment the model receives, and the value of one sent to it.
-func TestAnnotationsMessagesEnv(t *testing.T) {
+// TestAnnotationsSentEnv checks that the exported ".cast" leaves out the
+// value of an environment sent to the program.
+func TestAnnotationsSentEnv(t *testing.T) {
 	t.Parallel()
 	const secret = "hunter2-do-not-record"
 	dir := t.TempDir()
 	h := NewHarness(t, rootTestModel{}, exportOptions(dir,
 		WithRecording(reel.Profile{Outputs: reel.MustFiles("rec.cast")}),
 		WithExportAlways(),
-		WithRecordMessages(true),
 		WithEnvVars("TERM=xterm-256color", "STEEP_TEST_SECRET="+secret),
 	)...)
 	h.SendProgram(tea.EnvMsg{"STEEP_TEST_SENT=" + secret}).Wait("size=20x4")
@@ -447,17 +410,9 @@ func TestAnnotationsMessagesEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := notes(t, tl)
-	// Other messages are still recorded.
-	findNote(t, got, kindMessage, map[string]any{"type": "tea.WindowSizeMsg"})
-	sent := findNote(t, got, kindProgram, map[string]any{"action": "send", "type": "tea.EnvMsg"})
+	sent := findNote(t, notes(t, tl), kindProgram, map[string]any{"action": "send", "type": "tea.EnvMsg"})
 	if v, ok := sent.fields["value"]; ok {
 		t.Errorf("sent environment recorded with value %q", v)
-	}
-	if slices.ContainsFunc(got, func(n recorded) bool {
-		return n.kind == kindMessage && n.fields["type"] == "tea.EnvMsg"
-	}) {
-		t.Error("recorded the environment the model received")
 	}
 }
 
@@ -493,19 +448,14 @@ func TestHookMetaAnnotations(t *testing.T) {
 		AssertFor(reel.Matches(regexp.MustCompile(`size`))).RequireFor(reel.OnCursorLine(reel.NotContains("missing"))).
 		AssertWidth(20).RequireWidth(20).AssertHeight(4).RequireHeight(4).
 		AssertDimensions(20, 4).RequireDimensions(20, 4).
-		SendProgram(setTextMsg("x")).WaitMessage[setTextMsg]()
-	h.WaitMessageWhere(func(setTextMsg) bool { return true })
-	h.AssertHasMessage[setTextMsg]()
-	h.RequireHasMessage[setTextMsg]().
-		WaitSettleMessages().
+		SendProgram(setTextMsg("x")).
 		AssertSnapshot(snapshot.WithDir(dir), snapshot.WithUpdate(true)).
 		RequireSnapshot(snapshot.WithDir(dir), snapshot.WithSuffix("r"), snapshot.WithUpdate(true)).
 		AssertJSON(snapshot.WithDir(dir), snapshot.WithUpdate(true)).
 		RequireJSON(snapshot.WithDir(dir), snapshot.WithSuffix("r"), snapshot.WithUpdate(true)).
 		Sleep(time.Millisecond)
 	_ = h.Image()
-	runFailing(func() { h.WaitLiveMessage[setTextMsg](short) })
-	runFailing(func() { h.WaitLiveMessageWhere(func(setTextMsg) bool { return true }, short) })
+	runFailing(func() { h.Wait("never", short) })
 	h.QuitProgram().WaitFinished()
 
 	var got []recorded
@@ -588,15 +538,12 @@ func TestAnnotationSchema(t *testing.T) {
 		&programNote{Action: "send", Type: "tea.KeyPressMsg", Value: "a"},
 		&programNote{Action: "quit"},
 		&waitNote{ID: 1, Kind: WaitKindText, Text: []string{"a"}, TimeoutMS: 100},
-		&waitNote{ID: 2, Kind: WaitKindMessage, Live: true, Type: "tea.Msg", TimeoutMS: 100},
 		&waitNote{ID: 3, Kind: WaitKindSleep, DurationMS: 5},
 		&waitEndNote{ID: 1, Wait: WaitKindText, Outcome: outcomeSatisfied, Matches: []reel.Match{{Text: "a", Row: 0, Col: 1}}},
 		&assertNote{Kind: AssertKindContains, Pass: true, Text: []string{"a"}},
 		&assertNote{Kind: AssertKindWidth, Required: true, Expected: &dims{Width: &one}, Actual: &dims{Width: &two, Height: &one}},
-		&assertNote{Kind: AssertKindHasMessage, Type: "tea.QuitMsg"},
 		&snapshotNote{Kind: CaptureKindText, Path: "testdata/x.snap", Diff: "-a\n+b"},
 		&failureNote{Message: "boom"},
-		&messageNote{Type: "tea.QuitMsg", Value: "{}"},
 		&exitNote{},
 		&exitNote{Error: "bad", Killed: true},
 		&resultNote{Test: "TestX", Failed: true, Panicked: true, Failures: 0, DurationMS: 9, Stack: "panic(...)"},
@@ -619,7 +566,7 @@ func TestAnnotationSchema(t *testing.T) {
 		kind string
 		v    any
 	}{
-		"start without test":        {kindStart, map[string]any{"cols": 1, "rows": 1, "timeout_ms": 1, "check_ms": 1, "settle_ms": 1, "ansi": true, "export": "off"}},
+		"start without test":        {kindStart, map[string]any{"cols": 1, "rows": 1, "timeout_ms": 1, "settle_ms": 1, "ansi": true, "export": "off"}},
 		"input click without at":    {kindInput, inputNote{Kind: InputKindClick, Button: "left"}},
 		"input wheel without count": {kindInput, inputNote{Kind: InputKindWheel, Button: "wheel_up", At: &cell{}}},
 		"input wheel zero count":    {kindInput, map[string]any{"action": "wheel", "button": "wheel_up", "count": 0, "at": map[string]any{"row": 0, "col": 0}}},
@@ -631,7 +578,6 @@ func TestAnnotationSchema(t *testing.T) {
 		"assert condition unnamed":  {kindAssert, assertNote{Kind: AssertKindCondition, Pass: true}},
 		"assert dims no actual":     {kindAssert, assertNote{Kind: AssertKindHeight, Expected: &dims{Height: &one}}},
 		"failure without message":   {kindFailure, map[string]any{"text": "x"}},
-		"message without value":     {kindMessage, map[string]any{"type": "x"}},
 		"exit killed false":         {kindExit, map[string]any{"killed": false}},
 		"result negative failure":   {kindResult, resultNote{Test: "x", Failures: -1}},
 	} {

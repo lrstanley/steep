@@ -18,7 +18,6 @@ import (
 	"getsteep.dev/steep/reel"
 	"getsteep.dev/steep/reel/vt"
 	"getsteep.dev/steep/snapshot"
-	uv "github.com/charmbracelet/ultraviolet"
 )
 
 // Kinds of the [reel.Annotation] events a harness records, as described by
@@ -34,7 +33,6 @@ const (
 	kindAssert    = "steep.assert"
 	kindSnapshot  = "steep.snapshot"
 	kindFailure   = "steep.failure"
-	kindMessage   = "steep.message"
 	kindExit      = "steep.exit"
 	kindResult    = "steep.result"
 )
@@ -105,14 +103,12 @@ type startNote struct {
 	Cols      int    `json:"cols"`
 	Rows      int    `json:"rows"`
 	TimeoutMS int64  `json:"timeout_ms"`
-	CheckMS   int64  `json:"check_ms"`
 	SettleMS  int64  `json:"settle_ms"`
 	SlowMS    int64  `json:"slow_ms,omitzero"`
 	TypingMS  int64  `json:"typing_ms,omitzero"`
 	ANSI      bool   `json:"ansi"`
 	Color     string `json:"color,omitzero"`
 	Export    string `json:"export"`
-	Messages  bool   `json:"messages,omitzero"`
 	Package   string `json:"package,omitzero"`
 	Module    string `json:"module,omitzero"`
 	Dir       string `json:"dir,omitzero"`
@@ -127,13 +123,11 @@ func newStartNote(test string, cfg options) *startNote {
 		Cols:      cfg.width,
 		Rows:      cfg.height,
 		TimeoutMS: cfg.timeout.Milliseconds(),
-		CheckMS:   cfg.checkInterval.Milliseconds(),
 		SettleMS:  cfg.settleTimeout.Milliseconds(),
 		SlowMS:    cfg.slow.Milliseconds(),
 		TypingMS:  cfg.typingDelay.Milliseconds(),
 		ANSI:      !cfg.stripANSI,
 		Export:    cfg.policy.String(),
-		Messages:  cfg.recordMessages,
 	}
 	if cfg.color != 0 {
 		n.Color = cfg.color.String()
@@ -260,17 +254,12 @@ func clipMatches(matches []reel.Match, truncated *bool) []reel.Match {
 	return matches
 }
 
-func typeName[T any]() string {
-	return reflect.TypeFor[T]().String()
-}
-
 // waitNote is a "steep.wait.start" annotation.
 type waitNote struct {
 	ID int64 `json:"id"`
 	WaitMeta
 	Text       []string `json:"text,omitzero"`
 	Condition  string   `json:"condition,omitzero"`
-	Type       string   `json:"type,omitzero"`
 	TimeoutMS  int64    `json:"timeout_ms,omitzero"`
 	SettleMS   int64    `json:"settle_ms,omitzero"`
 	DurationMS int64    `json:"duration_ms,omitzero"`
@@ -291,7 +280,6 @@ type waitEndNote struct {
 	Outcome   outcome      `json:"outcome"`
 	ElapsedMS int64        `json:"elapsed_ms"`
 	Matches   []reel.Match `json:"matches,omitzero"`
-	Type      string       `json:"type,omitzero"`
 	Truncated bool         `json:"truncated,omitzero"`
 }
 
@@ -341,13 +329,6 @@ func (w *waitRecord) satisfied(matches []reel.Match) {
 	}
 }
 
-func (w *waitRecord) received(msg uv.Event) {
-	if w != nil {
-		w.end.Outcome = outcomeSatisfied
-		w.end.Type = fmt.Sprintf("%T", msg)
-	}
-}
-
 // finish records the end of the wait, unless no outcome was set, such as
 // when a panic stopped it.
 func (w *waitRecord) finish() {
@@ -390,7 +371,6 @@ type assertNote struct {
 	Pass      bool         `json:"pass"`
 	Text      []string     `json:"text,omitzero"`
 	Condition string       `json:"condition,omitzero"`
-	Type      string       `json:"type,omitzero"`
 	Expected  *dims        `json:"expected,omitzero"`
 	Actual    *dims        `json:"actual,omitzero"`
 	Matches   []reel.Match `json:"matches,omitzero"`
@@ -445,37 +425,19 @@ type failureNote struct {
 func (*failureNote) kind() string { return kindFailure }
 func (n *failureNote) clip()      { n.Message = reel.ClipText(n.Message, &n.Truncated) }
 
-// noteFailure records the nth failure the harness reported, and marks it
-// unless [WithAutoMarks] turns failure marks off (see [Harness.Mark]).
-// Errors are dropped, since reporting them would record another failure.
+// noteFailure records the nth failure the harness reported, and marks it,
+// with the queued marks of actions, unless [WithAutoMarks] turns failure
+// marks off (see [Harness.Mark]). Errors are dropped, since reporting them
+// would record another failure.
 func (h *Harness) noteFailure(n int, msg string) {
 	_ = h.record(&failureNote{Message: msg})
+	var marks []reel.Mark
 	if h.autoMarks[MarkFailure] {
-		_ = h.session.Mark(autoLabel(MarkFailure, n))
+		marks = append(marks, reel.Mark{Label: autoLabel(MarkFailure, n), Source: h.caller()})
 	}
-}
-
-// messageNote is a "steep.message" annotation.
-type messageNote struct {
-	Type      string `json:"type"`
-	Value     string `json:"value"`
-	Truncated bool   `json:"truncated,omitzero"`
-}
-
-func (*messageNote) kind() string { return kindMessage }
-func (n *messageNote) clip()      { n.Value = reel.ClipText(n.Value, &n.Truncated) }
-
-// noteMessage records a message the model received, except an environment
-// (see isEnv). It runs on the program's goroutine.
-func (h *Harness) noteMessage(msg uv.Event) {
-	if isEnv(msg) {
-		return
-	}
-	var n messageNote
-	n.Type, n.Value = valueNote(msg)
-	h.endMu.Lock()
-	defer h.endMu.Unlock()
-	_ = h.record(&n)
+	h.marksMu.Lock()
+	defer h.marksMu.Unlock()
+	_ = h.placeMarksLocked(marks...)
 }
 
 // exitNote is a "steep.exit" annotation.

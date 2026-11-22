@@ -41,7 +41,7 @@ The harnesses differ only in how the program reaches the session:
 | `NewComponentHarness` | The same, with your component wrapped in a model | The same |
 | `NewExecHarness` | In its own process | A pseudo-terminal, through `reel.Exec` |
 
-Everything after the session is the same, which is why the three share their waits, assertions, snapshots, and recordings. It's also why some methods are only on two of them: an exec harness has no model to `Mutate`, and no messages to wait for.
+Everything after the session is the same, which is why the three share their waits, assertions, snapshots, and recordings. It's also why `SendProgram` and `QuitProgram` are only on two of them: an exec harness has no `tea.Program` to send to.
 
 ## Why this design
 
@@ -59,7 +59,7 @@ Everything after the session is the same, which is why the three share their wai
   participant P as Program
   T->>H: NewHarness
   H->>P: Start in a session
-  P-->>H: First message
+  P-->>H: First paint
   H-->>T: Harness (ready)
   T->>H: Key, Wait, Assert...
   H->>P: Input
@@ -71,15 +71,15 @@ Everything after the session is the same, which is why the three share their wai
 
 ### Start
 
-`NewHarness` starts your model in a `tea.Program`, connected to a new session of 80 by 24 cells, or the size from `WithWindowSize`. It waits up to the [timeout](/steep/checks#waiting-and-settling) for the model's first message, then returns. If that doesn't come, the test fails there.
+`NewHarness` starts your model in a `tea.Program`, connected to a new session of 80 by 24 cells, or the size from `WithWindowSize`. It waits up to the [timeout](/steep/checks#waiting-and-settling) for the program's first paint, then returns. By then the first view and the modes it asks for, such as mouse tracking, are on the terminal, so input is encoded as the program expects. A program that paints nothing costs the timeout, and the test goes on.
 
-`NewExecHarness` starts the command and returns at once, since a command has no first message to wait for. It's up to you to `Wait` for what it draws. If the command can't be started, the test fails.
+`NewExecHarness` starts the command and returns at once, since a command may wait for input before it draws anything. It's up to you to `Wait` for what it draws. If the command can't be started, the test fails.
 
 Both register `Close` as a test cleanup, so you don't have to call it. You can call it yourself to end the program partway through a test, and later calls do nothing.
 
 ### Run
 
-Most methods are actions, and return the harness so you can chain them. Each action is marked in the timeline once it's done, as `input:1`, `wait:1`, and so on (see [Timeline and marks](/steep/how-it-works#timeline-and-marks)). [Hooks](/steep/debugging#hooks) run before and after each action.
+Most methods are actions, and return the harness so you can chain them. Each action is marked in the timeline, as `input:1`, `wait:1`, and so on (see [Timeline and marks](/steep/how-it-works#timeline-and-marks)). [Hooks](/steep/debugging#hooks) run before and after each action.
 
 A failed `Assert` carries on. A failed `Require` or `Wait` stops the test with `FailNow`, which runs the cleanups, including `Close`. See [Assert vs Require vs Wait](/steep/checks).
 
@@ -90,8 +90,6 @@ If your program quits on its own, `Close` has nothing to stop. To check how it e
 | Method | Waits for the program to finish, then |
 | --- | --- |
 | `WaitFinished` | Fails the test if it panicked, or returned an error other than `tea.ErrProgramKilled` |
-| `FinalModel` | Returns the root model |
-| `FinalModelAs[M]` | Returns the root model as `M`, failing the test if it isn't one |
 | `ExitStatus` | Returns a command's exit status (`NewExecHarness` only) |
 
 `Close` does this, in order:
@@ -111,7 +109,7 @@ It holds [what the program wrote, what it was sent, and what happened to the ter
 
 ### Marks
 
-A mark names a moment. The harness places one when each action is done, labeled with the event and a count: `input:2`, `wait:1`, `assert:3`. Each failure gets one too, as `failure:1`, numbered in the order they're reported.
+A mark names a moment. The harness places one for each action, labeled with the event and a count: `input:2`, `wait:1`, `assert:3`. Each failure gets one too, as `failure:1`, numbered in the order they're reported.
 
 Marks are what make the rest of a recording addressable:
 
@@ -124,9 +122,15 @@ Place your own with `h.Mark("login:done")`, and see [Your own marks](/steep/debu
 
 #### When an action's mark lands
 
-While exporting, input, terminal, and program actions aren't marked the moment they're sent. The harness waits for the program to paint its response: until its output has been quiet for the `WithCheck` interval, or, if it writes nothing, for the `WithSettle` period, and at least 50ms. So a still at `input:2` shows the result of that input, not the screen before it.
+Waits, assertions, and captures are marked when they're done. Input, terminal, and program actions return as soon as they're sent, before the program has responded, so their marks wait for the test's next step: the end of the next wait, assertion, or capture, the start of the next input, terminal, or program action, a `Mark` of your own, a failure, or `Close`.
 
-A response made later, such as by a command, might not be painted by then. If it matters, `Wait` for it and take the still at the wait's mark instead.
+So when a test waits for the response, the still at `input:2` shows the screen as it is when the wait's mark is placed, just after the wait ends, rather than whatever the program drew first, such as a spinner's frames. The input's mark and the wait's are placed together, in that order, so their stills show the same screen:
+
+```go
+h.Key("enter").Wait("Matcha is ready") // input:1 and wait:1 are placed as the wait ends
+```
+
+An action followed straight by another, with no wait between, is marked as the next one starts, which may be before the program responded. A still shows the screen as it is when its mark is placed, so on a screen that keeps changing, what a wait matched may already be gone.
 
 ### Annotations
 
@@ -141,7 +145,6 @@ Annotations are what let a `.cast` file explain itself. steep records:
 | `steep.wait.start`, `steep.wait.end` | Each wait and how it ended |
 | `steep.assert`, `steep.snapshot` | Each assertion and snapshot comparison, and its outcome |
 | `steep.failure` | Each failure |
-| `steep.message` | Each message the model receives, only with [`WithRecordMessages`](/steep/debugging#messages-and-source-lines) |
 | `steep.result` | The result |
 
 Text fields over 4 KiB, and lists of over 64 matches, are cut and marked as truncated. The format is described by [`annotation.schema.json`](https://github.com/lrstanley/steep/blob/master/reel/annotation.schema.json), and [Annotations](/reel/inspecting#annotations) has more on reading them.

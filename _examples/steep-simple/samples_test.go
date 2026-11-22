@@ -28,7 +28,6 @@ func TestInspectorSamples(t *testing.T) {
 		return []steep.Option{
 			steep.WithIgnoreEnv(true),
 			steep.WithSource(true),
-			steep.WithRecordMessages(true),
 			steep.WithExportAlways(),
 			steep.WithArtifacts(dir),
 			steep.WithRecording(reel.Profile{Outputs: reel.MustFiles(file)}),

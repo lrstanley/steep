@@ -45,7 +45,7 @@ The message says what the wait wanted, and shows the screen as it was. Compare t
 
 ## A settle that never settles
 
-The screen was still changing when the timeout came, usually because of a spinner or a clock. Leave it out with [`WithSettleIgnore`](/steep/checks#settling-on-part-of-the-screen), or use `Wait` or [`WaitSettleMessages`](/steep/checks#settling-on-messages). The `(for 100ms)` is the quiet period it was looking for. With `WithSettleOnly`, the error says when its regions weren't on the screen.
+The screen was still changing when the timeout came, usually because of a spinner or a clock. Leave it out with [`WithSettleIgnore`](/steep/checks#settling-on-part-of-the-screen), watch only what matters with `WithSettleOnly`, or use `Wait`. The `(for 100ms)` is the quiet period it was looking for. With `WithSettleOnly`, the error says when its regions weren't on the screen.
 
 <include cwd lang="console">fixtures/TestFailSettle.output</include>
 
@@ -87,7 +87,7 @@ An error from a [hook](/steep/debugging#hooks) fails the test immediately.
 
 ## A program that fails
 
-`WaitFinished` and `FinalModel` fail with `the program failed:` if the program returned an error other than `tea.ErrProgramKilled`, or if it panicked. So does `Close`, so a failed program fails the test even if nothing waited for it.
+`WaitFinished` fails with `the program failed:` if the program returned an error other than `tea.ErrProgramKilled`, or if it panicked. So does `Close`, so a failed program fails the test even if nothing waited for it.
 
 Bubble Tea catches a panic in `Update`, `View`, or a command, and prints `Caught panic:` and a stack to the test's output, so look there for where it happened.
 

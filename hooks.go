@@ -8,10 +8,6 @@ import (
 	"log/slog"
 	"testing"
 	"time"
-
-	tea "charm.land/bubbletea/v2"
-	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/rivo/uniseg"
 )
 
 // InputKind is the kind of an input action.
@@ -89,12 +85,6 @@ const (
 	// WaitKindSettle waits for the screen to stay unchanged
 	// ([Harness.WaitSettle]).
 	WaitKindSettle WaitKind = "settle"
-	// WaitKindSettleMessages waits for the model to receive no messages
-	// ([Harness.WaitSettleMessages]).
-	WaitKindSettleMessages WaitKind = "settle_messages"
-	// WaitKindMessage waits for the model to receive a message of a type
-	// ([Harness.WaitMessage] and the like).
-	WaitKindMessage WaitKind = "message"
 	// WaitKindFinished waits for the program to end
 	// ([Harness.WaitFinished]).
 	WaitKindFinished WaitKind = "finished"
@@ -106,17 +96,10 @@ const (
 // event of [Harness.WaitFinished].
 type WaitMeta struct {
 	Kind WaitKind `json:"wait"`
-	// Live is true for a [WaitKindMessage] wait that only counts messages
-	// received after it starts, such as [Harness.WaitLiveMessage].
-	Live bool `json:"live,omitzero"`
 }
 
 func (m WaitMeta) LogValue() slog.Value {
-	attrs := []slog.Attr{slog.String("kind", string(m.Kind))}
-	if m.Live {
-		attrs = append(attrs, slog.Bool("live", true))
-	}
-	return slog.GroupValue(attrs...)
+	return slog.GroupValue(slog.String("kind", string(m.Kind)))
 }
 
 // AssertKind is what an assertion asserts.
@@ -141,9 +124,6 @@ const (
 	// AssertKindDimensions asserts the width and height of the screen's
 	// text ([Harness.AssertDimensions] and [Harness.RequireDimensions]).
 	AssertKindDimensions AssertKind = "dimensions"
-	// AssertKindHasMessage asserts that the model received a message of a
-	// type ([Harness.AssertHasMessage] and [Harness.RequireHasMessage]).
-	AssertKindHasMessage AssertKind = "has_message"
 )
 
 // AssertMeta is the metadata of [HookAssert] events.
@@ -262,29 +242,17 @@ func (s HookStage) String() string {
 // annotation the harness records for the action.
 type Hook func(event HookEvent, stage HookStage, metadata any) error
 
-// While exporting, responses says which message the action causes, for
-// actions whose metadata does not (see [inputResponses]), so its mark can wait
-// for the program to paint it. Without one, or for a command, whose messages
-// the harness cannot see, output of any kind counts.
-func (h *Harness) hook(event HookEvent, metadata any, responses ...func(uv.Event) int) func() {
+// hook runs the Before hooks of event, and returns a function that marks it
+// (see [Harness.markEvent]) and runs its After hooks. The marks of earlier
+// actions waiting for the test's next step are placed before an action
+// starts.
+func (h *Harness) hook(event HookEvent, metadata any) func() {
 	h.tb.Helper()
-	var seq uint64
-	var watch *paintWatch
-	if h.awaitsPaint(event) {
-		seq = h.session.Terminal().OutputSeq()
-		want, match := inputResponses(metadata)
-		if len(responses) > 0 {
-			want, match = 1, responses[0]
-		}
-		if want > 0 && h.observer != nil {
-			watch = h.observer.watchPaint(want, match)
-		}
+	if deferredMark(event) {
+		h.placeMarks()
 	}
 	h.runHooks(event, HookStageBefore, metadata)
 	return func() {
-		if h.awaitsPaint(event) {
-			h.waitForPaint(seq, watch)
-		}
 		if d := h.cfg.slow; d > 0 {
 			time.Sleep(d)
 		}
@@ -294,94 +262,6 @@ func (h *Harness) hook(event HookEvent, metadata any, responses ...func(uv.Event
 		}
 		h.runHooks(event, HookStageAfter, metadata)
 	}
-}
-
-// awaitsPaint reports whether the mark and After hooks for event must wait
-// for the program to paint its response, so a still at the mark shows it.
-// Only while exporting, so other tests do not pay for it.
-func (h *Harness) awaitsPaint(event HookEvent) bool {
-	if h.cfg.policy == exportOff {
-		return false
-	}
-	return event == HookInput || event == HookProgram || event == HookTerminal
-}
-
-// inputResponses returns which messages the input with this metadata causes:
-// match returns how much each is worth, and want is the least they add up to.
-// want is 0 if metadata is not an input's. A paste is one message if the
-// program enabled bracketed paste, or else a key press for each character.
-func inputResponses(metadata any) (want int, match func(uv.Event) int) {
-	meta, ok := metadata.(InputMeta)
-	if !ok {
-		return 0, nil
-	}
-	switch meta.Kind {
-	case InputKindType:
-		return uniseg.GraphemeClusterCount(meta.Text), responseTo[tea.KeyPressMsg]
-	case InputKindKey:
-		return 1, responseTo[tea.KeyPressMsg]
-	case InputKindPaste:
-		want = uniseg.GraphemeClusterCount(meta.Text)
-		return want, func(msg uv.Event) int {
-			switch msg.(type) {
-			case tea.PasteMsg:
-				return want
-			case tea.KeyPressMsg:
-				return 1
-			}
-			return 0
-		}
-	case InputKindMouse, InputKindClick, InputKindDrag:
-		return 1, responseTo[tea.MouseMsg]
-	case InputKindWheel:
-		return max(meta.Count, 1), responseTo[tea.MouseWheelMsg]
-	}
-	return 0, nil
-}
-
-// responseTo matches messages of type T, for [Harness.hook].
-func responseTo[T any](msg uv.Event) int {
-	if _, ok := msg.(T); ok {
-		return 1
-	}
-	return 0
-}
-
-// waitForPaint blocks until the program has painted its response to an action:
-// until the terminal has output newer than the action, and has then stayed
-// idle for one check interval (see [reel.Session.WaitIdle]). With a watch, that
-// is output that can only show the messages it follows; other output, such as
-// an animation's, does not count. All of it is given up on after
-// [Harness.paintWait], when an action may have no response to paint.
-func (h *Harness) waitForPaint(start uint64, watch *paintWatch) {
-	h.tb.Helper()
-	quiet, limit := max(h.cfg.checkInterval, time.Millisecond), h.paintWait()
-	if watch != nil {
-		defer h.observer.unwatch(watch)
-		timer := time.NewTimer(limit)
-		defer timer.Stop()
-		select {
-		case <-watch.painted:
-			start = watch.seq
-		case <-timer.C:
-			// Such as an input the program never hears of, so wait no longer
-			// than for one with no response.
-			limit = 0
-		case <-h.done:
-			limit = 0
-		case <-h.cfg.ctx.Done():
-			return
-		}
-	}
-	_ = h.session.WaitIdle(h.cfg.ctx, start, quiet, limit)
-}
-
-// paintWait is how long an exporting action waits for a program write before
-// it is marked. The floor covers settle intervals shorter than a scheduler
-// delay.
-func (h *Harness) paintWait() time.Duration {
-	wait := max(h.cfg.settleTimeout, 50*time.Millisecond)
-	return wait
 }
 
 func (h *Harness) runHooks(event HookEvent, stage HookStage, metadata any) {

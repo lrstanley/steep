@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -30,8 +29,6 @@ const (
 
 	// DefaultTimeout is the default timeout used by [Harness] blocking waits.
 	DefaultTimeout = 2 * time.Second
-	// DefaultCheckInterval is the default [WithCheck] interval.
-	DefaultCheckInterval = 10 * time.Millisecond
 	// DefaultSettleTimeout is the default settle timeout used by [Harness]
 	// settle waits. Settle timeouts are capped at 80% of the [WithTimeout]
 	// timeout.
@@ -39,14 +36,12 @@ const (
 )
 
 type options struct {
-	width         int
-	height        int
-	timeout       time.Duration
-	checkInterval time.Duration
-	programOpts   []tea.ProgramOption
+	width       int
+	height      int
+	timeout     time.Duration
+	programOpts []tea.ProgramOption
 
 	settleTimeout time.Duration
-	settleIgnore  []reflect.Type
 	// settleScreen is the [WithSettleIgnore] and [WithSettleOnly] regions.
 	settleScreen []reel.SettleOption
 
@@ -79,7 +74,6 @@ type options struct {
 	// autoMarksOff is the categories [WithAutoMarks] set, true if off.
 	autoMarksOff map[string]bool
 
-	recordMessages bool
 	// source is [WithSource].
 	source bool
 
@@ -95,7 +89,6 @@ func defaultOptions() options {
 		width:         DefaultTermWidth,
 		height:        DefaultTermHeight,
 		timeout:       DefaultTimeout,
-		checkInterval: DefaultCheckInterval,
 		settleTimeout: DefaultSettleTimeout,
 		scrollOnInput: true,
 		ctx:           context.Background(),
@@ -114,9 +107,6 @@ func collectOptions(tb testing.TB, opts ...Option) options {
 }
 
 func (o options) validate() options {
-	if o.checkInterval <= 0 {
-		o.checkInterval = DefaultCheckInterval
-	}
 	if o.timeout <= 0 {
 		o.timeout = DefaultTimeout
 	}
@@ -202,7 +192,7 @@ func WithProgramOptions(opts ...tea.ProgramOption) Option {
 }
 
 // WithTimeout configures the maximum time blocking waits (startup, waits,
-// settle, mutation) may run before failing the test. Defaults to
+// settle) may run before failing the test. Defaults to
 // [DefaultTimeout].
 //
 // Environment: STEEP_TIMEOUT (overrides this option unless [WithIgnoreEnv]
@@ -213,44 +203,14 @@ func WithTimeout(timeout time.Duration) Option {
 	}
 }
 
-// WithCheck configures how often [Harness.WaitSettleMessages] re-checks
-// for messages. Waits on the screen do not poll: they check it whenever it
-// changes. Defaults to [DefaultCheckInterval]. While exporting, it is also
-// how long the program's output must stay quiet before an action is marked
-// (see [Harness.Mark]).
-//
-// Environment: STEEP_CHECK (overrides this option unless [WithIgnoreEnv] is
-// set).
-func WithCheck(interval time.Duration) Option {
-	return func(cfg *options) {
-		cfg.checkInterval = interval
-	}
-}
-
 // WithSettle configures the quiet period settle waits require. Defaults to
-// [DefaultSettleTimeout], and is capped at 80% of [WithTimeout]. While
-// exporting, it also paces action marks (see [Harness.Mark]).
+// [DefaultSettleTimeout], and is capped at 80% of [WithTimeout].
 //
 // Environment: STEEP_SETTLE (overrides this option unless [WithIgnoreEnv]
 // is set).
 func WithSettle(timeout time.Duration) Option {
 	return func(cfg *options) {
 		cfg.settleTimeout = timeout
-	}
-}
-
-// WithSettleIgnoreMsgs marks message types that do not reset the quiet
-// period used by [Harness.WaitSettleMessages]. Pass a value of each type to
-// ignore, such as a zero value of a periodic tick type; types must match
-// exactly. Calls accumulate.
-func WithSettleIgnoreMsgs(types ...any) Option {
-	return func(cfg *options) {
-		for _, s := range types {
-			if s == nil {
-				continue
-			}
-			cfg.settleIgnore = append(cfg.settleIgnore, reflect.TypeOf(s))
-		}
 	}
 }
 
@@ -336,24 +296,6 @@ func WithLog(tb testing.TB) Option {
 	}
 }
 
-// WithRecordMessages records each message the model receives as a
-// "steep.message" annotation of its type and %+v value. It is off by
-// default, since programs that tick or animate receive many messages, each
-// of which grows the timeline and ".cast" file.
-//
-// The [tea.EnvMsg] Bubble Tea sends the model is never recorded, since it
-// holds the program's whole environment (see [WithEnvVars]). Other messages
-// are recorded as they are, including any secret they hold, as is the text
-// the program draws, which the effects package's Redact hides.
-//
-// Environment: STEEP_RECORD_MESSAGES (on or off) overrides this option
-// unless [WithIgnoreEnv] is set.
-func WithRecordMessages(enable bool) Option {
-	return func(cfg *options) {
-		cfg.recordMessages = enable
-	}
-}
-
 // WithSource records where in the test each annotation and mark of the
 // recording came from (see [reel.WithSource]): a "source" member of each
 // annotation, and a "reel.mark" annotation after each mark, of the file,
@@ -361,8 +303,8 @@ func WithRecordMessages(enable bool) Option {
 // test's helpers. "steep.start" also gets the test's package, its module,
 // and its directory in the module, and file paths are relative to the
 // module's root, so they hold no home or build directories. Annotations
-// and marks no line of the test led to, such as messages the model
-// receives, or those [Harness.Close] places as a test cleanup, get none.
+// and marks no line of the test led to, such as those [Harness.Close]
+// places as a test cleanup, get none.
 // Off by default; while off, no stack is walked.
 //
 // Environment: STEEP_SOURCE (on or off) overrides this option unless
@@ -384,8 +326,7 @@ func WithSource(enable bool) Option {
 // panics if an entry is not in "key=value" form.
 //
 // The program sees the whole test process environment, which in CI may hold
-// tokens and credentials. [WithRecordMessages] does not record it, but the
-// program can still read and draw it.
+// tokens and credentials, and the program can read and draw it.
 //
 // For [NewExecHarness], vars and the test process environment replace those
 // of the same name in cmd's environment.
@@ -508,10 +449,6 @@ func applyEnv(tb testing.TB, cfg *options) {
 		cfg.hooks = append(cfg.hooks, LoggerHook(tb, nil))
 	}
 
-	if on, ok := parseSwitch(os.Getenv("STEEP_RECORD_MESSAGES")); ok {
-		cfg.recordMessages = on
-	}
-
 	if on, ok := parseSwitch(os.Getenv("STEEP_SOURCE")); ok {
 		cfg.source = on
 	}
@@ -527,8 +464,6 @@ func applyEnv(tb testing.TB, cfg *options) {
 	}
 
 	envDuration("STEEP_TIMEOUT", &cfg.timeout)
-
-	envDuration("STEEP_CHECK", &cfg.checkInterval)
 
 	envDuration("STEEP_SETTLE", &cfg.settleTimeout)
 }
