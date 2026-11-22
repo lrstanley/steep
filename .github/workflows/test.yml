@@ -95,6 +95,7 @@ jobs:
     permissions:
       checks: write
       contents: read
+      id-token: write # codecov OIDC upload.
     steps:
       - uses: actions/checkout@v7
         with:
@@ -112,4 +113,6 @@ jobs:
       - uses: codecov/codecov-action@v7
         with:
           files: coverage-steep.txt,coverage-reel.txt,coverage-cli.txt
-          token: ${{ secrets.CODECOV_TOKEN }}
+          # pull requests from forks don't get an OIDC token; those fall back to
+          # codecov's tokenless upload for public repositories.
+          use_oidc: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) }}
