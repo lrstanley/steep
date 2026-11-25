@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -58,22 +59,40 @@ func TestVideoCloseCanceled(t *testing.T) {
 // context is canceled.
 func TestGIFCloseCanceled(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
+	ctx := &cancelOnErr{}
+	ctx.Context, ctx.cancel = context.WithCancel(t.Context())
+	defer ctx.cancel()
 	path := filepath.Join(t.TempDir(), "out.gif")
 	s, err := CreateGIF(path, WithContext(ctx))
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Enough frames that encoding them takes longer than the cancel.
-	img := solidFrame(0, 640, 480)
-	for i := range 3000 {
-		for y := range 480 {
-			img.Pix[y*img.Stride+(i%640)*4] = uint8(i * y)
+	img := solidFrame(0, 64, 48)
+	for i := range 20 {
+		for y := range 48 {
+			img.Pix[y*img.Stride+(i%64)*4] = uint8(i * y)
 		}
 		if err = s.WriteFrame(Frame{Image: img, Delay: 20 * time.Millisecond}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	closeCanceled(t, s, cancel, path)
+	// The encode cancels at its first check, after it has started.
+	ctx.armed.Store(true)
+	closeCanceled(t, s, ctx.cancel, path)
+}
+
+// cancelOnErr is a context that cancels itself at the first Err call once
+// armed, so an encode is canceled partway through however fast it runs.
+type cancelOnErr struct {
+	context.Context
+
+	cancel context.CancelFunc
+	armed  atomic.Bool
+}
+
+func (c *cancelOnErr) Err() error {
+	if c.armed.Load() {
+		c.cancel()
+	}
+	return c.Context.Err()
 }
