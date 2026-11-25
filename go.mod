@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	charm.land/bubbletea/v2 v2.1.2
-	getsteep.dev/steep/reel v0.0.0-alpha.17
+	getsteep.dev/steep/reel v0.0.0-alpha.18
 	github.com/aymanbagabas/go-udiff v0.4.2
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/ultraviolet v0.0.0-20261023060817-a45b7c86333f
