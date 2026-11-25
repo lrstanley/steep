@@ -209,7 +209,7 @@ func TestKeysTiming(t *testing.T) {
 		}
 		step := 50 * ms
 		if p.FPS != 0 {
-			step = time.Duration(100/p.FPS) * 10 * ms
+			step = (time.Second + time.Duration(p.FPS)/2) / time.Duration(p.FPS)
 		}
 		for i, f := range out[:len(out)-1] {
 			if f.Delay < step || f.Delay%step != 0 {

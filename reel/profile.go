@@ -5,6 +5,7 @@
 package reel
 
 import (
+	"cmp"
 	"fmt"
 	"image"
 	"maps"
@@ -41,11 +42,14 @@ type Profile struct {
 	// (see [Prioritizer]). See [Concealer] for the rules on hiding secrets
 	// and [Describer] for how asciicast outputs record them.
 	Effects []Effect
-	// FPS sets the delay grid: frames play whole steps of
-	// 10ms × max(1, 100/FPS), the delays GIF can store. Zero means 20; it
-	// must be at most [sink.MaxFrameRate]. Frames are not drawn at a fixed
-	// rate: each visible change is a frame ending on the step nearest its
-	// timeline end, and of changes on one step only the newest is shown.
+	// FPS is the frame rate, in frames a second, that recordings are timed
+	// on: frames play whole periods of 1s/FPS. Zero means 20. Each recording
+	// output may set its own ([File.FPS]); it must be at most the
+	// [sink.MaxFrameRate] of each output that uses it, such as 50 for GIF
+	// and 240 for MP4, or the recording fails rather than play slower. Frames
+	// are not drawn at a fixed rate: each visible change is a frame ending
+	// on the period nearest its timeline end, and of changes in one period
+	// only the newest is shown.
 	FPS int
 	// Speed scales playback: 2 plays twice as fast. Zero means 1.
 	Speed float64
@@ -113,6 +117,12 @@ type File struct {
 	// Cast is the asciicast version for a ".cast" Path; zero means
 	// [CastV2]. Setting it on other paths is an error.
 	Cast CastVersion
+	// FPS, if set, replaces [Profile.FPS] for this output, so one profile
+	// can write a GIF at 50 FPS and an MP4 at 120. Outputs of different
+	// rates run the effects once each. It must be at most the format's
+	// [sink.MaxFrameRate], and is an error on outputs that are not
+	// recordings: stills, asciicast, and screen outputs.
+	FPS int
 }
 
 // MustFiles returns a [File] for each output, parsed with [ParseFile], such
@@ -179,8 +189,14 @@ func (p Profile) Merge(o Profile) Profile {
 
 const defaultFPS = 20
 
+// maxFPS is the highest [sink.MaxFrameRate] of any format, and so the highest
+// [Profile.FPS].
+const maxFPS = 240
+
 // settings are a profile's timing with defaults applied.
 type settings struct {
+	// step is the period of the profile's frame rate; a recording output
+	// of its own rate runs on a copy with it changed (see [settings.at]).
 	step  time.Duration
 	speed float64
 	// limits are the profile's; zero fields are the defaults.
@@ -190,14 +206,11 @@ type settings struct {
 // settings validates p's timing and applies defaults.
 func (p Profile) settings() (settings, error) {
 	var s settings
-	fps := p.FPS
-	if fps == 0 {
-		fps = defaultFPS
+	fps := cmp.Or(p.FPS, defaultFPS)
+	if fps < 1 || fps > maxFPS {
+		return s, fmt.Errorf("reel: FPS %d out of range [1, %d]", p.FPS, maxFPS)
 	}
-	if fps < 1 || fps > sink.MaxFrameRate {
-		return s, fmt.Errorf("reel: FPS %d out of range [1, %d]", p.FPS, sink.MaxFrameRate)
-	}
-	s.step = time.Duration(max(1, 100/fps)) * 10 * time.Millisecond
+	s = s.at(fps)
 	s.limits = p.Limits
 	s.speed = p.Speed
 	if s.speed == 0 {
@@ -207,4 +220,12 @@ func (p Profile) settings() (settings, error) {
 		return s, fmt.Errorf("reel: speed %v must be positive and finite", p.Speed)
 	}
 	return s, nil
+}
+
+// at returns s timed at fps, with its period rounded to the nanosecond. The
+// pipeline rounds frame ends, not delays, to whole periods, so the rounding
+// moves an hour at 240 FPS by under half a millisecond.
+func (s settings) at(fps int) settings {
+	s.step = (time.Second + time.Duration(fps)/2) / time.Duration(fps)
+	return s
 }

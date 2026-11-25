@@ -43,7 +43,7 @@ func TestRecordMatchesExport(t *testing.T) {
 				{Path: filepath.Join(dir, name+"-{mark}.png"), Marks: []string{"half"}},
 			},
 			Rasterizer: testutil.Rasterizer{},
-			FPS:        100,
+			FPS:        50,
 		}
 	}
 	rec, err := Record(t.Context(), s, profile("record"))

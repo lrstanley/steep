@@ -102,10 +102,22 @@ func TestGIFChannelRoundOnce(t *testing.T) {
 func TestQuantizeDelays(t *testing.T) {
 	t.Parallel()
 
-	in := []time.Duration{0, 4 * time.Millisecond, 15 * time.Millisecond, 70 * time.Millisecond}
-	want := []int{1, 1, 2, 7}
-	if got := quantizeDelays(in); !slices.Equal(got, want) {
-		t.Fatalf("quantizeDelays(%v) = %v cs, want %v cs", in, got, want)
+	const ms = time.Millisecond
+	for _, tc := range []struct {
+		in   []time.Duration
+		want []int
+	}{
+		// Each frame plays at least a centisecond. The first two end past
+		// their exact ends, at 20ms, so the third makes up for it.
+		{[]time.Duration{0, 4 * ms, 15 * ms, 70 * ms}, []int{1, 1, 1, 6}},
+		// 30 FPS rounds its ends, not each delay, so it plays at 30 FPS on
+		// average, not 33.
+		{slices.Repeat([]time.Duration{time.Second / 30}, 6), []int{3, 4, 3, 3, 4, 3}},
+		{[]time.Duration{20 * ms, 20 * ms, 50 * ms}, []int{2, 2, 5}},
+	} {
+		if got := quantizeDelays(tc.in); !slices.Equal(got, tc.want) {
+			t.Errorf("quantizeDelays(%v) = %v cs, want %v cs", tc.in, got, tc.want)
+		}
 	}
 }
 

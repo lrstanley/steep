@@ -253,7 +253,7 @@ func TestHideMissingMark(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			path := filepath.Join(t.TempDir(), "out.gif")
+			path := filepath.Join(t.TempDir(), "out.png")
 			var frames []reel.Frame
 			err := reel.Export(t.Context(), tl, reel.Profile{
 				Outputs:    reel.MustFiles(path),
@@ -293,8 +293,9 @@ func TestHideRecord(t *testing.T) {
 		return reel.Profile{
 			Outputs:    reel.MustFiles(filepath.Join(dir, name+".gif")),
 			Rasterizer: testutil.Rasterizer{},
-			FPS:        hideFPS,
-			Effects:    effects,
+			// GIF plays at most 50 FPS, and the byte comparison below needs GIF.
+			FPS:     50,
+			Effects: effects,
 		}
 	}
 	s, err := reel.Open(t.Context(), 80, 24)

@@ -61,6 +61,14 @@ var fileParams = []fileParam{
 		f.MarkMatch = v
 		return nil
 	}},
+	{name: "fps", formats: []sink.Format{sink.FormatGIF, sink.FormatMP4, sink.FormatPNG, sink.FormatWebM, sink.FormatWebP}, apply: func(f *File, v []string) error {
+		n, err := strconv.Atoi(v[0])
+		if err != nil || n < 1 {
+			return fmt.Errorf("%q is not a frame rate", v[0])
+		}
+		f.FPS = n
+		return nil
+	}},
 	{name: "optimize", formats: []sink.Format{sink.FormatGIF, sink.FormatPNG}, repeat: true, apply: func(f *File, v []string) error {
 		flags, err := parseOptimize(v)
 		if err == nil {
@@ -157,6 +165,8 @@ var fileDriveRe = regexp.MustCompile(`^/[A-Za-z]:/`)
 //     for ".cast".
 //   - match=pattern: adds to [File.MarkMatch], such as "input:*"; the path
 //     must hold {mark}. Not for ".cast".
+//   - fps=n: [File.FPS] (".gif", ".mp4", ".png", ".webm", ".webp"); not
+//     with marks.
 //   - optimize=none|all|frames|dirty|quantize: [sink.WithOptimize], the
 //     flags OR'd together (".gif", ".png").
 //   - max-frames=n: [sink.WithMaxFrames] (".gif").
@@ -170,8 +180,8 @@ var fileDriveRe = regexp.MustCompile(`^/[A-Za-z]:/`)
 //   - background=#rgb|#rrggbb: [sink.WithBackground] (".gif", ".mp4",
 //     ".webm", ".webp").
 //
-// Profile-wide settings, such as [Profile.FPS] and [Profile.Speed], are not
-// parameters, since every output of a profile shares them.
+// Profile-wide settings, such as [Profile.Speed], are not parameters, since
+// every output of a profile shares them.
 //
 // For outputs written in code, see [MustFiles].
 func ParseFile(raw string) (File, error) {

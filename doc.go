@@ -118,7 +118,10 @@
 //     [WithStills] uses by default. An output that does not parse fails the
 //     test.
 //   - STEEP_EXPORT_FPS, STEEP_EXPORT_SPEED: replace [reel.Profile.FPS] and
-//     [reel.Profile.Speed].
+//     [reel.Profile.Speed]. An output's own [reel.File.FPS], such as
+//     "{name}.mp4?fps=120", still wins, and an FPS higher than an output's
+//     format plays at (see
+//     [getsteep.dev/steep/reel/sink.MaxFrameRate]) fails the test.
 //   - STEEP_RENDERER_SCALE, STEEP_RENDERER_FONT_FAMILY: appended to
 //     [reel.Profile.Render].
 //

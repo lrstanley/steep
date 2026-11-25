@@ -8,13 +8,16 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -42,7 +45,8 @@ func frameText(f Frame) string { return testutil.Text(f.Image) }
 func exportFrames(t *testing.T, tl *Timeline, p Profile) []Frame {
 	t.Helper()
 	var frames []Frame
-	p.Outputs = MustFiles(filepath.Join(t.TempDir(), "out.gif"))
+	// PNG, unlike GIF, takes any FPS the tests use.
+	p.Outputs = MustFiles(filepath.Join(t.TempDir(), "out.png"))
 	p.Rasterizer = testutil.Rasterizer{}
 	p.Effects = append(slices.Clip(p.Effects), recordFrames(&frames))
 	if err := Export(t.Context(), tl, p); err != nil {
@@ -372,7 +376,7 @@ func TestExportCastAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	p := Profile{FPS: 100, Outputs: MustFiles(filepath.Join(dir, "a.gif"), filepath.Join(dir, "a.cast"))}
+	p := Profile{FPS: 50, Outputs: MustFiles(filepath.Join(dir, "a.gif"), filepath.Join(dir, "a.cast"))}
 	if err := Export(t.Context(), s.Timeline(), p); err != nil {
 		t.Fatal(err)
 	}
@@ -633,7 +637,13 @@ func TestExportErrors(t *testing.T) {
 		{"unknown cast version", p(File{Path: filepath.Join(dir, "x.cast"), Cast: 7}), "unknown asciicast version"},
 		{"unknown format", p(File{Path: filepath.Join(dir, "x.jpg")}), sink.ErrUnknownFormat.Error()},
 		{"built-in var", Profile{Outputs: MustFiles(path), Vars: map[string]string{"duration": "1"}}, "built-in path variable {duration}"},
-		{"bad fps", Profile{Outputs: MustFiles(path), FPS: 101}, "FPS 101"},
+		{"bad fps", Profile{Outputs: MustFiles(filepath.Join(dir, "x.mp4")), FPS: 241}, "FPS 241 out of range [1, 240]"},
+		{"fps over gif", Profile{Outputs: MustFiles(path), FPS: 60}, `the profile's FPS 60 is more than .gif plays at, 50; give the output its own, such as "` + path + `?fps=50"`},
+		{"File.FPS over gif", p(File{Path: path, FPS: 60}), "FPS 60 is more than .gif plays at, 50"},
+		{"File.FPS over webp", p(File{Path: filepath.Join(dir, "x.webp"), FPS: 100}), "FPS 100 is more than .webp plays at, 90"},
+		{"negative File.FPS", p(File{Path: path, FPS: -1}), "FPS -1 is negative"},
+		{"File.FPS on a cast", p(File{Path: filepath.Join(dir, "x.cast"), FPS: 30}), "not a recording"},
+		{"File.FPS on a still", p(File{Path: filepath.Join(dir, "{mark}.png"), Marks: []string{"a"}, FPS: 30}), "not a recording"},
 		{"bad speed", Profile{Outputs: MustFiles(path), Speed: -1}, "speed -1"},
 		{"effects drop every frame", Profile{Outputs: MustFiles(path), Rasterizer: testutil.Rasterizer{}, Effects: []Effect{effectFunc(func(Frame, func(Frame)) {})}}, "dropped every frame"},
 		{"effect fails", Profile{Outputs: MustFiles(path), Rasterizer: testutil.Rasterizer{}, Effects: []Effect{failEffect{}}}, errEffect.Error()},
@@ -1067,5 +1077,122 @@ func TestCutKeepsScrolledViewport(t *testing.T) {
 	data := writeCast(t, cut, CastV3)
 	if !bytes.Contains(data, []byte(`"s"`)) {
 		t.Fatalf("cast of the cut has no scroll event: %s", data)
+	}
+}
+
+// stepRuns is an effect that records, for each recording it is started for,
+// the step and the frames it was given.
+type stepRuns struct {
+	runs *[]stepRun
+}
+
+type stepRun struct {
+	step   time.Duration
+	frames []Frame
+}
+
+func (e stepRuns) Start(ctx *Context) (Stage, error) {
+	*e.runs = append(*e.runs, stepRun{step: ctx.Step})
+	i := len(*e.runs) - 1
+	return func(f Frame, emit func(Frame)) {
+		(*e.runs)[i].frames = append((*e.runs)[i].frames, f)
+		emit(f)
+	}, nil
+}
+
+// TestExportFrameRates checks that outputs of different frame rates each
+// get their own effects and pipeline, timed on their own step, in the
+// order they are listed, and that outputs of one rate share them.
+func TestExportFrameRates(t *testing.T) {
+	t.Parallel()
+	// Changes every 10ms: 120 FPS shows each one, 50 FPS every other.
+	var events []Event
+	for i := range 10 {
+		events = append(events, outAt(10*i, "\r"+strconv.Itoa(i)))
+	}
+	tl := buildTimeline(Header{Cols: 2, Rows: 1}, events...)
+	dir := t.TempDir()
+	var runs []stepRun
+	err := Export(t.Context(), tl, Profile{
+		FPS: 120,
+		Outputs: []File{
+			{Path: filepath.Join(dir, "a.gif"), FPS: 50},
+			{Path: filepath.Join(dir, "b.png")},
+			{Path: filepath.Join(dir, "c.png"), FPS: 120},
+		},
+		Rasterizer: testutil.Rasterizer{},
+		Effects:    []Effect{stepRuns{&runs}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"a.gif", "b.png", "c.png"} {
+		if _, serr := os.Stat(filepath.Join(dir, name)); serr != nil {
+			t.Error(serr)
+		}
+	}
+	if len(runs) != 2 || runs[0].step != 20*ms || runs[1].step != time.Second/120 {
+		t.Fatalf("effects started %d times, want for 20ms then 8.333333ms steps: %+v", len(runs), runs)
+	}
+	for _, run := range runs {
+		var texts []string
+		for _, f := range run.frames {
+			if f.Delay%run.step != 0 {
+				t.Errorf("step %v: frame %q plays %v, not whole steps", run.step, frameText(f), f.Delay)
+			}
+			texts = append(texts, strings.TrimSpace(frameText(f)))
+		}
+		want := []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}
+		if run.step == 20*ms {
+			want = []string{"0", "2", "4", "6", "8", "9"}
+		}
+		if !slices.Equal(texts, want) {
+			t.Errorf("step %v: frames %q, want %q", run.step, texts, want)
+		}
+	}
+}
+
+func TestExportFrameRatesReportMarks(t *testing.T) {
+	t.Parallel()
+	tl := buildTimeline(Header{Cols: 2, Rows: 1}, outAt(0, "a"))
+	dir := t.TempDir()
+	// Every rate needs "both"; only the faster one needs "fast", and it is
+	// listed second.
+	err := Export(t.Context(), tl, Profile{
+		Outputs: []File{
+			{Path: filepath.Join(dir, "a.png")},
+			{Path: filepath.Join(dir, "b.png"), FPS: 120},
+		},
+		Rasterizer: testutil.Rasterizer{},
+		Effects: []Effect{startFunc(func(ctx *Context) {
+			ctx.OnClose(func() error {
+				errs := []error{&NoMarkError{Label: "both"}}
+				if ctx.Step < 20*ms {
+					errs = append(errs, &NoMarkError{Label: "fast"})
+				}
+				return errors.Join(errs...)
+			})
+		})},
+	})
+	labels, rest := MissingMarks(err)
+	if rest != nil || !slices.Equal(labels, []string{"both", "fast"}) {
+		t.Fatalf("missing marks %q, other errors %v; want [both fast] and none", labels, rest)
+	}
+	if n := strings.Count(err.Error(), `"both"`); n != 1 {
+		t.Errorf("%q reported %d times, want once: %v", "both", n, err)
+	}
+}
+
+func TestDropSeenMarks(t *testing.T) {
+	t.Parallel()
+	seen := map[string]bool{"a": true}
+	// A wrapped join is kept whole, or the other errors in it would go too.
+	wrapped := fmt.Errorf("effect: %w", errors.Join(&NoMarkError{Label: "a"}, io.ErrUnexpectedEOF))
+	if got := dropSeenMarks(wrapped, seen); !errors.Is(got, io.ErrUnexpectedEOF) || got.Error() != wrapped.Error() {
+		t.Errorf("wrapped join became %v", got)
+	}
+	got := dropSeenMarks(errors.Join(&NoMarkError{Label: "a"}, fmt.Errorf("x: %w", &NoMarkError{Label: "b"})), seen)
+	if labels, _ := MissingMarks(got); !slices.Equal(labels, []string{"b"}) || !seen["b"] {
+		t.Errorf("kept %q, seen %v; want [b], with b seen", labels, seen)
 	}
 }

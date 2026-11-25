@@ -30,11 +30,33 @@ Each parameter only applies to some formats. An unknown or repeated one is an er
 | `optimize` | `.gif`, `.png` | `none`, `all`, `frames`, `dirty`, `quantize` | The encoder's optimizations. The default is `all` for GIF, and `none` for PNG. |
 | `full-chroma` | `.mp4`, `.webm` | A boolean | 4:4:4, which keeps thin colored text sharp. Many browsers and phones don't play it in H.264. |
 | `background` | `.gif`, `.mp4`, `.webm`, `.webp` | `#rgb` or `#rrggbb` | A solid background, which translucent pixels, such as a [drop shadow](/reel/rendering#drop-shadow)'s or a [translucent window](/reel/rendering#translucent-windows)'s over a transparent backdrop, blend into |
+| `fps` | `.gif`, `.mp4`, `.png` (without marks), `.webm`, `.webp` | A number from `1` to the format's [highest rate](#frame-rates) | The frame rate of this output, in place of the profile's `FPS` |
 | `version` | `.cast` | `2` or `3` | The asciicast version. The default is 2. |
 | `marks` | All but `.cast` | A mark's label | A still at that mark. The path must hold `{mark}`. |
 | `match` | All but `.cast` | A pattern, such as `input:*` | A still at each matching mark. The path must hold `{mark}`. |
 
-Options shared by every output of a profile, such as `FPS` and `Speed`, are on the [profile](/reel/exporting) rather than here.
+Options shared by every output of a profile, such as `Speed`, are on the [profile](/reel/exporting) rather than here.
+
+## Frame rates
+
+Each format has a highest frame rate it plays at as recorded. A higher `FPS` is an error rather than a slower recording.
+
+| Format | Highest FPS | Why |
+| --- | --- | --- |
+| `.gif` | 50 | Delays are whole hundredths of a second, and browsers play one of 10ms or less as 100ms. |
+| `.webp` | 90 | Delays are whole milliseconds, with the same rule for 10ms or less. |
+| `.mp4`, `.webm` | 240 | As fast as common displays refresh. |
+| `.png` | 240 | Only the last frame is saved, so the rate only times the effects. |
+
+A rate that doesn't divide a format's clock still plays at that rate on average: 30 FPS in a GIF plays frames of 30ms, 40ms, and 30ms, then repeats.
+
+To write a GIF and a 120 FPS MP4 from one recording, give the MP4 its own rate:
+
+```sh
+STEEP_EXPORT='{name}.gif,{name}.mp4?fps=120'
+```
+
+Outputs of different rates each run the effects once, on their own timing.
 
 ## In Go
 
@@ -56,7 +78,7 @@ The same syntax works in [`STEEP_EXPORT`](/steep/environment#exports) and [`reel
 
 ## What's different about each
 
-**GIF** has one palette per frame and whole-centisecond delays. Cards and other inserted frames get a palette of their own.
+**GIF** has one palette per frame and whole-centisecond delays, so it plays at most 50 FPS. Cards and other inserted frames get a palette of their own.
 
 **PNG** without `marks` is the last frame. It gets the badge of an end pause.
 

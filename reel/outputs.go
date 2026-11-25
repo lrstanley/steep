@@ -15,6 +15,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"getsteep.dev/steep/reel/sink"
@@ -43,7 +44,14 @@ type outputs struct {
 	// files are the recordings, the per-mark stills, and the screen
 	// outputs.
 	files []fileOutput
-	// sink tees to every recording once open.
+	// recordings tee to the recordings of each frame rate, in the order
+	// their first output was listed, once open.
+	recordings []recordingSink
+}
+
+// recordingSink is the sink of every recording output at fps.
+type recordingSink struct {
+	fps  int
 	sink sink.Sink
 }
 
@@ -56,6 +64,8 @@ type fileOutput struct {
 	path   string
 	format sink.Format
 	opts   []sink.Option
+	// fps is a recording's frame rate.
+	fps int
 	// still is set for the still of the first mark labeled mark.
 	still   bool
 	mark    string
@@ -111,6 +121,10 @@ func planOutputs(p Profile, vars map[string]string, tl *Timeline) (*outputs, err
 			return nil, fmt.Errorf("reel: output %q: MarkMatch needs a finished timeline; use Export", out.Path)
 		case isScreenFormat(format) && len(out.Options) > 0:
 			return nil, fmt.Errorf("reel: output %q: a .%s output takes no Options", out.Path, format)
+		case out.FPS < 0:
+			return nil, fmt.Errorf("reel: output %q: FPS %d is negative", out.Path, out.FPS)
+		case out.FPS != 0 && (perMark || format == formatCast || isScreenFormat(format)):
+			return nil, fmt.Errorf("reel: output %q: FPS is set on an output that is not a recording", out.Path)
 		}
 		opts := append(slices.Clip(p.Encode), out.Options...)
 		if !perMark {
@@ -123,10 +137,17 @@ func planOutputs(p Profile, vars map[string]string, tl *Timeline) (*outputs, err
 			if err != nil {
 				return nil, err
 			}
-			if format == formatCast {
+			switch {
+			case format == formatCast:
 				o.casts = append(o.casts, castOutput{path: dst, version: cmp.Or(out.Cast, CastV2)})
-			} else {
+			case isScreenFormat(format):
 				o.files = append(o.files, fileOutput{path: dst, format: format, opts: opts})
+			default:
+				fps := cmp.Or(out.FPS, p.FPS, defaultFPS)
+				if ferr := checkFPS(out, format, fps); ferr != nil {
+					return nil, ferr
+				}
+				o.files = append(o.files, fileOutput{path: dst, format: format, opts: opts, fps: fps})
 			}
 			continue
 		}
@@ -150,6 +171,22 @@ func planOutputs(p Profile, vars map[string]string, tl *Timeline) (*outputs, err
 		}
 	}
 	return o, nil
+}
+
+// checkFPS reports an error if out, a recording in format, cannot play at
+// fps, its own [File.FPS] or else the profile's.
+func checkFPS(out File, format sink.Format, fps int) error {
+	limit := sink.MaxFrameRate(format)
+	switch {
+	case fps <= limit:
+		return nil
+	case out.FPS != 0:
+		return fmt.Errorf("reel: output %q: FPS %d is more than .%s plays at, %d", out.Path, fps, format, limit)
+	}
+	return fmt.Errorf(
+		"reel: output %q: the profile's FPS %d is more than .%s plays at, %d; give the output its own, such as %q",
+		out.Path, fps, format, limit, out.Path+"?fps="+strconv.Itoa(limit),
+	)
 }
 
 // markFileName returns label for {mark}, with each character but path
@@ -290,12 +327,6 @@ func stillEffects(effects []Effect) []Effect {
 	return out
 }
 
-// hasRecording reports whether any output is a recording rather than a
-// still.
-func (o *outputs) hasRecording() bool {
-	return slices.ContainsFunc(o.files, func(f fileOutput) bool { return !f.still && !f.isScreen() })
-}
-
 // hasDrawn reports whether any output is drawn.
 func (o *outputs) hasDrawn() bool {
 	return slices.ContainsFunc(o.files, func(f fileOutput) bool { return !f.isScreen() })
@@ -310,7 +341,8 @@ func (o *outputs) hasStills(drawn bool) bool {
 // open creates every drawn output, whose encoding stops once ctx is done.
 // On error, the caller discards o.
 func (o *outputs) open(ctx context.Context) error {
-	var recordings []sink.Sink
+	var fps []int
+	byFPS := make(map[int][]sink.Sink)
 	for i := range o.files {
 		f := &o.files[i]
 		if f.isScreen() {
@@ -325,10 +357,15 @@ func (o *outputs) open(ctx context.Context) error {
 		}
 		f.sink = s
 		if !f.still {
-			recordings = append(recordings, s)
+			if byFPS[f.fps] == nil {
+				fps = append(fps, f.fps)
+			}
+			byFPS[f.fps] = append(byFPS[f.fps], s)
 		}
 	}
-	o.sink = sink.Tee(recordings...)
+	for _, n := range fps {
+		o.recordings = append(o.recordings, recordingSink{fps: n, sink: sink.Tee(byFPS[n]...)})
+	}
 	return nil
 }
 

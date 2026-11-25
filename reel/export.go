@@ -87,13 +87,21 @@ type recorder struct {
 	// closeRast is set when the recorder built rast and must close it.
 	closeRast bool
 	replay    *replay
-	pipe      *pipeline
+	// recs are the recordings of each frame rate, each with its own
+	// effects and pipeline.
+	recs []recording
 	// view is what a live recording's effects see: the events of src
 	// replayed so far, so they never see events appended after it stops.
 	src, view *Timeline
-	effects   *Context
 	// stills is set when there are both stills and still-capable effects.
 	stills *stillChain
+}
+
+// recording draws the recording outputs of one frame rate: the effects,
+// started for its step, and the pipeline running them.
+type recording struct {
+	ctx  *Context
+	pipe *pipeline
 }
 
 // stillChain runs stills through the effects that apply to them, started
@@ -203,38 +211,55 @@ func (r *recorder) open(ctx context.Context, rt *vt.Runtime, tl *Timeline, live 
 		r.src, r.view = tl, newTimeline(tl.header)
 		tl = r.view
 	}
-	newContext := func() *Context {
+	newContext := func(s settings) *Context {
 		return &Context{
 			Timeline:   tl,
 			Live:       live,
 			Rasterizer: r.rast,
 			Layout:     layout,
 			Render:     opts,
-			Step:       r.s.step,
-			Speed:      r.s.speed,
+			Step:       s.step,
+			Speed:      s.speed,
 			Title:      title,
 			Meta:       p.Meta,
 		}
 	}
 	if r.outs.hasStills(true) {
 		if fx := stillEffects(p.Effects); len(fx) > 0 {
-			ctx := newContext()
+			ctx := newContext(r.s)
 			r.stills = &stillChain{ctx: ctx, span: time.Duration(float64(r.s.step) * r.s.speed)}
 			if r.stills.stages, err = startEffects(fx, ctx); err != nil {
 				return err
 			}
 		}
 	}
-	if !r.outs.hasRecording() {
-		return nil
+	for _, out := range r.outs.recordings {
+		s := r.s.at(out.fps)
+		rec := recording{ctx: newContext(s)}
+		// Added before starting, so release closes what did start.
+		r.recs = append(r.recs, rec)
+		stages, serr := startEffects(p.Effects, rec.ctx)
+		if serr != nil {
+			return serr
+		}
+		r.recs[len(r.recs)-1].pipe = newPipeline(ctx, r.rast, s, stages, out.sink)
 	}
-	r.effects = newContext()
-	stages, err := startEffects(p.Effects, r.effects)
-	if err != nil {
-		return err
+	if len(r.recs) > 0 {
+		r.replay.frame = r.record
 	}
-	r.pipe = newPipeline(ctx, r.rast, r.s, stages, r.outs.sink)
-	r.replay.frame = r.pipe.record
+	return nil
+}
+
+// record draws cf as the newest frame of each recording. The first draws
+// it; the others copy its pixels, which is the same image for less work.
+func (r *recorder) record(cf CellFrame) error {
+	var drawn *image.NRGBA
+	for _, rec := range r.recs {
+		if err := rec.pipe.record(cf, drawn); err != nil {
+			return err
+		}
+		drawn = rec.pipe.newest.Image
+	}
 	return nil
 }
 
@@ -501,14 +526,13 @@ func (r *recorder) end(end time.Duration) error {
 	if err := r.writeHeld(0, true); err != nil {
 		return err
 	}
-	if r.pipe == nil {
-		return nil
-	}
-	if err := r.pipe.finish(end); err != nil {
-		return err
-	}
-	if r.pipe.written == 0 {
-		return errors.New("reel: the effects dropped every frame")
+	for _, rec := range r.recs {
+		if err := rec.pipe.finish(end); err != nil {
+			return err
+		}
+		if rec.pipe.written == 0 {
+			return errors.New("reel: the effects dropped every frame")
+		}
 	}
 	return nil
 }
@@ -520,7 +544,7 @@ func (r *recorder) end(end time.Duration) error {
 // no effects ran on frames to report those marks, commit reports them
 // itself.
 func (r *recorder) commit(ctx context.Context, tl *Timeline) error {
-	report := r.effects == nil
+	report := len(r.recs) == 0
 	var descs []Annotation
 	var missing []error
 	for _, c := range r.castEffects {
@@ -546,20 +570,18 @@ func (r *recorder) abort() {
 
 // release closes the effects, replay terminal, and owned rasterizer.
 func (r *recorder) release() error {
+	// Each effects context runs the same effects, so a missing mark is
+	// reported once, by the first context to report it.
 	var errs []error
+	seen := make(map[string]bool)
 	if r.stills != nil {
-		err := r.stills.ctx.close()
-		if r.effects != nil {
-			// The recording's effects report the same missing marks.
-			_, err = MissingMarks(err)
-		}
-		errs = append(errs, err)
+		errs = append(errs, dropSeenMarks(r.stills.ctx.close(), seen))
 		r.stills = nil
 	}
-	if r.effects != nil {
-		errs = append(errs, r.effects.close())
-		r.effects = nil
+	for _, rec := range r.recs {
+		errs = append(errs, dropSeenMarks(rec.ctx.close(), seen))
 	}
+	r.recs = nil
 	if r.replay != nil {
 		errs = append(errs, r.replay.close())
 		r.replay = nil
@@ -569,4 +591,28 @@ func (r *recorder) release() error {
 		r.closeRast = false
 	}
 	return errors.Join(errs...)
+}
+
+// dropSeenMarks returns err without each [NoMarkError] for a label in seen,
+// and adds the labels of those it keeps to seen. Only joins are split: an
+// error that wraps a join is kept whole, since dropping it could drop other
+// errors with it.
+func dropSeenMarks(err error, seen map[string]bool) error {
+	if j, ok := err.(interface{ Unwrap() []error }); ok {
+		var errs []error
+		for _, e := range j.Unwrap() {
+			errs = append(errs, dropSeenMarks(e, seen))
+		}
+		return errors.Join(errs...)
+	}
+	for e := err; e != nil; e = errors.Unwrap(e) {
+		if nm, ok := e.(*NoMarkError); ok { //nolint:errorlint // The loop unwraps, one error at a time.
+			if seen[nm.Label] {
+				return nil
+			}
+			seen[nm.Label] = true
+			break
+		}
+	}
+	return err
 }

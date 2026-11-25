@@ -14,7 +14,6 @@ import (
 	"image/draw"
 	"image/gif"
 	"io"
-	"math"
 	"slices"
 	"time"
 
@@ -81,8 +80,9 @@ func newGIFEncoder(w io.Writer, cfg options) *GIFEncoder {
 	}
 }
 
-// WriteFrame palettizes f and adds it to the recording. f.Delay is rounded to
-// whole centiseconds, at least one.
+// WriteFrame palettizes f and adds it to the recording. Each frame's end is
+// rounded to whole centiseconds, so its delay is at least one, and frames
+// timed on any grid keep the recording's length.
 func (e *GIFEncoder) WriteFrame(f Frame) error {
 	switch {
 	case e.done:
@@ -458,12 +458,14 @@ func buildGIF(rec *gifRecording, global color.Palette) *gif.GIF {
 // maxGIFCentiseconds is the largest delay GIF can store in one frame.
 const maxGIFCentiseconds = 65535
 
-// quantizeDelays rounds each delay to whole centiseconds, at least one.
-// Values above [maxGIFCentiseconds] are left for [splitLongDelays].
+// quantizeDelays returns delays in whole centiseconds, at least one each,
+// rounding each frame's end rather than its delay (see [clock]). Values
+// above [maxGIFCentiseconds] are left for [splitLongDelays].
 func quantizeDelays(delays []time.Duration) []int {
+	c := clock{tick: 10 * time.Millisecond}
 	cs := make([]int, len(delays))
 	for i, d := range delays {
-		cs[i] = max(1, int(math.Round(float64(d)/float64(10*time.Millisecond))))
+		cs[i] = int(c.next(d) / c.tick)
 	}
 	return cs
 }

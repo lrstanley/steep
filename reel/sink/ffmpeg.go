@@ -141,8 +141,10 @@ var videoProfiles = map[Format]videoProfile{ //nolint:exhaustive // GIF and PNG 
 				"-crf", strconv.Itoa(crf),
 				"-movflags", "+faststart",
 				// MP4 otherwise picks a track timescale from a guessed frame
-				// rate, which rounds the millisecond delays.
-				"-video_track_timescale", "1000",
+				// rate, which rounds the frame times. 90kHz, the MPEG clock,
+				// holds every rate that divides it, such as 24, 30, 60, 120,
+				// 144, and 240 FPS, exactly, and the rest to 11µs.
+				"-video_track_timescale", "90000",
 			}
 		},
 	},
@@ -191,7 +193,8 @@ func ffmpegArgs(info *ffmpeg.Info, p videoProfile, encoder string, cfg VideoConf
 		"-f", "matroska", "-i", "pipe:0",
 		"-map", "0:v:0", "-an", "-sn", "-dn",
 	}
-	// Keep the stream's millisecond time base rather than a guessed frame rate.
+	// Keep the stream's microsecond time base rather than a guessed frame
+	// rate.
 	args = append(args, info.PassthroughArgs()...)
 	if p.muxer != "webp" {
 		pixFmt := "yuv420p"

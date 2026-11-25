@@ -34,7 +34,7 @@ The `STEEP_*` variables override options set in code, unless the harness has `Wi
 | `STEEP_EXPORT_MODE` | `on` (or `always`, `true`, `1`), `failure` (or `on-failure`), or `off` (or `false`, `0`) | [`WithExportAlways`](/steep/recording#when-artifacts-are-written), [`WithExportOnFailure`](/steep/recording#when-artifacts-are-written) |
 | `STEEP_EXPORT` | A comma-separated list of [outputs](/reel/formats) | The profile's `Outputs`, and `WithStills` |
 | `STEEP_EXPORT_DIR` | A directory. A relative one is relative to the test's package. | [`WithArtifacts`](/steep/recording#when-artifacts-are-written) |
-| `STEEP_EXPORT_FPS` | A number | `Profile.FPS` |
+| `STEEP_EXPORT_FPS` | A number | `Profile.FPS`. An output's own `?fps=` still wins, and a rate higher than an output's format plays at fails the test. |
 | `STEEP_EXPORT_SPEED` | A number | `Profile.Speed` |
 | `STEEP_RENDERER_SCALE` | A number | Added to `Profile.Render`, as `render.WithScale` |
 | `STEEP_RENDERER_FONT_FAMILY` | A font family | Added to `Profile.Render`, as `render.WithFontFamilyName` |

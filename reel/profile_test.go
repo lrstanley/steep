@@ -70,11 +70,16 @@ func TestProfileSettings(t *testing.T) {
 		want settings
 	}{
 		{Profile{}, settings{step: 50 * ms, speed: 1}},
-		{Profile{FPS: 30, Speed: 1.5}, settings{step: 30 * ms, speed: 1.5}},
+		// A rate that does not divide a second is its period to the
+		// nanosecond, not the nearest 10ms.
+		{Profile{FPS: 30, Speed: 1.5}, settings{step: 33333333, speed: 1.5}},
+		{Profile{FPS: 60}, settings{step: 16666667, speed: 1}},
 		{Profile{FPS: 100}, settings{step: 10 * ms, speed: 1}},
+		{Profile{FPS: 120}, settings{step: 8333333, speed: 1}},
+		{Profile{FPS: 240}, settings{step: 4166667, speed: 1}},
 		{Profile{FPS: 1}, settings{step: time.Second, speed: 1}},
 	} {
-		tc.p.Outputs = MustFiles("x.gif")
+		tc.p.Outputs = MustFiles("x.mp4")
 		got, err := tc.p.settings()
 		if err != nil || got != tc.want {
 			t.Errorf("%+v: settings = %+v, %v; want %+v", tc.p, got, err, tc.want)
@@ -140,5 +145,18 @@ func TestExpandPath(t *testing.T) {
 	}
 	if vars, err = pathVars(nil, time.Time{}); err != nil || vars[varTimestamp] == "" {
 		t.Fatalf("pathVars without a start = %v, %v; want now", vars, err)
+	}
+}
+
+// TestMaxFPS checks that the highest Profile.FPS is the highest rate any
+// format plays at.
+func TestMaxFPS(t *testing.T) {
+	t.Parallel()
+	highest := 0
+	for _, f := range []sink.Format{sink.FormatGIF, sink.FormatPNG, sink.FormatMP4, sink.FormatWebM, sink.FormatWebP} {
+		highest = max(highest, sink.MaxFrameRate(f))
+	}
+	if highest != maxFPS {
+		t.Fatalf("maxFPS = %d, want %d", maxFPS, highest)
 	}
 }

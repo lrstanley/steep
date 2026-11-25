@@ -50,7 +50,7 @@ func TestExportBellFades(t *testing.T) {
 	err := Export(t.Context(), tl, Profile{
 		FPS:     100,
 		Render:  []render.Option{render.WithBell(true), render.WithWindowChrome(true)},
-		Outputs: MustFiles(filepath.Join(t.TempDir(), "out.gif")),
+		Outputs: MustFiles(filepath.Join(t.TempDir(), "out.png")),
 		Effects: []Effect{recordFrames(&frames)},
 	})
 	if err != nil {

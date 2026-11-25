@@ -363,7 +363,7 @@ func TestBetweenRecord(t *testing.T) {
 		return reel.Profile{
 			Outputs:    reel.MustFiles(filepath.Join(dir, name+".gif")),
 			Rasterizer: highlightRast,
-			FPS:        100,
+			FPS:        50,
 			Effects:    []reel.Effect{Highlight(region.Row(0), Between("on", to))},
 		}
 	}

@@ -520,7 +520,7 @@ func TestRedactRecord(t *testing.T) {
 	defer s.Close()
 	var frames []reel.Frame
 	rec, err := reel.Record(t.Context(), s, reel.Profile{
-		Outputs:    reel.MustFiles(filepath.Join(t.TempDir(), "out.gif")),
+		Outputs:    reel.MustFiles(filepath.Join(t.TempDir(), "out.png")),
 		Rasterizer: testutil.Rasterizer{},
 		FPS:        100,
 		Effects:    []reel.Effect{Redact(region.Text("hunter2"), Between("secret", "")), recordFrames{frames: &frames}},
@@ -572,7 +572,7 @@ func TestRedactUnreachedMarks(t *testing.T) {
 	} {
 		var frames []reel.Frame
 		err := reel.Export(t.Context(), tl, reel.Profile{
-			Outputs:    reel.MustFiles(filepath.Join(t.TempDir(), "out.gif")),
+			Outputs:    reel.MustFiles(filepath.Join(t.TempDir(), "out.png")),
 			Rasterizer: testutil.Rasterizer{},
 			FPS:        100,
 			Effects:    []reel.Effect{Redact(region.Text("hunter2"), Between(tc.from, tc.to)), recordFrames{frames: &frames}},

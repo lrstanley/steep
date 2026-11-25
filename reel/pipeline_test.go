@@ -174,9 +174,11 @@ func TestPipelineDelays(t *testing.T) {
 		// 10ms gaps on a 50ms grid keep about one frame in five, and the
 		// last, which plays at least a step.
 		{fps: 20, at: every(11, 10*ms), end: 110 * ms, want: []time.Duration{50 * ms, 50 * ms, 50 * ms}},
-		// 30 FPS is a 30ms step: a frame at the rate plays slightly fast, but
-		// a long one keeps its length.
-		{fps: 30, at: []time.Duration{0, time.Second / 30}, end: time.Second/30 + 2*time.Second, want: []time.Duration{30 * ms, 2010 * ms}},
+		// 30 FPS is a step of a thirtieth of a second, to the nanosecond: a
+		// frame at the rate plays one step, and a long one keeps its length.
+		{fps: 30, at: []time.Duration{0, time.Second / 30}, end: time.Second/30 + 2*time.Second, want: []time.Duration{33333333, 60 * 33333333}},
+		// 120 FPS frames each play one step.
+		{fps: 120, at: every(4, time.Second/120), end: 4 * time.Second / 120, want: []time.Duration{8333333, 8333333, 8333333, 8333333}},
 		// Speed scales the timeline.
 		{fps: 100, speed: 2, at: []time.Duration{0, 400 * ms}, end: 1000 * ms, want: []time.Duration{200 * ms, 300 * ms}},
 		// The last frame plays at least one step.
@@ -184,14 +186,14 @@ func TestPipelineDelays(t *testing.T) {
 		// The grid counts from the first frame, wherever it is.
 		{fps: 20, at: []time.Duration{1030 * ms, 1100 * ms}, end: 1200 * ms, want: []time.Duration{50 * ms, 100 * ms}},
 	} {
-		s, err := Profile{Outputs: MustFiles("x.gif"), FPS: tc.fps, Speed: tc.speed}.settings()
+		s, err := Profile{Outputs: MustFiles("x.mp4"), FPS: tc.fps, Speed: tc.speed}.settings()
 		if err != nil {
 			t.Fatal(err)
 		}
 		out := &collectSink{}
 		p := newPipeline(t.Context(), testutil.Rasterizer{}, s, nil, out)
 		for _, at := range tc.at {
-			if err = p.record(cellsOf(1, 1, "", at)); err != nil {
+			if err = p.record(cellsOf(1, 1, "", at), nil); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -224,7 +226,7 @@ func TestPipelineSweep(t *testing.T) {
 		out := &collectSink{}
 		p := newPipeline(t.Context(), &fakeAnimator{}, settings{step: 10 * ms, speed: tc.speed}, nil, out)
 		start := 1000 * time.Second
-		if err := p.record(cellsOf(2, 1, tc.title, start)); err != nil {
+		if err := p.record(cellsOf(2, 1, tc.title, start), nil); err != nil {
 			t.Fatal(err)
 		}
 		span := time.Duration(float64(time.Second+20*ms) * tc.speed)
@@ -257,7 +259,7 @@ func TestPipelineReusesImages(t *testing.T) {
 	for i := range 10 {
 		cf := cellsOf(3, 1, "", time.Duration(i)*100*ms)
 		cf.Screen.SetCell(0, 0, &vt.Cell{Content: string(rune('a' + i)), Width: 1})
-		if err := p.record(cf); err != nil {
+		if err := p.record(cf, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -308,7 +310,7 @@ func TestPipelineSweepRenderer(t *testing.T) {
 
 		out := &collectSink{}
 		p := newPipeline(t.Context(), rend, settings{step: 10 * ms, speed: 1}, nil, out)
-		if err = p.record(cf); err != nil {
+		if err = p.record(cf, nil); err != nil {
 			t.Fatal(err)
 		}
 		if err = p.finish(start + time.Second + 20*ms); err != nil {
@@ -338,6 +340,20 @@ func TestPipelineSweepRenderer(t *testing.T) {
 		}
 		if tc.frames > 1 && !moved {
 			t.Fatalf("%q: the redrawn frames do not move", tc.seq)
+		}
+	}
+}
+
+// TestPipelineSweepSteps checks that animated indicators sweep at about 20 FPS
+// on any step, not one step slower when the step is rounded to the
+// nanosecond.
+func TestPipelineSweepSteps(t *testing.T) {
+	t.Parallel()
+	for fps, steps := range map[int]int64{1: 1, 20: 1, 30: 2, 50: 3, 100: 5, 120: 6, 240: 12} {
+		s := settings{speed: 1}.at(fps)
+		p := newPipeline(t.Context(), testutil.Rasterizer{}, s, nil, &collectSink{})
+		if p.sweep != time.Duration(steps*int64(s.step)) {
+			t.Errorf("fps %d: sweep %v, want %d steps of %v", fps, p.sweep, steps, s.step)
 		}
 	}
 }

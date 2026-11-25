@@ -11,7 +11,6 @@ import (
 	"image"
 	"image/color"
 	"io"
-	"time"
 )
 
 // playCount converts a [WithLoopCount] value, which counts repeats, into a
@@ -54,6 +53,8 @@ type VideoEncoder struct {
 	bounds image.Rectangle
 	// canvas holds frames that cannot be passed on as is.
 	canvas *image.NRGBA
+	// clock times frames in the format's ticks ([FrameTick]).
+	clock  clock
 	frames int
 	// err is the first encode error; once set, frames are rejected.
 	err  error
@@ -99,11 +100,12 @@ func newVideo(create func() (*pendingFile, error), format Format, opts []Option)
 	if err != nil {
 		return nil, fmt.Errorf("sink: creating %s output: %w", format, err)
 	}
-	return &VideoEncoder{opts: o, cfg: cfg, format: format, driver: driver, file: file}, nil
+	return &VideoEncoder{opts: o, cfg: cfg, format: format, driver: driver, file: file, clock: clock{tick: FrameTick(format)}}, nil
 }
 
-// WriteFrame encodes f for f.Delay, truncated to whole milliseconds (at least
-// one). [Frame.Isolated] is ignored.
+// WriteFrame encodes f for f.Delay, with its end rounded to whole ticks of
+// the format's clock ([FrameTick]), so its delay is at least one tick.
+// [Frame.Isolated] is ignored.
 func (s *VideoEncoder) WriteFrame(f Frame) error {
 	img := f.Image
 	switch {
@@ -129,8 +131,7 @@ func (s *VideoEncoder) WriteFrame(f Frame) error {
 		}
 		s.job = job
 	}
-	delay := max(f.Delay.Truncate(time.Millisecond), time.Millisecond)
-	if err := s.job.WriteFrame(s.streamable(img), delay); err != nil {
+	if err := s.job.WriteFrame(s.streamable(img), s.clock.next(f.Delay)); err != nil {
 		// A write fails once the context kills the encode; say so.
 		s.err = cmp.Or(s.opts.ctx.Err(), err)
 		return s.err

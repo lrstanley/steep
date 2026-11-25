@@ -61,7 +61,7 @@ h := steep.NewHarness(t, newModel(),
 | `Outputs` | The files to write, with their [options](/reel/formats) | `STEEP_EXPORT` |
 | `Render` | [How frames are drawn](/reel/rendering#window-look) | `STEEP_RENDERER_SCALE`, `STEEP_RENDERER_FONT_FAMILY` |
 | `Effects` | [Effects](/reel/effects), in any order. A test that places [captions](/steep/captions) gets `effects.Captions` too, unless it has its own. | None |
-| `FPS` | The frame timing grid. The default is 20. | `STEEP_EXPORT_FPS` |
+| `FPS` | The most frames a second. The default is 20. GIF plays at most 50, and MP4 up to 240; see [frame rates](/reel/formats#frame-rates). | `STEEP_EXPORT_FPS` |
 | `Speed` | Playback speed. 2 plays twice as fast. | `STEEP_EXPORT_SPEED` |
 | `Fit` | The largest image size, chosen by scaling the font | None |
 | `Title` | The recording's name | None |

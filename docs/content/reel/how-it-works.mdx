@@ -23,7 +23,7 @@ A driver connects a program to a [session](/reel/sessions). The program writes t
 
 ## Replaying
 
-`reel.Export` replays the timeline into a new terminal, and each visible change becomes a frame: program output, or a change of focus or colors. Nothing is drawn at a fixed rate. Frames stay on screen for as long as they did when recorded, on a grid of delays set by `Profile.FPS`.
+`reel.Export` replays the timeline into a new terminal, and each visible change becomes a frame: program output, or a change of focus or colors. Nothing is drawn at a fixed rate. Frames stay on screen for as long as they did when recorded, rounded to whole periods of `Profile.FPS`. Each format then rounds the frames' end times, not their delays, to its own clock, so a recording keeps its length.
 
 Since this works from the log alone, the output is deterministic. A timeline and its saved `.cast` export to the same files, apart from invalid UTF-8 output (saved as U+FFFD) and cuts.
 

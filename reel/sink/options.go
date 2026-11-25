@@ -17,10 +17,6 @@ const (
 	// where the format has it.
 	MaxQuality = 100
 
-	// MaxFrameRate is the highest frame rate a recording can play at: GIF
-	// delays are whole centiseconds, so 100 FPS.
-	MaxFrameRate = 100
-
 	// LoopForever is the default [WithLoopCount]: viewers repeat the GIF until
 	// stopped.
 	LoopForever = 0
@@ -50,6 +46,40 @@ const (
 	// OptimizeAll enables every optimization, and is the default for GIF.
 	OptimizeAll = OptimizeFrames | OptimizeDirtyRects | OptimizeColorQuantization
 )
+
+// Frame rate caps, by format (see [MaxFrameRate]).
+const (
+	// maxGIFFrameRate is 50: GIF delays are whole centiseconds, and browsers
+	// play a delay of one (10ms) or less as 100ms, so every frame needs two.
+	maxGIFFrameRate = 50
+	// maxWebPFrameRate is 90: WebP delays are whole milliseconds, which
+	// browsers also play as 100ms at 10ms or less, and 1000/90 rounds down to
+	// 11ms.
+	maxWebPFrameRate = 90
+	// maxVideoFrameRate is 240, as fast as common displays refresh. MP4 and
+	// WebM store their frame times finely enough for far more.
+	maxVideoFrameRate = 240
+)
+
+// MaxFrameRate is the highest frame rate, in frames a second, that format
+// plays at as recorded: 50 for GIF and 90 for WebP, whose players slow down
+// frames of 10ms or less, and 240 for MP4 and WebM. PNG keeps only the last
+// frame, so any rate up to 240 works. Unknown formats are 0.
+//
+// A rate below the cap that does not divide the format's clock, such as 30
+// for GIF's centiseconds, plays at that rate on average: frames are timed on
+// its exact period and each frame's end is rounded to the clock.
+func MaxFrameRate(format Format) int {
+	switch format {
+	case FormatGIF:
+		return maxGIFFrameRate
+	case FormatWebP:
+		return maxWebPFrameRate
+	case FormatMP4, FormatWebM, FormatPNG:
+		return maxVideoFrameRate
+	}
+	return 0
+}
 
 func (f OptimizeFlags) has(flag OptimizeFlags) bool {
 	return f&flag != 0

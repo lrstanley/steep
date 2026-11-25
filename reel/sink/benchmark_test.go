@@ -180,7 +180,7 @@ func BenchmarkGIFAddFrameSource(b *testing.B) {
 					b.Fatal(err)
 				}
 			}
-			b.ReportMetric(float64(b.Elapsed())/float64(b.N)/float64(time.Second/MaxFrameRate)*100, "%budget")
+			b.ReportMetric(float64(b.Elapsed())/float64(b.N)/float64(time.Second/time.Duration(MaxFrameRate(FormatGIF)))*100, "%budget")
 		})
 	}
 }

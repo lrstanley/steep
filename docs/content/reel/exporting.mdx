@@ -27,14 +27,14 @@ Every field but `Outputs` has a usable zero value. A profile holds no state, so 
 | `Rasterizer` | Your own frame drawing, in place of `Render`. |
 | `Encode` | Options for every frame output, from the [`sink` package](https://pkg.go.dev/getsteep.dev/steep/reel/sink). |
 | `Effects` | [Effects](/reel/effects), in any order. |
-| `FPS` | The delay grid: frames play whole steps of 10ms × max(1, 100/FPS). Zero means 20, and the most is 100. |
+| `FPS` | The frame rate frames are timed on: each plays whole periods of 1s/FPS. Zero means 20. An output can [set its own](/reel/formats#frame-rates), and each must be at most what its format plays at. |
 | `Speed` | Playback speed. 2 plays twice as fast, and zero means 1. A slow speed stretches the playback, which counts toward [`Limits.Playback`](#limits). |
 | `Title` | Names the recording, for cards and `.cast` outputs. Defaults to the timeline's. |
 | `Meta` | Passed to effects in `Context.Meta`. reel never reads it. |
 | `Vars` | Extra path variables. |
 | `Limits` | How long the output may play, and how large its terminal and frames may get. See [Limits](#limits). |
 
-`FPS` isn't a frame rate in the usual sense. Frames aren't drawn at a fixed rate: each visible change is a frame, ending on the step nearest its time. Of the changes on one step, only the newest shows.
+`FPS` is the most frames a second, not a fixed rate. Each visible change is a frame, ending on the period nearest its time. Of the changes in one period, only the newest shows, so a terminal that holds still adds no frames.
 
 `Profile.Merge` combines two profiles, for a base profile and a change to it.
 

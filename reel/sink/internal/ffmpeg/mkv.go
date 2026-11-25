@@ -44,8 +44,10 @@ const (
 	mkvBlockDuration      = 0x9B
 )
 
-// mkvTick is the Matroska timestamp unit [MKV] declares.
-const mkvTick = time.Millisecond
+// mkvTick is the Matroska timestamp unit [MKV] declares, and the time base
+// ffmpeg reads the stream in: fine enough for 240 FPS frames to keep their
+// times to within half a microsecond.
+const mkvTick = time.Microsecond
 
 // mkvUnknownSize marks the segment, whose size is not known up front.
 var mkvUnknownSize = []byte{0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
@@ -63,7 +65,7 @@ func NewMKV(w io.Writer) *MKV { return &MKV{w: w} }
 
 // Duration is how long the frames written so far play.
 func (m *MKV) Duration() time.Duration {
-	return time.Duration(m.pts) * mkvTick //nolint:gosec // milliseconds of recording.
+	return time.Duration(m.pts) * mkvTick //nolint:gosec // microseconds of recording.
 }
 
 // appendBE appends the low n bytes of v, most significant first.

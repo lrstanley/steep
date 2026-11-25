@@ -246,6 +246,71 @@ func TestVideoTimelineFollowsDelays(t *testing.T) {
 	}
 }
 
+// TestVideoHighFrameRate checks that 120 FPS frames, timed to the
+// nanosecond as reel's pipeline times them, keep their times: to the 90kHz
+// clock in MP4, so ffprobe reads 120 FPS, and to the millisecond in WebM.
+// Rounding each delay rather than each end would drift them to 125 FPS.
+func TestVideoHighFrameRate(t *testing.T) {
+	t.Parallel()
+	ffprobe, lerr := exec.LookPath("ffprobe")
+	if lerr != nil {
+		t.Skip("skipping: no ffprobe")
+	}
+	const fps, frames = 120, 240
+	step := (time.Second + fps/2) / fps
+	for format, within := range map[Format]time.Duration{ //nolint:exhaustive // MP4 and WebM are the formats above 90 FPS.
+		FormatMP4:  12 * time.Microsecond,
+		FormatWebM: time.Millisecond / 2,
+	} {
+		t.Run(string(format), func(t *testing.T) {
+			t.Parallel()
+			requireVideo(t, format)
+			path := filepath.Join(t.TempDir(), "out."+string(format))
+			enc, err := CreateVideo(path, format)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := range frames {
+				c := videoTestColors[i%len(videoTestColors)]
+				if err = enc.WriteFrame(Frame{Image: solidNRGBA(16, 16, c), Delay: step}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err = enc.Close(); err != nil {
+				t.Fatal(err)
+			}
+			out, err := exec.Command(ffprobe, "-v", "error", "-select_streams", "v:0", //nolint:gosec // test.
+				"-show_entries", "stream=avg_frame_rate:packet=pts_time", "-of", "csv=p=0", path).Output()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var pts []time.Duration
+			rate := ""
+			for line := range strings.Lines(string(out)) {
+				line = strings.TrimSpace(line)
+				if f, perr := strconv.ParseFloat(line, 64); perr == nil {
+					pts = append(pts, time.Duration(math.Round(f*1e6))*time.Microsecond)
+				} else if line != "" {
+					rate = line
+				}
+			}
+			slices.Sort(pts)
+			if len(pts) != frames {
+				t.Fatalf("%d frames, want %d", len(pts), frames)
+			}
+			for i, got := range pts {
+				want := time.Duration(i) * time.Second / fps
+				if d := got - want; d < -within || d > within {
+					t.Fatalf("frame %d at %v, want %v ± %v", i, got, want, within)
+				}
+			}
+			if format == FormatMP4 && rate != "120/1" {
+				t.Errorf("avg_frame_rate = %q, want 120/1", rate)
+			}
+		})
+	}
+}
+
 func TestVideoWebPDelaysAndLoop(t *testing.T) {
 	t.Parallel()
 	requireVideo(t, FormatWebP)

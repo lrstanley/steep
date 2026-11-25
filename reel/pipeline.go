@@ -43,7 +43,9 @@ type pipeline struct {
 	rast Rasterizer
 	// anim is rast as an [Animator], or nil.
 	anim Animator
-	// sweep is sweepStep rounded up to a whole number of steps.
+	// sweep is sweepStep rounded up to a whole number of steps, ignoring
+	// the nanoseconds a step's own rounding adds, so 120 FPS sweeps every 6
+	// steps rather than 7.
 	sweep time.Duration
 
 	newest Frame
@@ -76,7 +78,8 @@ type stageState struct {
 
 func newPipeline(ctx context.Context, rast Rasterizer, s settings, stages []Stage, out sink.Sink) *pipeline {
 	p := &pipeline{ctx: ctx, rast: rast, settings: s, out: out}
-	p.sweep = sweepStep + (s.step-sweepStep%s.step)%s.step
+	steps := max(1, (sweepStep-time.Microsecond+s.step-1)/s.step)
+	p.sweep = time.Duration(int64(steps) * int64(s.step))
 	p.anim, _ = rast.(Animator)
 	for _, st := range stages {
 		p.stages = append(p.stages, stageState{run: st})
@@ -84,19 +87,27 @@ func newPipeline(ctx context.Context, rast Rasterizer, s settings, stages []Stag
 	return p
 }
 
-// record draws cf as the newest frame and sends the previous one on. It
-// returns the first error.
-func (p *pipeline) record(cf CellFrame) error {
+// record draws cf as the newest frame and sends the previous one on. If
+// drawn is set, it is cf as another pipeline of the same rasterizer and
+// limits drew it, and its pixels are copied instead. It returns the first
+// error.
+func (p *pipeline) record(cf CellFrame, drawn *image.NRGBA) error {
 	if p.err != nil {
 		return p.err
 	}
-	b := cf.Screen.Bounds()
-	r := p.rast.Layout(b.Dx(), b.Dy()).Image
-	if p.err = p.limits.checkPixels(r); p.err != nil {
-		return p.err
+	var img *image.NRGBA
+	if drawn != nil {
+		img = p.newImage(drawn.Rect)
+		copy(img.Pix, drawn.Pix)
+	} else {
+		b := cf.Screen.Bounds()
+		r := p.rast.Layout(b.Dx(), b.Dy()).Image
+		if p.err = p.limits.checkPixels(r); p.err != nil {
+			return p.err
+		}
+		img = p.newImage(r)
+		p.rast.Draw(img, cf.Screen, cf.State, cf.At)
 	}
-	img := p.newImage(r)
-	p.rast.Draw(img, cf.Screen, cf.State, cf.At)
 	if !p.started {
 		p.origin, p.started = cf.At, true
 	}

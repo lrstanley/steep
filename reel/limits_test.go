@@ -190,7 +190,7 @@ func TestPipelineSweepStops(t *testing.T) {
 	} {
 		rast := &countingAnimator{}
 		p := newPipeline(tc.ctx, rast, settings{step: 10 * ms, speed: 1}, nil, tc.out)
-		if err := p.record(cellsOf(2, 1, "spin", 0)); err != nil {
+		if err := p.record(cellsOf(2, 1, "spin", 0), nil); err != nil {
 			t.Fatal(err)
 		}
 		err := p.finish(10 * time.Second)

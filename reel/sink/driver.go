@@ -35,8 +35,9 @@ type Driver interface {
 // Job is one encode a [Driver] runs. Its methods are called from one
 // goroutine.
 type Job interface {
-	// WriteFrame adds the next frame, which plays for delay: whole
-	// milliseconds, at least one. img is tightly packed, its bounds run from
+	// WriteFrame adds the next frame, which plays for delay: a whole number
+	// of the format's ticks ([FrameTick]), at least one, from rounding each
+	// frame's end rather than its delay. img is tightly packed, its bounds run from
 	// the origin to the size given to [Driver.Start], and it is only valid
 	// until WriteFrame returns. It is opaque, composited onto
 	// [VideoConfig.Background], unless the format keeps alpha ([FormatWebP])
@@ -73,6 +74,19 @@ func WithDrivers(drivers ...Driver) Option {
 	return func(cfg *options) {
 		cfg.drivers = drivers
 	}
+}
+
+// FrameTick is the unit a [Driver] is given frame delays in for format,
+// which its container stores times finely enough for: a microsecond for
+// MP4, and a millisecond for WebM and WebP. Other formats are 0.
+func FrameTick(format Format) time.Duration {
+	switch format { //nolint:exhaustive // GIF and PNG are not video.
+	case FormatMP4:
+		return time.Microsecond
+	case FormatWebM, FormatWebP:
+		return time.Millisecond
+	}
+	return 0
 }
 
 // formatHasAlpha reports whether format keeps transparency.

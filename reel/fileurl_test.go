@@ -24,6 +24,7 @@ func TestParseFile(t *testing.T) {
 		cast  CastVersion
 		marks []string
 		opts  int
+		fps   int
 	}{
 		{raw: "out.gif", path: "out.gif"},
 		{raw: "./artifacts/{name}_{status}.gif", path: "./artifacts/{name}_{status}.gif"},
@@ -38,6 +39,8 @@ func TestParseFile(t *testing.T) {
 		{raw: "x.mp4?quality=80&full-chroma=true&background=%23102030", path: "x.mp4", opts: 3},
 		{raw: "x.webp?quality=100&loop=3", path: "x.webp", opts: 2},
 		{raw: "x.webm?quality=0", path: "x.webm", opts: 1},
+		{raw: "x.mp4?fps=120", path: "x.mp4", fps: 120},
+		{raw: "x.png?fps=60", path: "x.png", fps: 60},
 		{raw: "shot-{mark}.png?marks=a&marks=b", path: "shot-{mark}.png", marks: []string{"a", "b"}},
 		{raw: "x.gif?", path: "x.gif"},
 	} {
@@ -46,9 +49,9 @@ func TestParseFile(t *testing.T) {
 			t.Errorf("%q: %v", tc.raw, err)
 			continue
 		}
-		if f.Path != tc.path || f.Cast != tc.cast || !slices.Equal(f.Marks, tc.marks) || len(f.Options) != tc.opts {
-			t.Errorf("%q: got path %q cast %d marks %q %d options, want %q %d %q %d",
-				tc.raw, f.Path, f.Cast, f.Marks, len(f.Options), tc.path, tc.cast, tc.marks, tc.opts)
+		if f.Path != tc.path || f.Cast != tc.cast || !slices.Equal(f.Marks, tc.marks) || len(f.Options) != tc.opts || f.FPS != tc.fps {
+			t.Errorf("%q: got path %q cast %d marks %q %d options fps %d, want %q %d %q %d %d",
+				tc.raw, f.Path, f.Cast, f.Marks, len(f.Options), f.FPS, tc.path, tc.cast, tc.marks, tc.opts, tc.fps)
 		}
 	}
 }
@@ -62,7 +65,10 @@ func TestParseFileErrors(t *testing.T) {
 		"s3://bucket/x.gif":                   `unsupported scheme "s3"`,
 		"x.txt":                               "unknown format",
 		"x":                                   "unknown format",
-		"x.gif?fps=30":                        `unknown parameter "fps"`,
+		"x.gif?speed=2":                       `unknown parameter "speed"`,
+		"x.gif?fps=0":                         `fps: "0" is not a frame rate`,
+		"x.mp4?fps=fast":                      `fps: "fast" is not a frame rate`,
+		"x.cast?fps=30":                       `"fps" does not apply to .cast files`,
 		"x.gif?quality=80":                    `"quality" does not apply to .gif`,
 		"x.mp4?version=2":                     `"version" does not apply to .mp4`,
 		"x.cast?loop=once":                    `"loop" does not apply to .cast`,
@@ -101,11 +107,11 @@ func TestMustFiles(t *testing.T) {
 		t.Fatalf("MustFiles = %+v", files)
 	}
 	defer func() {
-		if err, ok := recover().(error); !ok || !strings.Contains(err.Error(), `unknown parameter "fps"`) {
+		if err, ok := recover().(error); !ok || !strings.Contains(err.Error(), `unknown parameter "speed"`) {
 			t.Fatalf("recovered %v, want the parse error", err)
 		}
 	}()
-	MustFiles("a.gif", "b.gif?fps=30")
+	MustFiles("a.gif", "b.gif?speed=2")
 }
 
 func TestParseBytes(t *testing.T) {
