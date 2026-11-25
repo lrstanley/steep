@@ -184,9 +184,14 @@ func (c *Coverage) Composite(dst *image.NRGBA) {
 				}
 				continue
 			}
-			if a == 255 {
+			switch {
+			case a == 255:
 				binary.LittleEndian.PutUint32(pix[off:off+4], (p>>8)|0xff000000)
-			} else {
+			case pix[off+3] != 255:
+				// Over a translucent pixel, the edge stays translucent, so
+				// what is behind the window shows through it too.
+				idraw.OverPixel(pix[off:off+4:off+4], color.NRGBA{R: uint8(p >> 8 & 0xff), G: uint8(p >> 16 & 0xff), B: uint8(p >> 24), A: 255}, a)
+			default:
 				inv := 255 - int(a)
 				ai := int(a)
 				pix[off] = div255(int(uint8(p>>8&0xff))*ai + int(pix[off])*inv)
@@ -334,6 +339,11 @@ func blendMask(dst *image.NRGBA, clip image.Rectangle, q *queuedGlyph) {
 			case 255:
 				binary.LittleEndian.PutUint32(px[x*4:], opaque)
 			default:
+				if px[x*4+3] != 255 {
+					// Over a translucent pixel, the edge stays translucent.
+					idraw.OverPixel(px[x*4:x*4+4:x*4+4], color.NRGBA{R: q.fg.R, G: q.fg.G, B: q.fg.B, A: 255}, row[x])
+					continue
+				}
 				inv := 255 - a
 				px[x*4] = div255(fr*a + int(px[x*4])*inv)
 				px[x*4+1] = div255(fg*a + int(px[x*4+1])*inv)

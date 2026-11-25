@@ -5,36 +5,13 @@
 package render
 
 import (
-	"errors"
 	"image"
 	"image/color"
 	"math"
-	"slices"
 
 	icol "getsteep.dev/steep/reel/render/internal/color"
-	"getsteep.dev/steep/reel/render/internal/config"
 	"github.com/lucasb-eyer/go-colorful"
 )
-
-// WithMarginGradient sets the margin in pixels, like [WithMargin], and fills
-// it with a linear gradient of colors, as CSS linear-gradient draws one:
-// angle is in degrees clockwise from up, so 90 runs left to right and 180
-// top to bottom, and the colors spread evenly from one corner of the image
-// to the opposite one, mixed in the Oklab color space. The last of
-// WithMargin and WithMarginGradient wins.
-func WithMarginGradient(px int, angle float64, colors ...color.Color) Option {
-	return func(d *Renderer) error {
-		v, err := config.ParsePositivePx(px, "margin")
-		if err != nil {
-			return err
-		}
-		if len(colors) == 0 || slices.Contains(colors, nil) {
-			return errors.New("render: margin gradient needs one or more colors, none nil")
-		}
-		d.opts.Margin, d.opts.MarginFill, d.opts.MarginAngle = v, slices.Clone(colors), angle
-		return nil
-	}
-}
 
 // gradientRamp mixes stops into 1024 steps, or returns nil for fewer than
 // two stops, which are a solid fill.

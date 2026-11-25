@@ -187,3 +187,11 @@ func setNRGBA(img draw.Image, x, y int, c color.NRGBA) {
 func u16(v uint32) uint16 {
 	return uint16(v) //nolint:gosec // RGBA keeps channels in 0..0xffff.
 }
+
+// UnderPixel blends px, the four bytes of one [image.NRGBA] pixel, over
+// under, as if under had been there before px was drawn.
+func UnderPixel(px []byte, under color.NRGBA) {
+	src := color.NRGBA{R: px[0], G: px[1], B: px[2], A: px[3]}
+	px[0], px[1], px[2], px[3] = under.R, under.G, under.B, under.A
+	OverPixel(px, src, 0xff)
+}

@@ -240,7 +240,9 @@ type Context struct {
 	Rasterizer Rasterizer
 	Layout     render.Layout
 	// Render is the options terminal frames are drawn with, including the
-	// timeline's palette, so effects can draw matching images.
+	// timeline's palette, so effects can draw matching images, unless
+	// [Profile.Rasterizer] is set. An effect can match a [render.Renderer]
+	// whatever its options with [render.Renderer.Derive].
 	Render []render.Option
 	// Step is the delay grid: every frame plays a whole number of steps, so
 	// effects that expand a frame should split it on multiples of Step.

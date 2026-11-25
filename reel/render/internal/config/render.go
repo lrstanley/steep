@@ -47,8 +47,9 @@ type CellFrameSource interface {
 // WindowSource supplies window geometry and effect knobs for post-processing.
 type WindowSource interface {
 	WindowBounds() image.Rectangle
-	// MarginAt is the color of the margin at pixel x, y, which also shows
-	// past the window's rounded corners.
+	// MarginAt is the color outside the window at pixel x, y: the
+	// backdrop with the shadow over it, which also shows past the window's
+	// rounded corners.
 	MarginAt(x, y int) color.NRGBA
 	FocusDimming() float64
 	BorderRadius() units.Px

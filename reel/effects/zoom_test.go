@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"errors"
 	"image"
+	"image/color"
 	"math"
 	"slices"
 	"testing"
@@ -344,5 +345,107 @@ func TestZoomSharpEase(t *testing.T) {
 	_, in := zoomFrames(t, tl, 20, rend, nil)
 	if len(same) != len(in) || !bytes.Equal(same[0].Image.Pix, in[0].Image.Pix) {
 		t.Fatal("a zoom fit to the whole screen changed the frames")
+	}
+}
+
+// TestZoomBackdrop checks that a zoom of a translucent window shows the
+// recording's backdrop behind the cells it draws again, as the frame does,
+// both while it eases in and once it is sharp.
+func TestZoomBackdrop(t *testing.T) {
+	t.Parallel()
+	back := color.NRGBA{R: 0x30, G: 0x80, B: 0x50, A: 0xff}
+	opts := []render.Option{render.WithMargin(4), render.WithBackdrop(render.Solid(back)), render.WithBackgroundOpacity(0.4)}
+	rend := zoomRenderer(t, opts...)
+	tl := buildTimeline(t, 16, 4, "", output(0, "zoom in on this\r\nand not on this"), mark(500, "on"))
+	_, out := zoomFrames(t, tl, 20, rend, opts, Zoom(region.Text("this"), Scale(3), Between("on", ""), Ease(200*ms)))
+	grid := rend.Layout(16, 4).Grid
+	for i, f := range out {
+		for y := grid.Min.Y; y < grid.Max.Y; y++ {
+			for x := grid.Min.X; x < grid.Max.X; x++ {
+				if a := f.Image.NRGBAAt(x, y).A; a != 0xff {
+					t.Fatalf("frame %d: grid pixel (%d, %d) has alpha %d over an opaque backdrop", i, x, y, a)
+				}
+			}
+		}
+	}
+
+	// Over a translucent backdrop, the background is blended over it once:
+	// 0.4 over 0.5 is 0.7, where twice would be 0.85.
+	opts = []render.Option{render.WithMargin(4), render.WithBackdrop(render.Solid(color.NRGBA{B: 0xff, A: 0x80})), render.WithBackgroundOpacity(0.4)}
+	rend = zoomRenderer(t, opts...)
+	_, out = zoomFrames(t, tl, 20, rend, opts, Zoom(region.Text("this"), Scale(3), Between("on", ""), Ease(200*ms)))
+	for i, f := range out {
+		var counts [256]int
+		for y := grid.Min.Y; y < grid.Max.Y; y++ {
+			for x := grid.Min.X; x < grid.Max.X; x++ {
+				counts[f.Image.NRGBAAt(x, y).A]++
+			}
+		}
+		if mode := slices.Index(counts[:], slices.Max(counts[:])); mode < 177 || mode > 180 {
+			t.Errorf("frame %d: the grid's background has alpha %d, want 179", i, mode)
+		}
+	}
+}
+
+// TestZoomSeeThrough checks that a zoom easing over a window that shows a
+// gradient backdrop through it moves the cells, not the backdrop: an empty
+// grid looks the same on every frame.
+func TestZoomSeeThrough(t *testing.T) {
+	t.Parallel()
+	opts := []render.Option{
+		render.WithMargin(4),
+		render.WithBackdrop(render.LinearGradient(90, color.Black, color.White)),
+		render.WithBackgroundOpacity(0.4),
+	}
+	rend := zoomRenderer(t, opts...)
+	if !rend.SeeThrough() {
+		t.Fatal("SeeThrough = false for a translucent window over a gradient")
+	}
+	tl := buildTimeline(t, 16, 4, "", output(0, "\x1b[?25l"), mark(500, "on"), mark(1500, "end"))
+	in, out := zoomFrames(t, tl, 20, rend, opts, Zoom(region.Cells(image.Rect(12, 2, 16, 4)), Scale(3), Between("on", ""), Ease(400*ms)))
+	grid := rend.Layout(16, 4).Grid
+	want := in[0].Image
+	eased := 0
+	for i, f := range out {
+		if f.Isolated {
+			eased++
+		}
+		for y := grid.Min.Y; y < grid.Max.Y; y++ {
+			for x := grid.Min.X; x < grid.Max.X; x++ {
+				if g, w := f.Image.NRGBAAt(x, y), want.NRGBAAt(x, y); !nearNRGBA(g, w, 2) {
+					t.Fatalf("frame %d: grid pixel (%d, %d) is %v, want %v", i, x, y, g, w)
+				}
+			}
+		}
+	}
+	if eased == 0 {
+		t.Fatal("no frame eases")
+	}
+}
+
+// nearNRGBA reports whether a and b differ by at most d in each channel.
+func nearNRGBA(a, b color.NRGBA, d int) bool {
+	near := func(x, y uint8) bool { return max(int(x)-int(y), int(y)-int(x)) <= d }
+	return near(a.R, b.R) && near(a.G, b.G) && near(a.B, b.B) && near(a.A, b.A)
+}
+
+// TestZoomRasterizerOptions checks that a zoom draws its cells with the
+// options of a rasterizer of the caller's own, not only the profile's: a
+// translucent window stays translucent zoomed in.
+func TestZoomRasterizerOptions(t *testing.T) {
+	t.Parallel()
+	rend := zoomRenderer(t, render.WithBackdrop(render.Solid(color.Transparent)), render.WithBackgroundOpacity(0.4))
+	tl := buildTimeline(t, 16, 4, "", output(0, "\x1b[?25lzoom in on this"), mark(500, "end"))
+	_, out := zoomFrames(t, tl, 20, rend, nil, Zoom(region.Text("this"), Scale(3)))
+	grid := rend.Layout(16, 4).Grid
+	var counts [256]int
+	f := out[len(out)-1].Image
+	for y := grid.Min.Y; y < grid.Max.Y; y++ {
+		for x := grid.Min.X; x < grid.Max.X; x++ {
+			counts[f.NRGBAAt(x, y).A]++
+		}
+	}
+	if mode := slices.Index(counts[:], slices.Max(counts[:])); mode < 100 || mode > 104 {
+		t.Errorf("the zoomed grid's background has alpha %d, want 102", mode)
 	}
 }

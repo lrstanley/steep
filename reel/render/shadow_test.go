@@ -31,7 +31,7 @@ func TestShadow(t *testing.T) {
 
 	// A sharp shadow 4px down and right is the shadow color over the margin
 	// where it lies outside the window, and the margin elsewhere.
-	img, win := draw(WithMargin(16, green), WithShadow(4, 4, 0, color.NRGBA{A: 255}))
+	img, win := draw(WithMargin(16), WithBackdrop(Solid(green)), WithShadow(4, 4, 0, color.NRGBA{A: 255}))
 	for _, c := range []struct {
 		name string
 		at   image.Point
@@ -49,14 +49,14 @@ func TestShadow(t *testing.T) {
 	}
 
 	// A blurred one fades out from the window.
-	img, win = draw(WithMargin(16, green), WithShadow(0, 0, 12, nil))
+	img, win = draw(WithMargin(16), WithBackdrop(Solid(green)), WithShadow(0, 0, 12, nil))
 	near, far := img.NRGBAAt(win.Min.X+20, win.Max.Y), img.NRGBAAt(win.Min.X+20, win.Max.Y+10)
 	if near.G >= far.G || far.G == 255 || img.NRGBAAt(0, 0).G < 250 {
 		t.Errorf("blurred shadow: near %v, far %v, corner %v; want darker nearer the window", near, far, img.NRGBAAt(0, 0))
 	}
 
 	// Over a transparent margin, the shadow is translucent shadow color.
-	img, win = draw(WithMargin(16, nil), WithShadow(0, 0, 12, color.NRGBA{R: 10, G: 20, B: 30, A: 200}))
+	img, win = draw(WithMargin(16), WithShadow(0, 0, 12, color.NRGBA{R: 10, G: 20, B: 30, A: 200}))
 	px := img.NRGBAAt(win.Min.X+20, win.Max.Y+3)
 	if px.R != 10 || px.G != 20 || px.B != 30 || px.A == 0 || px.A >= 200 || img.NRGBAAt(0, 0).A > 5 {
 		t.Errorf("shadow on a transparent margin = %v, corner %v; want translucent #0a141e", px, img.NRGBAAt(0, 0))
@@ -64,7 +64,7 @@ func TestShadow(t *testing.T) {
 
 	// It shows past the window's rounded corners, but not past those it
 	// does not reach.
-	img, win = draw(WithMargin(16, green), WithBorderRadius(10), WithShadow(6, 6, 0, color.NRGBA{A: 255}))
+	img, win = draw(WithMargin(16), WithBackdrop(Solid(green)), WithBorderRadius(10), WithShadow(6, 6, 0, color.NRGBA{A: 255}))
 	if br := img.NRGBAAt(win.Max.X-1, win.Max.Y-1); br != (color.NRGBA{A: 255}) {
 		t.Errorf("bottom-right corner = %v, want the shadow", br)
 	}
@@ -73,8 +73,8 @@ func TestShadow(t *testing.T) {
 	}
 
 	// A shadow with no alpha draws nothing.
-	plain, _ := draw(WithMargin(16, green))
-	if img, _ = draw(WithMargin(16, green), WithShadow(4, 4, 8, color.NRGBA{R: 255})); img.Rect != plain.Rect || !bytes.Equal(img.Pix, plain.Pix) {
+	plain, _ := draw(WithMargin(16), WithBackdrop(Solid(green)))
+	if img, _ = draw(WithMargin(16), WithBackdrop(Solid(green)), WithShadow(4, 4, 8, color.NRGBA{R: 255})); img.Rect != plain.Rect || !bytes.Equal(img.Pix, plain.Pix) {
 		t.Error("a transparent shadow changed the image")
 	}
 }
@@ -82,21 +82,24 @@ func TestShadow(t *testing.T) {
 func TestShadowBackdropCached(t *testing.T) {
 	t.Parallel()
 
-	d := MustNew(WithScale(scaleFor(9)), WithMargin(8, color.Black), WithShadow(0, 2, 6, nil))
+	d := MustNew(WithScale(scaleFor(9)), WithMargin(8), WithBackdrop(Solid(color.Black)), WithShadow(0, 2, 6, nil))
 	t.Cleanup(func() { _ = d.Close() })
 	drawNRGBA(t, d, vt.NewBuffer(10, 3))
-	first := d.backdrop
+	first := d.margin
 	drawNRGBA(t, d, vt.NewBuffer(10, 3))
-	if first == nil || d.backdrop != first {
+	if first == nil || d.margin != first {
 		t.Fatal("the backdrop was not kept between draws of one size")
 	}
 	drawNRGBA(t, d, vt.NewBuffer(12, 3))
-	if d.backdrop == first || d.backdrop.Rect.Size() == first.Rect.Size() {
+	if d.margin == first || d.margin.Rect.Size() == first.Rect.Size() {
 		t.Error("the backdrop was not rebuilt for a new size")
 	}
 
-	if d = MustNew(WithMargin(8, color.Black)); d.backdropFor(image.Pt(40, 40), color.NRGBA{A: 255}) != nil {
-		t.Error("a one-color margin without a shadow has a backdrop")
+	if d = MustNew(WithMargin(8), WithBackdrop(Solid(color.Black))); func() bool {
+		backdrop, margin := d.backdropFor(image.Pt(40, 40))
+		return backdrop != nil || margin != nil
+	}() {
+		t.Error("a one-color backdrop without a shadow has an image")
 	}
 	_ = d.Close()
 }

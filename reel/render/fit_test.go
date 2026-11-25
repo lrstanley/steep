@@ -12,7 +12,7 @@ import (
 
 // fitOptions cover everything that adds to the image around the cells.
 var fitOptions = []Option{
-	WithMargin(3, color.Black),
+	WithMargin(3), WithBackdrop(Solid(color.Black)),
 	WithPadding(5),
 	WithWindowChrome(true),
 	WithScrollbar(true),
@@ -199,7 +199,7 @@ func TestOptionBounds(t *testing.T) {
 
 	for name, opt := range map[string]Option{
 		"padding":    WithPadding(1_000_000),
-		"margin":     WithMargin(MaxPx+1, nil),
+		"margin":     WithMargin(MaxPx + 1),
 		"radius":     WithBorderRadius(MaxPx + 1),
 		"progress":   WithProgressBarHeight(MaxPx + 1),
 		"scrollbar":  WithScrollbarWidth(MaxPx + 1),
@@ -211,7 +211,7 @@ func TestOptionBounds(t *testing.T) {
 			t.Errorf("%s: New succeeded", name)
 		}
 	}
-	d, err := New(WithPadding(MaxPx), WithMargin(MaxPx, nil), WithScale(MaxScale))
+	d, err := New(WithPadding(MaxPx), WithMargin(MaxPx), WithScale(MaxScale))
 	if err != nil {
 		t.Fatalf("New at the maxima: %v", err)
 	}

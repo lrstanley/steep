@@ -6,6 +6,7 @@ package render
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 	"io"
 	"testing"
@@ -287,7 +288,7 @@ func BenchmarkDrawTitleChange(b *testing.B) {
 func benchmarkStatusOpts(size float64) []Option {
 	return []Option{
 		WithScale(scaleFor(size)), WithWindowChrome(true),
-		WithMargin(36, color.NRGBA{R: 0x15, G: 0x16, B: 0x1c, A: 0xff}), WithBorderRadius(8),
+		WithMargin(36), WithBackdrop(Solid(color.NRGBA{R: 0x15, G: 0x16, B: 0x1c, A: 0xff})), WithBorderRadius(8),
 	}
 }
 
@@ -413,7 +414,7 @@ func BenchmarkDrawRounded(b *testing.B) {
 			scr := newTestScreen(20, 4)
 			d := MustNew(
 				WithBorderRadius(radius),
-				WithMargin(8, color.NRGBA{R: 0x10, G: 0x20, B: 0x30, A: 0xff}),
+				WithMargin(8), WithBackdrop(Solid(color.NRGBA{R: 0x10, G: 0x20, B: 0x30, A: 0xff})),
 			)
 			frame := newImage(d, scr)
 			for range benchmarkWarmupIters {
@@ -470,6 +471,44 @@ func BenchmarkDrawIncremental(b *testing.B) {
 			for b.Loop() {
 				draw(i)
 				i++
+			}
+		})
+	}
+}
+
+// BenchmarkDrawBackdrop draws whole frames in a translucent window, which
+// blends what it leaves translucent over the backdrop, against an opaque
+// window and a transparent backdrop, which do not.
+func BenchmarkDrawBackdrop(b *testing.B) {
+	wall := image.NewNRGBA(image.Rect(0, 0, 640, 400))
+	for i := range wall.Pix {
+		wall.Pix[i] = uint8(i * 7)
+		if i%4 == 3 {
+			wall.Pix[i] = 0xff
+		}
+	}
+	gradient := LinearGradient(135, color.NRGBA{R: 0x67, G: 0x4e, B: 0xff, A: 0xff}, color.NRGBA{R: 0xff, G: 0x6b, B: 0x9d, A: 0xff})
+	for _, bc := range []struct {
+		name string
+		opts []Option
+	}{
+		{"opaque", []Option{WithBackdrop(gradient)}},
+		{"transparent", []Option{WithBackdrop(Solid(color.Transparent)), WithBackgroundOpacity(0.75)}},
+		{"solid", []Option{WithBackdrop(Solid(color.NRGBA{R: 0x20, A: 0xff})), WithBackgroundOpacity(0.75)}},
+		{"gradient", []Option{WithBackdrop(gradient), WithBackgroundOpacity(0.75)}},
+		{"wallpaper", []Option{WithBackdrop(Wallpaper(wall)), WithBackgroundOpacity(0.75)}},
+	} {
+		b.Run(bc.name, func(b *testing.B) {
+			scr := benchmarkTerminalScreen()
+			d := MustNew(append([]Option{WithScale(scaleFor(benchmarkFontSizePt)), WithMargin(32)}, bc.opts...)...)
+			frame := newImage(d, scr)
+			for range benchmarkWarmupIters {
+				d.Draw(frame, scr, focused, 0)
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				d.Draw(frame, scr, focused, 0)
 			}
 		})
 	}

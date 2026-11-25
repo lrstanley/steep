@@ -130,16 +130,16 @@ func logoFrames(cards *effects.CardRenderer, src *reel.CellFrame, title string, 
 	if title != "" {
 		name = cards.Text(src, effects.Line{Text: title, Style: faint})
 	}
-	var nameAt image.Rectangle
+	var nameAt image.Point
 	if name != nil {
 		nb := name.Bounds()
-		nameAt = nb.Sub(nb.Min).Add(image.Pt(b.Min.X+(b.Dx()-nb.Dx())/2, origin.Y+logoH*px+px+nb.Dy()))
+		nameAt = image.Pt(b.Min.X+(b.Dx()-nb.Dx())/2, origin.Y+logoH*px+px+nb.Dy())
 	}
 
 	frame := func(level, phase int, showName bool, delay time.Duration) reel.Frame {
 		img := &image.NRGBA{Pix: slices.Clone(base.Pix), Stride: base.Stride, Rect: base.Rect}
 		if showName && name != nil {
-			draw.Draw(img, nameAt, name, name.Bounds().Min, draw.Src)
+			cards.PasteText(img, nameAt, name)
 		}
 		dot := func(at image.Point, size int, c color.Color) {
 			draw.Draw(img, image.Rect(0, 0, size, size).Add(at), image.NewUniform(c), image.Point{}, draw.Src)

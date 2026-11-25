@@ -47,7 +47,8 @@ func look() []render.Option {
 		render.WithScale(demoScale),
 		render.WithWindowChrome(true),
 		render.WithPadding(20),
-		render.WithMarginGradient(56, 160, lipgloss.Color("#3b6a46"), lipgloss.Color("#183222")),
+		render.WithMargin(56),
+		render.WithBackdrop(render.LinearGradient(160, lipgloss.Color("#3b6a46"), lipgloss.Color("#183222"))),
 		render.WithShadow(0, 18, 48, color.NRGBA{R: 0x04, G: 0x08, B: 0x05, A: 0xe6}),
 		render.WithBorderRadius(20),
 	}

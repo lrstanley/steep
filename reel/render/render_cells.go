@@ -17,17 +17,26 @@ import (
 
 // drawBackground paints the margin and the window. Equal rectangles or equal
 // stored colors are one fill; a margin frame whose color differs is painted
-// first, then the window; a backdrop, of a margin gradient or a shadow, is
-// copied only around the window. The returned color is what windowBounds
-// holds.
+// first, then the window; a margin image, of a backdrop gradient or image or
+// a shadow, is copied only around the window. A translucent window over an
+// opaque backdrop is painted already blended over it (see
+// [Renderer.windowFill]).
+// The returned color is the window background, unblended, which cells of
+// that background need not paint over.
 func (d *Renderer) drawBackground(dst *image.NRGBA, f *renderFrame) color.NRGBA {
-	margin := icol.NRGBA(f.MarginColor())
+	margin := f.backdropColor
 	window := f.windowBackgroundNRGBA()
-	if f.imageBounds.Eq(f.windowBounds) || margin == window && f.backdrop == nil {
-		idraw.Fill(dst, f.imageBounds, window)
+	winImg, winFill := d.windowFill(f, window)
+	if f.imageBounds.Eq(f.windowBounds) || margin == winFill && f.margin == nil && winImg == nil {
+		if winImg != nil {
+			// Only with no margin, so the window is the whole image.
+			copyRect(dst, f.imageBounds, winImg, f.imageBounds.Min)
+		} else {
+			idraw.Fill(dst, f.imageBounds, winFill)
+		}
 		return window
 	}
-	if f.backdrop == nil {
+	if f.margin == nil {
 		idraw.Fill(dst, f.imageBounds, margin)
 	} else {
 		img, win, at := f.imageBounds.Intersect(dst.Rect), f.windowBounds, f.imageBounds.Min
@@ -35,7 +44,7 @@ func (d *Renderer) drawBackground(dst *image.NRGBA, f *renderFrame) color.NRGBA 
 			if x0 = max(x0, img.Min.X); x0 < min(x1, img.Max.X) {
 				x1 = min(x1, img.Max.X)
 				copy(dst.Pix[dst.PixOffset(x0, y):dst.PixOffset(x1, y)],
-					f.backdrop.Pix[f.backdrop.PixOffset(x0-at.X, y-at.Y):])
+					f.margin.Pix[f.margin.PixOffset(x0-at.X, y-at.Y):])
 			}
 		}
 		for y := img.Min.Y; y < img.Max.Y; y++ {
@@ -47,7 +56,11 @@ func (d *Renderer) drawBackground(dst *image.NRGBA, f *renderFrame) color.NRGBA 
 			span(y, win.Max.X, img.Max.X)
 		}
 	}
-	idraw.Fill(dst, f.windowBounds, window)
+	if winImg != nil {
+		copyRect(dst, f.windowBounds, winImg, f.imageBounds.Min)
+	} else {
+		idraw.Fill(dst, f.windowBounds, winFill)
+	}
 	return window
 }
 

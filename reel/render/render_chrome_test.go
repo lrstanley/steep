@@ -24,8 +24,8 @@ func TestWindowChromeLayout(t *testing.T) {
 	t.Parallel()
 
 	scr := newTestScreen(20, 5)
-	plain := newRenderer(t, WithPadding(4), WithMargin(6, nil))
-	d := newRenderer(t, WithWindowChrome(true), WithPadding(4), WithMargin(6, nil))
+	plain := newRenderer(t, WithPadding(4), WithMargin(6))
+	d := newRenderer(t, WithWindowChrome(true), WithPadding(4), WithMargin(6))
 
 	bar := d.chromeHeight()
 	if cell := d.Layout(20, 5).Cell; bar <= cell.Y {

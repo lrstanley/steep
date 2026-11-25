@@ -78,9 +78,10 @@ type Palette struct {
 	Cursor color.Color
 	// CursorText is the foreground color of text drawn over the cursor region.
 	CursorText color.Color
-	// Margin is the color used for padding or gutter areas outside the terminal
-	// grid.
-	Margin color.Color
+	// Backdrop is the color drawn behind the window, which shows in the
+	// margin and through a translucent background, when no backdrop is set
+	// with the renderer's options.
+	Backdrop color.Color
 	// Progress is the OSC 9;4 progress bar color for set and indeterminate
 	// progress.
 	Progress color.Color

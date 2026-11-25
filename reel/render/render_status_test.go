@@ -24,7 +24,7 @@ const statusAt = 1000 * time.Second
 // outline fits in.
 func statusRenderer(t *testing.T, opts ...Option) *Renderer {
 	t.Helper()
-	base := []Option{WithWindowChrome(true), WithMargin(8, statusMargin), WithBorderRadius(8)}
+	base := []Option{WithWindowChrome(true), WithMargin(8), WithBackdrop(Solid(statusMargin)), WithBorderRadius(8)}
 	return newRenderer(t, append(base, opts...)...)
 }
 
@@ -358,10 +358,10 @@ func TestProgramStatusOutline(t *testing.T) {
 	}
 
 	for name, opts := range map[string][]Option{
-		"no margin":    {WithMargin(0, nil), WithBorderRadius(0)},
-		"thin margin":  {WithMargin(3, statusMargin), WithBorderRadius(10)},
-		"transparent":  {WithMargin(0, nil), WithBorderRadius(10)},
-		"with padding": {WithMargin(0, nil), WithPadding(6)},
+		"no margin":    {WithMargin(0), WithBorderRadius(0)},
+		"thin margin":  {WithMargin(3), WithBackdrop(Solid(statusMargin)), WithBorderRadius(10)},
+		"transparent":  {WithMargin(0), WithBorderRadius(10)},
+		"with padding": {WithMargin(0), WithPadding(6)},
 	} {
 		inset := statusRenderer(t, opts...)
 		lf := inset.layoutSnapshot(t, image.Point{}, scr)
@@ -425,10 +425,10 @@ func TestRepaintMatchesFullDraw(t *testing.T) {
 
 	for name, opts := range map[string][]Option{
 		"margin":      nil,
-		"no margin":   {WithMargin(0, nil), WithBorderRadius(0)},
-		"inset round": {WithMargin(2, color.NRGBA{R: 40, G: 60, B: 90, A: 255}), WithBorderRadius(12), WithPadding(3)},
-		"no padding":  {WithMargin(5, nil), WithPadding(0), WithBorderRadius(30)},
-		"everything":  {WithMargin(6, color.NRGBA{R: 30, A: 200}), WithPadding(3), WithBorderRadius(14), WithBackgroundOpacity(0.5), WithScrollbar(true), WithFocusDimming(0.4)},
+		"no margin":   {WithMargin(0), WithBorderRadius(0)},
+		"inset round": {WithMargin(2), WithBackdrop(Solid(color.NRGBA{R: 40, G: 60, B: 90, A: 255})), WithBorderRadius(12), WithPadding(3)},
+		"no padding":  {WithMargin(5), WithPadding(0), WithBorderRadius(30)},
+		"everything":  {WithMargin(6), WithBackdrop(Solid(color.NRGBA{R: 30, A: 200})), WithPadding(3), WithBorderRadius(14), WithBackgroundOpacity(0.5), WithScrollbar(true), WithFocusDimming(0.4)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

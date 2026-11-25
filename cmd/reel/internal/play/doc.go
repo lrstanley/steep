@@ -143,10 +143,11 @@
 //	                      the catalog (see package themes); also the
 //	                      terminal's default colors
 //	Padding <px>          60
-//	Margin <px>           with MarginFill's color, or the theme background
-//	MarginFill <fill>     #rrggbb, or a gradient: colors after an optional
-//	                      angle, as "135deg #674EFF #FF6B9D" (see
-//	                      [look.ParseMarginFill]); an image file is an error
+//	Margin <px>           with MarginFill behind it, or the theme background
+//	MarginFill <fill>     the backdrop, in the margin and through Opacity:
+//	                      #rrggbb, a gradient of colors after an optional
+//	                      angle, as "135deg #674EFF #FF6B9D", an image file,
+//	                      or none (see [look.ParseBackdrop])
 //	BorderRadius <px>
 //	WindowBar <style>     reel's window chrome; styles other than Colorful
 //	                      are drawn as Colorful, with a warning
@@ -167,6 +168,8 @@
 //	PromptMarks <bool>    [render.WithPromptMarks]
 //	LinkUnderline <bool>  [render.WithLinkUnderline]
 //	Bell <bool>           [render.WithBell]
+//	Opacity <0-1>         the window background's opacity, through which
+//	                      MarginFill shows ([render.WithBackgroundOpacity])
 //	Shadow <shadow>       [render.WithShadow], in the margin: "X Y [BLUR]
 //	                      [#RRGGBB[AA]]" as CSS box-shadow, such as
 //	                      "0 8 24 #00000080", or "none" (see

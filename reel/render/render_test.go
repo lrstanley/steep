@@ -253,7 +253,7 @@ func TestRendererBoundsNormalizePaddingAndScrollbarGutter(t *testing.T) {
 	}
 	d := MustNew(
 		WithPadding(2),
-		WithMargin(3, color.NRGBA{R: 0xff, A: 0xff}),
+		WithMargin(3), WithBackdrop(Solid(color.NRGBA{R: 0xff, A: 0xff})),
 		WithScrollbar(true),
 	)
 
@@ -512,7 +512,7 @@ func TestRendererFiraRoundedCornerBorderWithMargin(t *testing.T) {
 		WithScale(scaleFor(40)),
 		WithCellWidth(-0.1),
 		WithBorderRadius(10),
-		WithMargin(40, margin),
+		WithMargin(40), WithBackdrop(Solid(margin)),
 		WithPadding(10),
 	)
 
@@ -796,7 +796,7 @@ func TestRendererFocusDimmingExcludesMargin(t *testing.T) {
 	bg := color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
 	scr := newTestScreen(1, 1)
 	d := MustNew(
-		WithMargin(1, margin),
+		WithMargin(1), WithBackdrop(Solid(margin)),
 		WithFocusDimming(0.5),
 		WithPalette(Palette{DefaultBackground: bg}),
 	)
@@ -817,7 +817,7 @@ func TestRendererRoundedMaskAffectsWindowCorners(t *testing.T) {
 	bg := color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
 	scr := newTestScreen(1, 1)
 	d := MustNew(
-		WithMargin(1, color.NRGBA{}),
+		WithMargin(1), WithBackdrop(Solid(color.NRGBA{})),
 		WithBorderRadius(4),
 		WithPalette(Palette{DefaultBackground: bg}),
 	)

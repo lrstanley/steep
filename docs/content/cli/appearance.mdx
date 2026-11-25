@@ -17,25 +17,41 @@ reel export in.cast -o out.png --no-chrome
 ## Padding, margin, and corners
 
 ```console
-reel export in.cast -o out.png --chrome --padding 24 --margin 24 --margin-fill "#0b150f" --radius 12
+reel export in.cast -o out.png --chrome --padding 24 --margin 24 --backdrop "#0b150f" --radius 12
 ```
 
 <Demo src="cli-padding.png" alt="The tea shop in a window with padding, a margin, and rounded corners" />
 
-`--margin-fill` also takes a gradient: two or more colors, after an optional angle in degrees clockwise from up, as in CSS. Without an angle, it runs top to bottom.
+`--backdrop` is what's behind the window, and shows in the margin. Without it, a margin is the theme's background color. It also takes a gradient: two or more colors, after an optional angle in degrees clockwise from up, as in CSS. Without an angle, it runs top to bottom.
 
 ```console
-reel export in.cast -o out.png --chrome --padding 24 --margin 24 --margin-fill "160deg #4b5a63 #1f272c" --radius 12
+reel export in.cast -o out.png --chrome --padding 24 --margin 24 --backdrop "160deg #4b5a63 #1f272c" --radius 12
 ```
 
 <Demo src="cli-gradient.png" alt="The tea shop in a window on a gradient from slate gray to near black" />
+
+Anything else is the path of a PNG, JPEG, GIF, or WebP image, scaled to cover the whole frame and centered on it. `none` is no backdrop, so the margin is transparent in a PNG or WebP.
+
+```console
+reel export in.cast -o out.png --chrome --margin 48 --backdrop wallpaper.jpg --radius 12
+```
+
+## Opacity
+
+`--opacity` makes the window's background translucent, from 0 to 1, and the backdrop shows through it. Cells with a background color of their own stay opaque. With `--backdrop none`, the window stays translucent in a PNG or WebP. Without a backdrop, a margin is the theme's background, which shows through as the window's own color, so set one.
+
+```console
+reel export in.cast -o out.png --chrome --padding 24 --margin 48 --backdrop "135deg #674eff #ff6b9d" --opacity 0.7 --radius 12
+```
+
+<Demo src="cli-opacity.png" alt="The tea shop in a window at 70% opacity, with a violet to pink gradient showing through it" />
 
 ## Drop shadow
 
 `--shadow` draws a shadow behind the window, into the margin. It takes the order of CSS `box-shadow`: the x and y offsets in pixels, then an optional blur in pixels, then an optional `#RRGGBB` or `#RRGGBBAA` color, which is black at half opacity by default. `none` turns off a shadow a tape sets.
 
 ```console
-reel export in.cast -o out.png --chrome --padding 24 --margin 64 --margin-fill "#dfe8d6" --radius 12 --shadow "0 18 48 #17301f80"
+reel export in.cast -o out.png --chrome --padding 24 --margin 64 --backdrop "#dfe8d6" --radius 12 --shadow "0 18 48 #17301f80"
 ```
 
 <Demo src="cli-shadow.png" alt="The tea shop in a window on a pale green margin, with a soft shadow beneath it" />

@@ -75,8 +75,7 @@ type Options struct {
 	BellDuration           time.Duration
 	BorderRadius           units.Px
 	Margin                 units.Px
-	MarginFill             []color.Color // one color, a gradient's from start to end, or none or nil for the palette's
-	MarginAngle            float64       // of a MarginFill gradient, in degrees clockwise from up
+	Backdrop               Backdrop
 	Shadow                 Shadow
 	Padding                units.Px
 	BackgroundOpacity      float64
@@ -86,6 +85,15 @@ type Options struct {
 	CursorBlinkSpeed       time.Duration
 	LinkUnderline          bool
 	PromptMarks            bool
+}
+
+// Backdrop is what is drawn behind the window: Image when it is set, else
+// one color of Colors, or a gradient of several at Angle, in degrees
+// clockwise from up. Neither is the palette's backdrop color.
+type Backdrop struct {
+	Colors []color.Color
+	Angle  float64
+	Image  image.Image
 }
 
 // Shadow is the drop shadow behind the window. A zero Color draws none.

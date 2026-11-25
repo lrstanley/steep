@@ -8,8 +8,15 @@ package look
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
+	"image"
 	"image/color"
+	_ "image/gif" // Backdrop images.
+	_ "image/jpeg"
+	_ "image/png"
+	"math"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -20,7 +27,11 @@ import (
 	"getsteep.dev/steep/reel/effects"
 	"getsteep.dev/steep/reel/render"
 	"getsteep.dev/steep/reel/render/fonts"
+	_ "golang.org/x/image/webp" // Backdrop images.
 )
+
+// none turns off a caption pause, a backdrop, or a shadow.
+const none = "none"
 
 // Look is how a recording looks. A nil field is unset, so that layers of
 // it can be merged (see [Look.Merge]): a tape's settings, then the
@@ -36,7 +47,8 @@ type Look struct {
 	LineHeight    *float64 `name:"line-height" placeholder:"X" help:"Line height, as a multiple of the font's (tape: LineHeight)."`
 	Padding       *int     `name:"padding" env:"REEL_PADDING" placeholder:"PX" help:"Padding around the terminal, in pixels (tape: Padding)."`
 	Margin        *int     `name:"margin" env:"REEL_MARGIN" placeholder:"PX" help:"Margin around the window, in pixels (tape: Margin)."`
-	MarginFill    *string  `name:"margin-fill" env:"REEL_MARGIN_FILL" placeholder:"#RRGGBB" help:"Margin color, or a gradient of colors after an optional angle, as \"135deg #674EFF #FF6B9D\"; defaults to the theme's background (tape: MarginFill)."`
+	Backdrop      *string  `name:"backdrop" env:"REEL_BACKDROP" placeholder:"#RRGGBB|GRADIENT|FILE|none" help:"What is behind the window, in the margin and through a translucent background: a color, a gradient of colors after an optional angle, as \"135deg #674EFF #FF6B9D\", a PNG, JPEG, GIF, or WebP image file, or none; defaults to the theme's background with a margin (tape: MarginFill)."`
+	Opacity       *float64 `name:"opacity" env:"REEL_OPACITY" placeholder:"0-1" help:"Opacity of the window's background, from 0 to 1; the backdrop shows through the rest (tape: Opacity)."`
 	Shadow        *string  `name:"shadow" env:"REEL_SHADOW" placeholder:"X Y [BLUR] [#RRGGBB[AA]]" help:"Drop shadow behind the window, in the margin, as CSS box-shadow: offsets, an optional blur and color, as \"0 8 24 #00000080\"; \"none\" for none (tape: Shadow)."`
 	BorderRadius  *int     `name:"radius" env:"REEL_RADIUS" placeholder:"PX" help:"Window corner radius, in pixels (tape: BorderRadius)."`
 	WindowBar     *bool    `name:"chrome" env:"REEL_CHROME" negatable:"" help:"Draw a window bar (tape: WindowBar)."`
@@ -62,7 +74,8 @@ func (l Look) Merge(o Look) Look {
 	l.LineHeight = cmp.Or(o.LineHeight, l.LineHeight)
 	l.Padding = cmp.Or(o.Padding, l.Padding)
 	l.Margin = cmp.Or(o.Margin, l.Margin)
-	l.MarginFill = cmp.Or(o.MarginFill, l.MarginFill)
+	l.Backdrop = cmp.Or(o.Backdrop, l.Backdrop)
+	l.Opacity = cmp.Or(o.Opacity, l.Opacity)
 	l.Shadow = cmp.Or(o.Shadow, l.Shadow)
 	l.BorderRadius = cmp.Or(o.BorderRadius, l.BorderRadius)
 	l.WindowBar = cmp.Or(o.WindowBar, l.WindowBar)
@@ -81,16 +94,16 @@ func (l Look) Merge(o Look) Look {
 }
 
 // Validate reports a set field with a value no recording can have, and a
-// theme, margin fill, or shadow that does not resolve.
+// theme, backdrop, or shadow that does not resolve.
 func (l Look) Validate() error {
 	if l.Theme != nil {
 		if _, err := themes.Resolve(*l.Theme); err != nil {
 			return err
 		}
 	}
-	if l.MarginFill != nil {
-		if _, _, err := ParseMarginFill(*l.MarginFill); err != nil {
-			return fmt.Errorf("margin fill: %w", err)
+	if l.Backdrop != nil {
+		if err := CheckBackdrop(*l.Backdrop); err != nil {
+			return fmt.Errorf("backdrop: %w", err)
 		}
 	}
 	if l.Shadow != nil {
@@ -110,6 +123,8 @@ func (l Look) Validate() error {
 		return fmt.Errorf("speed must be above 0, got %v", *l.Speed)
 	case l.FPS != nil && *l.FPS < 1:
 		return fmt.Errorf("fps must be at least 1, got %d", *l.FPS)
+	case l.Opacity != nil && !(*l.Opacity >= 0 && *l.Opacity <= 1):
+		return fmt.Errorf("opacity must be from 0 to 1, got %v", *l.Opacity)
 	}
 	for name, v := range map[string]*int{"padding": l.Padding, "margin": l.Margin, "radius": l.BorderRadius} {
 		if v != nil && *v < 0 {
@@ -149,16 +164,25 @@ func (l Look) Render(fontSize float64) (opts []render.Option, warnings []string,
 	if l.Padding != nil {
 		opts = append(opts, render.WithPadding(*l.Padding))
 	}
-	if l.Margin != nil && *l.Margin > 0 {
-		margin := render.WithMargin(*l.Margin, pal.DefaultBackground)
-		if l.MarginFill != nil {
-			angle, colors, fillErr := ParseMarginFill(*l.MarginFill)
-			if fillErr != nil {
-				return nil, nil, fmt.Errorf("margin fill: %w", fillErr)
-			}
-			margin = render.WithMarginGradient(*l.Margin, angle, colors...)
+	margin := l.Margin != nil && *l.Margin > 0
+	if margin {
+		opts = append(opts, render.WithMargin(*l.Margin))
+	}
+	switch {
+	case l.Backdrop != nil:
+		backdrop, backdropErr := ParseBackdrop(*l.Backdrop)
+		if backdropErr != nil {
+			return nil, nil, fmt.Errorf("backdrop: %w", backdropErr)
 		}
-		opts = append(opts, margin)
+		opts = append(opts, render.WithBackdrop(backdrop))
+	case margin:
+		opts = append(opts, render.WithBackdrop(render.Solid(pal.DefaultBackground)))
+		if l.Opacity != nil && *l.Opacity < 1 && themed {
+			warnings = append(warnings, "the window shows the theme's background through it, which is its own color; set a backdrop")
+		}
+	}
+	if l.Opacity != nil {
+		opts = append(opts, render.WithBackgroundOpacity(*l.Opacity))
 	}
 	if l.Shadow != nil {
 		sh, shadowErr := ParseShadow(*l.Shadow)
@@ -253,7 +277,7 @@ func (l Look) captionsOptions() ([]effects.CaptionsOption, error) {
 	if l.CaptionPause == nil {
 		return nil, nil
 	}
-	if *l.CaptionPause == "none" {
+	if *l.CaptionPause == none {
 		return []effects.CaptionsOption{effects.WithoutCaptionPauses()}, nil
 	}
 	d, err := spec.CaptionPause(*l.CaptionPause)
@@ -275,13 +299,75 @@ func firstFamily(list string) (fonts.FontFamily, bool) {
 	return fonts.FontFamily{}, false
 }
 
-// ParseMarginFill parses a margin fill: one #rrggbb color, or a gradient of
-// several after an optional angle in degrees clockwise from up (180, top to
-// bottom, without one), as in "135deg #674EFF #FF6B9D".
-func ParseMarginFill(s string) (angle float64, colors []color.Color, err error) {
+// ParseBackdrop parses a backdrop: none for a transparent one, one #rrggbb
+// color, a gradient of several after an optional angle in degrees clockwise
+// from up (180, top to bottom, without one), as in "135deg #674EFF #FF6B9D"
+// (see [ParseGradient]), or else the path of a PNG, JPEG, GIF, or WebP image.
+func ParseBackdrop(s string) (render.Backdrop, error) {
+	return readBackdrop(s, true)
+}
+
+// CheckBackdrop returns the error [ParseBackdrop] would for s, but reads only
+// the header of an image, so an image whose pixels do not decode passes.
+func CheckBackdrop(s string) error {
+	_, err := readBackdrop(s, false)
+	return err
+}
+
+// readBackdrop is [ParseBackdrop], which decodes an image only when decode
+// is set, and otherwise only checks its header.
+func readBackdrop(s string, decode bool) (render.Backdrop, error) {
+	switch {
+	case strings.TrimSpace(s) == none:
+		return render.Solid(color.Transparent), nil
+	case !isImageBackdrop(s):
+		angle, colors, err := ParseGradient(s)
+		if err != nil {
+			return render.Backdrop{}, err
+		}
+		return render.LinearGradient(angle, colors...), nil
+	}
+	f, err := os.Open(s)
+	if err != nil {
+		return render.Backdrop{}, backdropFileError(s, err)
+	}
+	defer f.Close()
+	var b render.Backdrop
+	if decode {
+		var img image.Image
+		if img, _, err = image.Decode(f); err == nil {
+			b = render.Wallpaper(img)
+		}
+	} else {
+		var cfg image.Config
+		if cfg, _, err = image.DecodeConfig(f); err == nil && (cfg.Width == 0 || cfg.Height == 0) {
+			err = errors.New("the image is empty")
+		}
+	}
+	if err != nil {
+		return render.Backdrop{}, backdropFileError(s, err)
+	}
+	return b, nil
+}
+
+// isImageBackdrop reports whether s is an image's path rather than colors:
+// colors start with a # or an angle.
+func isImageBackdrop(s string) bool {
+	fields := strings.Fields(s)
+	return len(fields) > 0 && !strings.HasPrefix(fields[0], "#") && !strings.HasSuffix(fields[0], "deg")
+}
+
+func backdropFileError(s string, err error) error {
+	return fmt.Errorf("%q is not a #rrggbb color, a gradient, or a PNG, JPEG, GIF, or WebP image: %w", s, err)
+}
+
+// ParseGradient parses one #rrggbb color, or a gradient of several after an
+// optional angle in degrees clockwise from up (180, top to bottom, without
+// one), as in "135deg #674EFF #FF6B9D".
+func ParseGradient(s string) (angle float64, colors []color.Color, err error) {
 	angle, fields := 180, strings.Fields(s)
 	if len(fields) > 0 && strings.HasSuffix(fields[0], "deg") {
-		if angle, err = strconv.ParseFloat(strings.TrimSuffix(fields[0], "deg"), 64); err != nil {
+		if angle, err = strconv.ParseFloat(strings.TrimSuffix(fields[0], "deg"), 64); err != nil || math.IsNaN(angle) || math.IsInf(angle, 0) {
 			return 0, nil, fmt.Errorf("%q is not an angle like 135deg", fields[0])
 		}
 		fields = fields[1:]
@@ -310,7 +396,7 @@ type Shadow struct {
 // and returns nil.
 func ParseShadow(s string) (*Shadow, error) {
 	fields := strings.Fields(s)
-	if len(fields) == 1 && fields[0] == "none" {
+	if len(fields) == 1 && fields[0] == none {
 		return nil, nil //nolint:nilnil // None is no shadow, and no error.
 	}
 	var sh Shadow

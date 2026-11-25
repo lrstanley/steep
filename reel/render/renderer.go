@@ -52,11 +52,22 @@ type Renderer struct {
 	status rendererStatus
 	// progressRow is the progress bar coverage of one row of its strip.
 	progressRow []uint8
-	// marginRamp is the margin gradient of [WithMarginGradient], mixed.
-	marginRamp []color.NRGBA
-	// backdrop is the margin, with its gradient and shadow, of the image
-	// size drawn last (see [Renderer.backdropFor]).
-	backdrop *image.NRGBA
+	// backdropRamp is the gradient of a [LinearGradient] backdrop, mixed.
+	backdropRamp []color.NRGBA
+	// backdrop and margin are the backdrop, and the backdrop with the
+	// shadow over it, of the size of margin, once built (see
+	// [Renderer.backdropFor]).
+	backdrop, margin *image.NRGBA
+	// translucent is whether the window can be drawn with translucent
+	// pixels, through which the backdrop shows: by [WithBackgroundOpacity],
+	// or by a translucent color of the palette.
+	translucent bool
+	// backdropOpaque is whether backdrop has no translucent pixel.
+	backdropOpaque bool
+	// window is a translucent window background, windowBg, blended over
+	// backdrop, or nil (see [Renderer.windowFill]).
+	window   *image.NRGBA
+	windowBg color.NRGBA
 
 	fgPass raster.Pass
 	// prev holds the cells d.frame shows, row-major, for drawIncremental.
@@ -79,9 +90,26 @@ type rendererStatus struct {
 
 // New returns a renderer configured with opts.
 func New(opts ...Option) (*Renderer, error) {
-	d := &Renderer{
-		opts: config.DefaultOptions(),
-	}
+	return build(config.DefaultOptions(), opts)
+}
+
+// Derive returns a new renderer configured as d is, with opts applied over
+// its options, as [New] would be with the options d was made with followed
+// by opts. It is for effects that draw with the recording's renderer's look
+// at another scale or without its window, whatever options it was made
+// with. The new renderer is closed on its own, and may outlive d.
+func (d *Renderer) Derive(opts ...Option) (*Renderer, error) {
+	d.mu.Lock()
+	// Options replace the maps and slices they set rather than change
+	// them, so the copy shares them safely.
+	base := d.opts
+	d.mu.Unlock()
+	return build(base, opts)
+}
+
+// build returns a renderer configured with base and then opts.
+func build(base config.Options, opts []Option) (*Renderer, error) {
+	d := &Renderer{opts: base}
 	var errs []error
 	for _, opt := range opts {
 		if opt == nil {
@@ -224,7 +252,11 @@ func (d *Renderer) buildRenderer() error {
 	}
 	d.palette = config.ClonePalette(d.opts.Palette)
 	d.boxThicknessOverride = d.opts.BoxThicknessOverride()
-	d.marginRamp = gradientRamp(d.opts.MarginFill)
-	d.backdrop = nil
+	d.translucent = d.opts.BackgroundOpacity < 1 || paletteTranslucent(d.palette)
+	d.backdropRamp = nil
+	if d.opts.Backdrop.Image == nil {
+		d.backdropRamp = gradientRamp(d.opts.Backdrop.Colors)
+	}
+	d.backdrop, d.margin, d.window = nil, nil, nil
 	return nil
 }

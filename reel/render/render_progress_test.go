@@ -22,7 +22,7 @@ func TestProgressBounds(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			d := newRenderer(t, WithWindowChrome(chrome), WithPadding(3), WithMargin(5, nil), WithProgressBarHeight(3))
+			d := newRenderer(t, WithWindowChrome(chrome), WithPadding(3), WithMargin(5), WithProgressBarHeight(3))
 			f := d.layoutSnapshot(t, image.Point{}, scr)
 			bar := f.progressBounds
 			if bar.Dx() != f.windowBounds.Dx() || bar.Dy() != 3 {
@@ -196,8 +196,8 @@ func TestRepaintProgressMatchesFullDraw(t *testing.T) {
 	for name, opts := range map[string][]Option{
 		"plain":      nil,
 		"chrome":     {WithWindowChrome(true)},
-		"no chrome":  {WithPadding(4), WithMargin(5, color.NRGBA{R: 40, G: 60, B: 90, A: 255}), WithBorderRadius(12)},
-		"everything": {WithWindowChrome(true), WithPadding(3), WithMargin(6, color.NRGBA{R: 30, A: 200}), WithBorderRadius(14), WithBackgroundOpacity(0.5), WithProgressBarHeight(3)},
+		"no chrome":  {WithPadding(4), WithMargin(5), WithBackdrop(Solid(color.NRGBA{R: 40, G: 60, B: 90, A: 255})), WithBorderRadius(12)},
+		"everything": {WithWindowChrome(true), WithPadding(3), WithMargin(6), WithBackdrop(Solid(color.NRGBA{R: 30, A: 200})), WithBorderRadius(14), WithBackgroundOpacity(0.5), WithProgressBarHeight(3)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -233,7 +233,7 @@ func TestRepaintAtOrigin(t *testing.T) {
 	t.Parallel()
 
 	scr := newTestScreen(12, 3)
-	d := newRenderer(t, WithWindowChrome(true), WithMargin(4, nil))
+	d := newRenderer(t, WithWindowChrome(true), WithMargin(4))
 	st := vt.State{Title: "t", Progress: vt.Progress{State: vt.ProgressIndeterminate, Percent: -1}}
 	size := d.Layout(12, 3).Image.Size()
 	dst := image.NewNRGBA(image.Rectangle{Min: image.Pt(7, 5), Max: image.Pt(7+size.X, 5+size.Y)})

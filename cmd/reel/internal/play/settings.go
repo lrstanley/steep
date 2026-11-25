@@ -193,10 +193,18 @@ func (c *compiler) setOther(s *settings, name syntax.Token) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if _, _, err = look.ParseMarginFill(v); err != nil {
-			return "", fmt.Errorf("invalid MarginFill: %w (reel does not fill the margin with an image)", err)
+		if err = look.CheckBackdrop(v); err != nil {
+			return "", fmt.Errorf("invalid MarginFill: %w", err)
 		}
-		*fresh(&s.MarginFill) = v
+		*fresh(&s.Backdrop) = v
+	case "Opacity":
+		v := fresh(&s.Opacity)
+		if err := c.floatArg(name, true, v); err != nil {
+			return "", err
+		}
+		if *v < 0 || *v > 1 {
+			return "", c.errorf(name.Pos, "Opacity must be from 0 to 1, got %v", *v)
+		}
 	case "Shadow":
 		v, err := c.stringArg(name)
 		if err != nil {

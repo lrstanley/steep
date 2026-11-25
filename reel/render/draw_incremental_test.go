@@ -82,43 +82,51 @@ func TestDrawIncrementalMatchesFull(t *testing.T) {
 		minIncr int
 	}{
 		{"plain", nil, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
-		{"margin-padding", []Option{WithMargin(7, color.NRGBA{R: 200, A: 255}), WithPadding(5)}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
-		{"radius", []Option{WithMargin(6, color.NRGBA{B: 90, A: 255}), WithPadding(3), WithBorderRadius(14)}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
+		{"margin-padding", []Option{WithMargin(7), WithBackdrop(Solid(color.NRGBA{R: 200, A: 255})), WithPadding(5)}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
+		{"radius", []Option{WithMargin(6), WithBackdrop(Solid(color.NRGBA{B: 90, A: 255})), WithPadding(3), WithBorderRadius(14)}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
 		{"radius-large", []Option{WithBorderRadius(60)}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
 		{"scrollbar", []Option{WithScrollbar(true), WithPadding(2)}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}, ScrollbackLen: 40}, 30},
 		{"opacity", []Option{WithBackgroundOpacity(0.5)}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
-		{"opacity-cells", []Option{WithBackgroundOpacity(0.5), WithBackgroundOpacityCells(true), WithMargin(4, nil)}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
-		{"unfocused", []Option{WithFocusDimming(0.4), WithMargin(5, color.NRGBA{G: 120, A: 255}), WithPadding(4)}, vt.State{Cursor: vt.Cursor{Visible: true}}, 30},
+		{"opacity-cells", []Option{WithBackgroundOpacity(0.5), WithBackgroundOpacityCells(true), WithMargin(4)}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
+		{"unfocused", []Option{WithFocusDimming(0.4), WithMargin(5), WithBackdrop(Solid(color.NRGBA{G: 120, A: 255})), WithPadding(4)}, vt.State{Cursor: vt.Cursor{Visible: true}}, 30},
 		{"chrome", []Option{WithWindowChrome(true), WithPadding(3)}, vt.State{Title: "vim — main.go", Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
 		{"chrome-everything", []Option{
-			WithWindowChrome(true), WithMargin(6, color.NRGBA{R: 30, G: 60, B: 90, A: 200}), WithPadding(4),
+			WithWindowChrome(true), WithMargin(6), WithBackdrop(Solid(color.NRGBA{R: 30, G: 60, B: 90, A: 200})), WithPadding(4),
 			WithBorderRadius(12), WithScrollbar(true), WithBackgroundOpacity(0.5), WithFocusDimming(0.35),
 		}, vt.State{Title: "漢字  a very long title that has to be truncated to fit", Cursor: vt.Cursor{Visible: true}, ScrollbackLen: 25}, 30},
 		{"progress", []Option{WithPadding(3), WithBorderRadius(8)}, vt.State{Progress: vt.Progress{State: vt.ProgressIndeterminate, Percent: -1}, Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
-		{"chrome-progress", []Option{WithWindowChrome(true), WithMargin(4, nil), WithBackgroundOpacity(0.5), WithProgressBarHeight(3)}, vt.State{Title: "build", Progress: vt.Progress{State: vt.ProgressSet, Percent: 30}, Cursor: vt.Cursor{Visible: true}}, 30},
-		{"chrome-status", []Option{WithWindowChrome(true), WithMargin(8, color.NRGBA{R: 21, G: 22, B: 28, A: 255}), WithBorderRadius(8)}, vt.State{Title: "agent", ProgramStatuses: diffStatuses[1], Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
+		{"chrome-progress", []Option{WithWindowChrome(true), WithMargin(4), WithBackgroundOpacity(0.5), WithProgressBarHeight(3)}, vt.State{Title: "build", Progress: vt.Progress{State: vt.ProgressSet, Percent: 30}, Cursor: vt.Cursor{Visible: true}}, 30},
+		{"chrome-status", []Option{WithWindowChrome(true), WithMargin(8), WithBackdrop(Solid(color.NRGBA{R: 21, G: 22, B: 28, A: 255})), WithBorderRadius(8)}, vt.State{Title: "agent", ProgramStatuses: diffStatuses[1], Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
 		{"chrome-status-inset", []Option{WithWindowChrome(true), WithBorderRadius(12), WithBackgroundOpacity(0.5), WithFocusDimming(0.35)}, vt.State{Title: "agent", ProgramStatuses: diffStatuses[2], Cursor: vt.Cursor{Visible: true}}, 30},
 		{"link-underline", []Option{WithLinkUnderline(true)}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
 		{"big-font", []Option{WithScale(scaleFor(26)), WithPadding(3)}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
 		{"gradient", []Option{
-			WithMarginGradient(9, 135, color.NRGBA{R: 0x67, G: 0x4e, B: 0xff, A: 255}, color.NRGBA{R: 0xff, G: 0x6b, B: 0x9d, A: 255}),
+			WithMargin(9), WithBackdrop(LinearGradient(135, color.NRGBA{R: 0x67, G: 0x4e, B: 0xff, A: 255}, color.NRGBA{R: 0xff, G: 0x6b, B: 0x9d, A: 255})),
 			WithPadding(3), WithBorderRadius(10),
 		}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
 		{"gradient-chrome-status", []Option{
 			WithWindowChrome(true), WithBorderRadius(8), WithBackgroundOpacity(0.5),
-			WithMarginGradient(8, 90, color.Black, color.NRGBA{G: 200, A: 120}, color.White),
+			WithMargin(8), WithBackdrop(LinearGradient(90, color.Black, color.NRGBA{G: 200, A: 120}, color.White)),
 		}, vt.State{Title: "agent", ProgramStatuses: diffStatuses[1], Progress: vt.Progress{State: vt.ProgressIndeterminate, Percent: -1}, Cursor: vt.Cursor{Visible: true}}, 30},
 		{"shadow", []Option{
-			WithMargin(12, color.NRGBA{R: 40, G: 50, B: 60, A: 255}), WithPadding(3), WithBorderRadius(10),
+			WithMargin(12), WithBackdrop(Solid(color.NRGBA{R: 40, G: 50, B: 60, A: 255})), WithPadding(3), WithBorderRadius(10),
 			WithShadow(2, 4, 8, nil),
 		}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
 		{"shadow-gradient-chrome-status", []Option{
 			WithWindowChrome(true), WithBorderRadius(8), WithBackgroundOpacity(0.5), WithFocusDimming(0.35),
-			WithMarginGradient(10, 45, color.Black, color.White), WithShadow(-3, 3, 6, color.NRGBA{R: 90, A: 200}),
+			WithMargin(10), WithBackdrop(LinearGradient(45, color.Black, color.White)), WithShadow(-3, 3, 6, color.NRGBA{R: 90, A: 200}),
 		}, vt.State{Title: "agent", ProgramStatuses: diffStatuses[1], Progress: vt.Progress{State: vt.ProgressIndeterminate, Percent: -1}, Cursor: vt.Cursor{Visible: true}}, 30},
-		{"shadow-transparent", []Option{WithMargin(8, nil), WithBorderRadius(6), WithShadow(0, 0, 6, color.Black)}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
+		{"see-through-solid", []Option{
+			WithWindowChrome(true), WithMargin(6), WithBackdrop(Solid(color.NRGBA{R: 30, G: 60, B: 90, A: 255})), WithBorderRadius(10),
+			WithBackgroundOpacity(0.6), WithBackgroundOpacityCells(true), WithScrollbar(true),
+		}, vt.State{Title: "build", Progress: vt.Progress{State: vt.ProgressSet, Percent: 30}, Cursor: vt.Cursor{Visible: true}, ScrollbackLen: 25}, 30},
+		{"see-through-wallpaper", []Option{
+			WithWindowChrome(true), WithBackdrop(Wallpaper(incrementalWallpaper())), WithBorderRadius(10),
+			WithBackgroundOpacity(0.6), WithFocusDimming(0.35), WithShadow(0, 4, 6, nil),
+		}, vt.State{Title: "agent", ProgramStatuses: diffStatuses[2], Cursor: vt.Cursor{Visible: true}}, 30},
+		{"shadow-transparent", []Option{WithMargin(8), WithBorderRadius(6), WithShadow(0, 0, 6, color.Black)}, vt.State{Focused: true, Cursor: vt.Cursor{Visible: true}}, 30},
 		{"everything", []Option{
-			WithMargin(6, color.NRGBA{R: 30, G: 60, B: 90, A: 200}), WithPadding(4), WithBorderRadius(12),
+			WithMargin(6), WithBackdrop(Solid(color.NRGBA{R: 30, G: 60, B: 90, A: 200})), WithPadding(4), WithBorderRadius(12),
 			WithScrollbar(true), WithBackgroundOpacity(0.5), WithFocusDimming(0.35), WithFaintFactor(0.4),
 		}, vt.State{Cursor: vt.Cursor{Visible: true}, ScrollbackLen: 25}, 30},
 	}
@@ -306,4 +314,17 @@ func TestDrawIncrementalFallsBack(t *testing.T) {
 			}
 		})
 	}
+}
+
+// incrementalWallpaper is an opaque wallpaper whose every pixel differs from
+// its neighbors, so a pixel drawn from the wrong place in it shows.
+func incrementalWallpaper() *image.NRGBA {
+	img := image.NewNRGBA(image.Rect(0, 0, 37, 23))
+	for i := range img.Pix {
+		img.Pix[i] = uint8(i * 13)
+		if i%4 == 3 {
+			img.Pix[i] = 0xff
+		}
+	}
+	return img
 }

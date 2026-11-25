@@ -44,7 +44,7 @@ func TestDraw(t *testing.T) {
 
 	margin := color.NRGBA{R: 0xff, A: 0xff}
 	scr := newTestScreen(2, 1)
-	d := MustNew(WithMargin(1, margin))
+	d := MustNew(WithMargin(1), WithBackdrop(Solid(margin)))
 	size := d.Layout(2, 1).Image.Size()
 
 	t.Run("rejects destination smaller than the image", func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestDraw(t *testing.T) {
 func TestLayout(t *testing.T) {
 	t.Parallel()
 
-	d := MustNew(WithMargin(3, nil), WithPadding(2), WithScrollbar(true), WithScale(scaleFor(14)))
+	d := MustNew(WithMargin(3), WithPadding(2), WithScrollbar(true), WithScale(scaleFor(14)))
 	l := d.Layout(4, 2)
 	cell := d.metrics.CellSize()
 	if l.Cell != cell || l.Scale != d.metrics.Scale {
@@ -316,5 +316,32 @@ func TestWithFontFamilyName(t *testing.T) {
 	_, err := New(WithFontFamilyName("Definitely Not A Font"))
 	if !errors.Is(err, fonts.ErrFamilyNotFound) {
 		t.Fatalf("err = %v, want fonts.ErrFamilyNotFound", err)
+	}
+}
+
+// TestDerive checks that a derived renderer keeps its parent's options and
+// applies its own over them, leaving the parent as it was.
+func TestDerive(t *testing.T) {
+	t.Parallel()
+
+	gradient := WithBackdrop(LinearGradient(90, color.Black, color.White))
+	parent := MustNew(WithScale(scaleFor(10)), WithMargin(8), gradient, WithBackgroundOpacity(0.5))
+	t.Cleanup(func() { _ = parent.Close() })
+	child, err := parent.Derive(WithMargin(0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = child.Close() })
+	if !child.SeeThrough() {
+		t.Error("derived renderer lost its parent's opacity or backdrop")
+	}
+	if got, want := child.Layout(10, 3).Cell, parent.Layout(10, 3).Cell; got != want {
+		t.Errorf("derived cell size = %v, want the parent's %v", got, want)
+	}
+	if got, want := child.Layout(10, 3).Image.Size(), parent.Layout(10, 3).Image.Size().Sub(image.Pt(16, 16)); got != want {
+		t.Errorf("derived image size = %v, want %v without the margin", got, want)
+	}
+	if got := parent.Layout(10, 3).Image.Min; got != (image.Point{}) || parent.Layout(10, 3).Grid.Min.X < 8 {
+		t.Errorf("parent layout changed by Derive: %+v", parent.Layout(10, 3))
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"math"
 	"slices"
 	"time"
@@ -71,16 +72,18 @@ func (o Timing) applyZoom(z *zoom) {
 // whole grid and the zoom.
 //
 // When the recording's rasterizer is a [render.Renderer], the zoomed cells
-// are drawn again at the zoom's scale with [reel.Profile.Render] options, so
-// the text stays sharp; a [reel.Profile.Rasterizer] of the caller's own
-// should be built with those options. With another [reel.Rasterizer], the
-// frame's image is scaled up.
+// are drawn again at the zoom's scale with its options, so the text stays
+// sharp. With another [reel.Rasterizer], the frame's image is scaled up.
 //
 // A zoom holds the part of the screen its region matched when it started,
 // wherever the text moves.
 //
 // Sharp zooms are drawn from the cells, over whatever effects before Zoom
-// drew. A nil region is an error from Start.
+// drew. When the window shows the backdrop through it
+// ([render.Renderer.SeeThrough]), the grid a zoom eases over is drawn again
+// from the cells too, as the frame is at its own scale but without the
+// backdrop, and scaled, so the backdrop stays where it is while the cells
+// move over it. A nil region is an error from Start.
 func Zoom(r region.Region, opts ...ZoomOption) reel.Effect {
 	z := zoom{region: r, ax: 0.5, ay: 0.5}
 	for _, opt := range opts {
@@ -118,17 +121,19 @@ func (e zoom) Start(ctx *reel.Context) (reel.Stage, error) {
 		return nil, err
 	}
 	s := &zoomStage{zoom: e, window: w, rast: ctx.Rasterizer}
-	if _, ok := ctx.Rasterizer.(*render.Renderer); ok {
-		s.base = ctx.Layout.Scale
-		s.opts = append(slices.Clip(ctx.Render),
-			render.WithPadding(0),
-			render.WithMargin(0, nil),
-			render.WithBorderRadius(0),
-			render.WithScrollbar(false),
-			render.WithWindowChrome(false),
-			render.WithProgressBar(false),
-		)
+	if rend, ok := ctx.Rasterizer.(*render.Renderer); ok {
+		s.rend, s.base = rend, ctx.Layout.Scale
 		ctx.OnClose(s.close)
+		if rend.SeeThrough() {
+			// The frame's grid has the backdrop in it, which scaling it
+			// would move, so a zoom eases over the frame drawn again as it
+			// is but for the backdrop, with whatever the window draws over
+			// the grid, such as a progress bar without the title bar.
+			s.flat, err = rend.Derive(render.WithBackdrop(render.Solid(color.Transparent)))
+			if err != nil {
+				return nil, fmt.Errorf("effects: zoom renderer: %w", err)
+			}
+		}
 		if e.scaleSet {
 			if _, err = s.renderer(e.scale); err != nil {
 				return nil, err
@@ -147,14 +152,18 @@ type zoomStage struct {
 	window *window
 	rast   reel.Rasterizer
 
-	// opts are the options of the renderer that draws the zoom's cells,
-	// but for its scale, and base is the scale of the terminal font. opts
-	// is nil when the recording's rasterizer is not a [render.Renderer].
-	opts []render.Option
+	// rend is the recording's rasterizer when it is a [render.Renderer],
+	// and nil otherwise, and base is the scale of the terminal font.
+	rend *render.Renderer
 	base float64
 	// cells draws the zoom's cells at the scale cellsScale.
 	cells      *render.Renderer
 	cellsScale float64
+	// flat draws the frame as the recording's renderer does, but without
+	// the backdrop, into flatImg, when the window shows the backdrop
+	// through it, and is nil otherwise.
+	flat    *render.Renderer
+	flatImg *image.NRGBA
 	// err is returned when the recording ends.
 	err error
 
@@ -192,8 +201,9 @@ func (s *zoomStage) run(f reel.Frame, emit func(reel.Frame)) {
 		emit(f)
 		return
 	}
-	// The sharp cells and the held image are drawn once for all pieces.
-	var cells, held *image.NRGBA
+	// The sharp cells, the held image, and the flat grid are drawn once for
+	// all pieces.
+	var cells, held, flat *image.NRGBA
 	if t.sharp {
 		cells = s.drawCells(t, f.Cells)
 	}
@@ -204,11 +214,18 @@ func (s *zoomStage) run(f reel.Frame, emit func(reel.Frame)) {
 		switch {
 		case p.level == 1:
 			if held == nil {
-				held = s.drawZoom(f, t, 1, cells)
+				if cells == nil && flat == nil {
+					// Scaled whole, without the backdrop, as on the way.
+					flat = s.drawFlat(f.Cells)
+				}
+				held = s.drawZoom(f, t, 1, cells, flat)
 			}
 			out.Image = held
 		case p.level > 0:
-			out.Image = s.drawZoom(f, t, p.level, cells)
+			if flat == nil {
+				flat = s.drawFlat(f.Cells)
+			}
+			out.Image = s.drawZoom(f, t, p.level, cells, flat)
 			out.Isolated = true
 		}
 		emit(out)
@@ -253,7 +270,18 @@ func (s *zoomStage) renderer(scale float64) (*render.Renderer, error) {
 	if s.cells != nil && s.cellsScale == scale {
 		return s.cells, nil
 	}
-	r, err := render.New(append(slices.Clip(s.opts), render.WithScale(s.base*scale))...)
+	r, err := s.rend.Derive(
+		render.WithScale(s.base*scale),
+		render.WithPadding(0),
+		render.WithMargin(0),
+		// The recording's backdrop is behind the frame the cells are drawn
+		// into, not behind these.
+		render.WithBackdrop(render.Solid(color.Transparent)),
+		render.WithBorderRadius(0),
+		render.WithScrollbar(false),
+		render.WithWindowChrome(false),
+		render.WithProgressBar(false),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("effects: zoom renderer: %w", err)
 	}
@@ -269,6 +297,10 @@ func (s *zoomStage) close() error {
 	if s.cells != nil {
 		err = errors.Join(err, s.cells.Close())
 		s.cells = nil
+	}
+	if s.flat != nil {
+		err = errors.Join(err, s.flat.Close())
+		s.flat = nil
 	}
 	s.err = nil
 	return err
@@ -342,7 +374,7 @@ func (s *zoomStage) acquire(cf *reel.CellFrame) *zoomTarget {
 	scale := s.scale
 	if !s.scaleSet {
 		scale = max(1, fit(float64(base.X), float64(base.Y)))
-		if s.opts != nil {
+		if s.rend != nil {
 			// The cells cannot be drawn larger than the largest font.
 			scale = max(1, min(scale, render.MaxScale/s.base))
 		}
@@ -351,7 +383,7 @@ func (s *zoomStage) acquire(cf *reel.CellFrame) *zoomTarget {
 		return nil
 	}
 	cw, ch := float64(base.X)*scale, float64(base.Y)*scale
-	if s.opts != nil {
+	if s.rend != nil {
 		rend, err := s.renderer(scale)
 		if err == nil && !s.scaleSet {
 			// The renderer's cells are whole pixels, which may be too
@@ -421,4 +453,20 @@ func (s *zoomStage) drawCells(t *zoomTarget, cf *reel.CellFrame) *image.NRGBA {
 	}
 	s.cells.Draw(s.img, s.buf, st, cf.At)
 	return s.img
+}
+
+// drawFlat returns the grid of cf drawn by the flat renderer, or nil
+// without one.
+func (s *zoomStage) drawFlat(cf *reel.CellFrame) *image.NRGBA {
+	if s.flat == nil {
+		return nil
+	}
+	b := cf.Screen.Bounds()
+	lay := s.flat.Layout(b.Dx(), b.Dy())
+	if s.flatImg == nil || s.flatImg.Rect != lay.Image {
+		s.flatImg = image.NewNRGBA(lay.Image)
+	}
+	s.flat.Draw(s.flatImg, cf.Screen, cf.State, cf.At)
+	grid, _ := s.flatImg.SubImage(lay.Grid).(*image.NRGBA)
+	return grid
 }

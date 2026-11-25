@@ -312,6 +312,16 @@ func (d *Renderer) render(dst *image.NRGBA, scr vt.Screen, f *renderFrame) {
 		d.drawScrollbar(dst, f.scrollbarBounds, f)
 	}
 
+	if d.translucent {
+		// Only a translucent background or palette color leaves
+		// translucent pixels in the window, through which the backdrop
+		// shows. Over an opaque backdrop, the window was painted blended
+		// over it already, so only what was drawn translucent since is left
+		// to blend (see [Renderer.windowFill]).
+		underlay(dst, f.windowBounds, f.imageBounds.Min, f.backdrop, f.backdropColor)
+	}
+	// After the backdrop, so they dim and flash what shows in the window
+	// whatever the backdrop is.
 	if !f.st.Focused {
 		effects.ApplyFocusDimming(f, dst)
 	}

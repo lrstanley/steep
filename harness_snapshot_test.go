@@ -177,7 +177,8 @@ func TestHarnessImageTracksProgress(t *testing.T) {
 func statusHarness(t *testing.T, text string) *Harness {
 	t.Helper()
 	h := NewHarness(t, rootTestModel{text: text}, WithWindowSize(30, 3), withRender(
-		render.WithWindowChrome(true), render.WithMargin(8, color.NRGBA{R: 21, G: 22, B: 28, A: 255}), render.WithBorderRadius(8),
+		render.WithWindowChrome(true), render.WithMargin(8), render.WithBorderRadius(8),
+		render.WithBackdrop(render.Solid(color.NRGBA{R: 21, G: 22, B: 28, A: 255})),
 	))
 	h.Wait("text=" + text)
 	return h

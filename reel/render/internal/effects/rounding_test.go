@@ -95,12 +95,13 @@ func referenceRoundedMask(ctx roundingWindowContext, img draw.Image) {
 			src := icol.NRGBA(img.At(x, y))
 			coverage = units.Clamp(coverage, 0, 1)
 			srcA := float64(src.A) / 255 * coverage
-			dstA := float64(outside.A) / 255
-			outA := srcA + dstA*(1-srcA)
+			// The window covers coverage of the pixel, and the margin the rest.
+			dstA := float64(outside.A) / 255 * (1 - coverage)
+			outA := srcA + dstA
 			var out color.NRGBA
 			if outA > 0 {
 				ch := func(s, d uint8) uint8 {
-					return uint8(math.Round((float64(s)*srcA + float64(d)*dstA*(1-srcA)) / outA))
+					return uint8(math.Round((float64(s)*srcA + float64(d)*dstA) / outA))
 				}
 				out = color.NRGBA{ch(src.R, outside.R), ch(src.G, outside.G), ch(src.B, outside.B), uint8(math.Round(outA * 255))}
 			}

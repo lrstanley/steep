@@ -5,9 +5,16 @@
 package look
 
 import (
+	"bytes"
 	"fmt"
+	"image"
+	"image/png"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"getsteep.dev/steep/reel/render"
 )
 
 func TestMerge(t *testing.T) {
@@ -43,19 +50,22 @@ func TestEffects(t *testing.T) {
 
 func TestValidate(t *testing.T) {
 	for l, want := range map[*Look]string{
-		{FontSize: new(0.0)}:                 "font size must be above 0",
-		{Speed: new(-1.0)}:                   "speed must be above 0",
-		{FPS: new(0)}:                        "fps must be at least 1",
-		{Padding: new(-1)}:                   "padding must not be negative",
-		{MarginFill: new("red")}:             "margin fill",
-		{Theme: new("no-such-x")}:            "unknown theme",
-		{LineHeight: new(0.0)}:               "line height must be above 0",
-		{Theme: new("Dracula")}:              "",
-		{MarginFill: new("#fff")}:            "",
-		{MarginFill: new("45deg #fff #000")}: "",
-		{MarginFill: new("45 #fff")}:         "margin fill",
-		{Shadow: new("0 8 24 #00000080")}:    "",
-		{Shadow: new("8")}:                   "shadow",
+		{FontSize: new(0.0)}:               "font size must be above 0",
+		{Speed: new(-1.0)}:                 "speed must be above 0",
+		{FPS: new(0)}:                      "fps must be at least 1",
+		{Padding: new(-1)}:                 "padding must not be negative",
+		{Backdrop: new("red")}:             "backdrop",
+		{Backdrop: new("none")}:            "",
+		{Opacity: new(1.5)}:                "opacity must be from 0 to 1",
+		{Opacity: new(0.0)}:                "",
+		{Theme: new("no-such-x")}:          "unknown theme",
+		{LineHeight: new(0.0)}:             "line height must be above 0",
+		{Theme: new("Dracula")}:            "",
+		{Backdrop: new("#fff")}:            "",
+		{Backdrop: new("45deg #fff #000")}: "",
+		{Backdrop: new("45 #fff")}:         "backdrop",
+		{Shadow: new("0 8 24 #00000080")}:  "",
+		{Shadow: new("8")}:                 "shadow",
 	} {
 		err := l.Validate()
 		if want == "" && err != nil || want != "" && (err == nil || !strings.Contains(err.Error(), want)) {
@@ -75,17 +85,19 @@ func TestRender(t *testing.T) {
 	}
 }
 
-func TestParseMarginFill(t *testing.T) {
+func TestParseGradient(t *testing.T) {
 	for in, want := range map[string]string{
 		"#000":             "180 1 <nil>",
 		"135deg #000 #fff": "135 2 <nil>",
 		"90deg":            `0 0 "90deg" has no colors`,
 		"rightdeg #000":    `0 0 "rightdeg" is not an angle like 135deg`,
+		"NaNdeg #000 #fff": `0 0 "NaNdeg" is not an angle like 135deg`,
+		"Infdeg #000":      `0 0 "Infdeg" is not an angle like 135deg`,
 		"#000 red":         `0 0 "red" is not a #rrggbb color`,
 	} {
-		angle, colors, err := ParseMarginFill(in)
+		angle, colors, err := ParseGradient(in)
 		if got := fmt.Sprint(angle, " ", len(colors), " ", err); got != want {
-			t.Errorf("ParseMarginFill(%q) = %s, want %s", in, got, want)
+			t.Errorf("ParseGradient(%q) = %s, want %s", in, got, want)
 		}
 	}
 }
@@ -119,6 +131,53 @@ func TestRenderShadow(t *testing.T) {
 	} {
 		if _, warnings, err := l.Render(0); err != nil || len(warnings) != want {
 			t.Errorf("Render(shadow %q) = warnings %q, %v; want %d warnings", *l.Shadow, warnings, err, want)
+		}
+	}
+}
+
+func TestParseBackdrop(t *testing.T) {
+	dir := t.TempDir()
+	img := image.NewNRGBA(image.Rect(0, 0, 4, 2))
+	good := filepath.Join(dir, "bg.png")
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(good, buf.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bad := filepath.Join(dir, "bad.png")
+	if err := os.WriteFile(bad, []byte("not an image"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for in, ok := range map[string]bool{
+		"none": true, "#000": true, "135deg #000 #fff": true, good: true,
+		"#000 red": false, bad: false, filepath.Join(dir, "missing.png"): false,
+	} {
+		b, err := ParseBackdrop(in)
+		if checkErr := CheckBackdrop(in); (checkErr == nil) != (err == nil) {
+			t.Errorf("CheckBackdrop(%q) = %v, but ParseBackdrop = %v", in, checkErr, err)
+		}
+		if err == nil != ok {
+			t.Errorf("ParseBackdrop(%q) = %v, want ok %v", in, err, ok)
+			continue
+		}
+		if ok {
+			if _, err = render.New(render.WithBackdrop(b)); err != nil {
+				t.Errorf("render.New(ParseBackdrop(%q)) = %v", in, err)
+			}
+		}
+	}
+}
+
+func TestRenderBackdrop(t *testing.T) {
+	for l, want := range map[*Look]int{
+		{Theme: new("Dracula"), Margin: new(8), Opacity: new(0.8)}:                        1,
+		{Theme: new("Dracula"), Margin: new(8), Opacity: new(0.8), Backdrop: new("#000")}: 0,
+		{Theme: new("Dracula"), Opacity: new(0.8)}:                                        0,
+	} {
+		if _, warnings, err := l.Render(0); err != nil || len(warnings) != want {
+			t.Errorf("Render(%+v) = warnings %q, %v; want %d warnings", *l, warnings, err, want)
 		}
 	}
 }

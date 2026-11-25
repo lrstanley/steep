@@ -9,6 +9,8 @@ import (
 	"image"
 	"image/color"
 	"testing"
+
+	idraw "getsteep.dev/steep/reel/render/internal/draw"
 )
 
 func TestCoverageAccumulateAndComposite(t *testing.T) {
@@ -120,13 +122,10 @@ func TestBlendMaskClippedMatchesCoverage(t *testing.T) {
 				if a == 255 {
 					wantPx = color.NRGBA{R: fg.R, G: fg.G, B: fg.B, A: 255}
 				} else if a != 0 {
-					inv := 255 - int(a)
-					wantPx = color.NRGBA{
-						R: uint8((int(fg.R)*int(a) + int(bg.R)*inv) / 255),
-						G: uint8((int(fg.G)*int(a) + int(bg.G)*inv) / 255),
-						B: uint8((int(fg.B)*int(a) + int(bg.B)*inv) / 255),
-						A: 255,
-					}
+					// Source-over, so a translucent pixel stays translucent.
+					px := []byte{bg.R, bg.G, bg.B, bg.A}
+					idraw.OverPixel(px, fg, a)
+					wantPx = color.NRGBA{R: px[0], G: px[1], B: px[2], A: px[3]}
 				}
 				want.SetNRGBA(x, y, wantPx)
 			}
@@ -154,14 +153,16 @@ func TestPassCompositeOverlappingOverflow(t *testing.T) {
 	pass.over = []overGlyph{{dr: pass.queue[0].dr}}
 	dst := image.NewNRGBA(bounds)
 	pass.Composite(dst)
-	if got := dst.NRGBAAt(3, 0); got.R != 200 || got.G != 0 {
-		t.Fatalf("overlap pixel = %+v, want red max alpha", got)
+	// Over nothing, a partly covered pixel is the glyph's color, as
+	// translucent as its coverage.
+	if got := dst.NRGBAAt(3, 0); got != (color.NRGBA{R: 255, A: 200}) {
+		t.Fatalf("overlap pixel = %+v, want red at the max alpha", got)
 	}
 	if got := dst.NRGBAAt(4, 0); got.G != 255 {
 		t.Fatalf("overlap opaque green = %+v", got)
 	}
-	if got := dst.NRGBAAt(6, 0); got.G != 128 {
-		t.Fatalf("direct blend = %+v, want G=128", got)
+	if got := dst.NRGBAAt(6, 0); got != (color.NRGBA{G: 255, A: 128}) {
+		t.Fatalf("direct blend = %+v, want green at alpha 128", got)
 	}
 }
 

@@ -108,17 +108,21 @@ func inRoundedRect(width, height, radius, x, y float64) bool {
 	return dx*dx+dy*dy <= radius*radius
 }
 
+// compositeCovered mixes the pixel src, which the window covers coverage of,
+// with dst, the margin, which shows in the rest. src is the window as it
+// looks already, over whatever is behind it, so it is mixed with dst, not
+// drawn over it.
 func compositeCovered(src, dst color.NRGBA, coverage float64) color.NRGBA {
 	coverage = units.Clamp(coverage, 0.0, 1.0)
 	srcA := float64(src.A) / 255 * coverage
-	dstA := float64(dst.A) / 255
-	outA := srcA + dstA*(1-srcA)
+	dstA := float64(dst.A) / 255 * (1 - coverage)
+	outA := srcA + dstA
 	if outA <= 0 {
 		return color.NRGBA{}
 	}
-	r := (float64(src.R)*srcA + float64(dst.R)*dstA*(1-srcA)) / outA
-	g := (float64(src.G)*srcA + float64(dst.G)*dstA*(1-srcA)) / outA
-	b := (float64(src.B)*srcA + float64(dst.B)*dstA*(1-srcA)) / outA
+	r := (float64(src.R)*srcA + float64(dst.R)*dstA) / outA
+	g := (float64(src.G)*srcA + float64(dst.G)*dstA) / outA
+	b := (float64(src.B)*srcA + float64(dst.B)*dstA) / outA
 	return color.NRGBA{
 		R: uint8(math.Round(r)),
 		G: uint8(math.Round(g)),

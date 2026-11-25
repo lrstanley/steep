@@ -7,7 +7,6 @@ package render
 import (
 	"errors"
 	"fmt"
-	"image/color"
 	"maps"
 	"time"
 
@@ -418,18 +417,15 @@ func WithBorderRadius(px int) Option {
 	}
 }
 
-// WithMargin sets the margin in pixels, using the given fill color for the
-// background. A nil fill is the palette's margin color, or transparent. See
-// [WithMarginGradient] to fill it with a gradient instead; the last of the
-// two wins.
-func WithMargin(px int, fill color.Color) Option {
+// WithMargin sets the space around the window in pixels, where the backdrop
+// ([WithBackdrop]) shows.
+func WithMargin(px int) Option {
 	return func(d *Renderer) error {
 		v, err := config.ParsePositivePx(px, "margin")
 		if err != nil {
 			return err
 		}
 		d.opts.Margin = v
-		d.opts.MarginFill = []color.Color{fill}
 		return nil
 	}
 }
@@ -447,7 +443,9 @@ func WithPadding(px int) Option {
 }
 
 // WithBackgroundOpacity sets terminal background opacity in the range [0,1].
-// Defaults to 1 (fully opaque).
+// Defaults to 1 (fully opaque). The title bar's background takes it too. A
+// translucent window shows the backdrop ([WithBackdrop]) through it, and the
+// image keeps the translucency only where the backdrop is transparent.
 func WithBackgroundOpacity(opacity float64) Option {
 	return func(d *Renderer) error {
 		if opacity < 0 || opacity > 1 {

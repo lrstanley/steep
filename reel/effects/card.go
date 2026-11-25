@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"image/draw"
 	"slices"
 
@@ -37,17 +38,21 @@ type Line struct {
 // rasterizer's default colors, not ones the program set, so every card in a
 // recording looks the same.
 //
-// The text is drawn with [reel.Context.Render] options. On terminals larger
-// than 80x24 it is larger than the terminal font, so it stays readable when
-// the recording is scaled down. Text that does not fit is cut off.
+// The text is drawn with the options of the recording's rasterizer when it
+// is a [render.Renderer], and [reel.Context.Render] options otherwise. On
+// terminals larger than 80x24 it is larger than the terminal font, so it
+// stays readable when the recording is scaled down. Text that does not fit
+// is cut off.
 //
 // A card renderer is for the stages of the recording it was made for, which
 // run on one goroutine. It is closed when the recording ends, and must not be
 // used after.
 type CardRenderer struct {
 	rast reel.Rasterizer
-	// opts are the text renderer's options, but for its scale.
-	opts []render.Option
+	// profile are the recording's render options, for a rasterizer that
+	// is not a [render.Renderer], and opts what the text renderer changes
+	// of them, but for its scale.
+	profile, opts []render.Option
 	// base is the scale of the terminal font.
 	base float64
 	// cols and rows are the timeline's starting size, for a nil src.
@@ -64,14 +69,18 @@ type CardRenderer struct {
 func NewCardRenderer(ctx *reel.Context) (*CardRenderer, error) {
 	h := ctx.Timeline.Header()
 	c := &CardRenderer{
-		rast: ctx.Rasterizer,
-		opts: append(slices.Clip(ctx.Render),
+		rast:    ctx.Rasterizer,
+		profile: ctx.Render,
+		opts: []render.Option{
 			render.WithPadding(0),
-			render.WithMargin(0, nil),
+			render.WithMargin(0),
+			// The recording's backdrop is behind the frame the cells are
+			// drawn into, not behind these.
+			render.WithBackdrop(render.Solid(color.Transparent)),
 			render.WithBorderRadius(0),
 			render.WithScrollbar(false),
 			render.WithWindowChrome(false),
-		),
+		},
 		base: ctx.Layout.Scale,
 		cols: h.Cols,
 		rows: h.Rows,
@@ -89,7 +98,11 @@ func NewCardRenderer(ctx *reel.Context) (*CardRenderer, error) {
 }
 
 func (c *CardRenderer) build(scale float64) (*render.Renderer, error) {
-	return render.New(append(slices.Clip(c.opts), render.WithScale(c.base*scale))...)
+	opts := append(slices.Clip(c.opts), render.WithScale(c.base*scale))
+	if rend, ok := c.rast.(*render.Renderer); ok {
+		return rend.Derive(opts...)
+	}
+	return render.New(append(slices.Clip(c.profile), opts...)...)
 }
 
 func (c *CardRenderer) close() error {
@@ -108,10 +121,25 @@ func (c *CardRenderer) Card(src *reel.CellFrame, lines ...Line) *image.NRGBA {
 	c.rast.Draw(card, vt.NewBuffer(cols, rows), st, 0)
 	if text := c.drawText(cols, rows, st, lines); text != nil {
 		b, tb := card.Bounds(), text.Bounds()
-		at := b.Min.Add(image.Pt((b.Dx()-tb.Dx())/2, (b.Dy()-tb.Dy())/2))
-		draw.Draw(card, tb.Sub(tb.Min).Add(at), text, tb.Min, draw.Src)
+		c.PasteText(card, b.Min.Add(image.Pt((b.Dx()-tb.Dx())/2, (b.Dy()-tb.Dy())/2)), text)
 	}
 	return card
+}
+
+// PasteText replaces the pixels of dst, an image the size of a frame of the
+// recording, under text, card text from [CardRenderer.Text], with its top
+// left at at. Card text has no backdrop of its own, so where the window is
+// translucent, it is blended over the recording's backdrop where it lands
+// (see [render.Renderer.Underlay]) when the recording's rasterizer is a
+// [render.Renderer]. To draw text over what dst shows instead, as an
+// overlay, composite it with [draw.Over].
+func (c *CardRenderer) PasteText(dst *image.NRGBA, at image.Point, text *image.NRGBA) {
+	tb := text.Bounds()
+	r := tb.Sub(tb.Min).Add(at)
+	draw.Draw(dst, r, text, tb.Min, draw.Src)
+	if rend, ok := c.rast.(*render.Renderer); ok {
+		rend.Underlay(dst, r)
+	}
 }
 
 // Text returns lines as a block of card text for src (see

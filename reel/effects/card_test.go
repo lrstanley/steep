@@ -7,6 +7,7 @@ package effects
 import (
 	"bytes"
 	"image"
+	"image/color"
 	"path/filepath"
 	"testing"
 
@@ -81,6 +82,37 @@ func TestCard(t *testing.T) {
 	}
 	if bytes.Equal(titled.Pix, cards.Card(cellsOf(40, 10, "")).Pix) {
 		t.Fatal("the card's title bar does not show the frame's title")
+	}
+}
+
+// TestCardBackdrop checks that a card of a translucent window over an
+// opaque backdrop is opaque, text and all: the text has no backdrop of its
+// own, and is blended over the recording's.
+func TestCardBackdrop(t *testing.T) {
+	t.Parallel()
+	rend, err := render.New(render.WithMargin(8), render.WithBackdrop(render.Solid(color.NRGBA{B: 200, A: 255})), render.WithBackgroundOpacity(0.5))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = rend.Close() })
+	ctx := &reel.Context{
+		Timeline:   buildTimeline(t, 80, 24, "", output(0, "x")),
+		Rasterizer: rend,
+		Layout:     rend.Layout(80, 24),
+		Step:       50 * ms,
+		Speed:      1,
+	}
+	cards, err := NewCardRenderer(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	card := cards.Card(nil, Line{Text: "hello"})
+	for y := card.Rect.Min.Y; y < card.Rect.Max.Y; y++ {
+		for x := card.Rect.Min.X; x < card.Rect.Max.X; x++ {
+			if a := card.NRGBAAt(x, y).A; a != 255 {
+				t.Fatalf("card pixel (%d, %d) has alpha %d over an opaque backdrop", x, y, a)
+			}
+		}
 	}
 }
 

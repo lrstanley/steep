@@ -25,11 +25,11 @@ var DefaultShadowColor = color.NRGBA{A: 0x80}
 // (a Gaussian blur of half that standard deviation; 0 is a sharp edge), in
 // c. A nil c is [DefaultShadowColor]; one with no alpha draws no shadow.
 //
-// It shows only in the margin and past the window's rounded corners, so it
-// needs a [WithMargin] or [WithMarginGradient] about as wide as the blur and
-// the offset together, or the image's edge cuts it off. Over a transparent
-// margin, its pixels are translucent, which a GIF cannot hold: see
-// [getsteep.dev/steep/reel/sink.WithBackground].
+// It shows only in the margin and past the window's rounded corners, not
+// through a translucent window, so it needs a [WithMargin] about as wide as
+// the blur and the offset together, or the image's edge cuts it off. Over a
+// transparent backdrop, its pixels are translucent, which a GIF cannot hold:
+// see [getsteep.dev/steep/reel/sink.WithBackground].
 //
 // It is drawn once for each image size, with the margin, so it costs nothing
 // more per frame than the margin itself.
@@ -46,37 +46,6 @@ func WithShadow(x, y, blur int, c color.Color) Option {
 		d.opts.Shadow = config.Shadow{Offset: image.Pt(x, y), Blur: v, Color: col}
 		return nil
 	}
-}
-
-// backdropFor returns what shows outside the window in an image of size: the
-// margin, with its gradient or its fill, and the shadow over it. It is built
-// on first use for each size and kept, and is nil when the margin is one
-// color with no shadow, which [Renderer.drawBackground] fills directly.
-func (d *Renderer) backdropFor(size image.Point, fill color.NRGBA) *image.NRGBA {
-	shadow := d.opts.Shadow.Color.A > 0
-	if d.marginRamp == nil && !shadow {
-		return nil
-	}
-	if d.backdrop != nil && d.backdrop.Rect.Size() == size {
-		return d.backdrop
-	}
-	img := image.NewNRGBA(image.Rectangle{Max: size})
-	if d.marginRamp != nil {
-		g := newGradient(d.marginRamp, d.opts.MarginAngle, img.Rect)
-		for y := range size.Y {
-			for x := range size.X {
-				img.SetNRGBA(x, y, g.at(x, y))
-			}
-		}
-	} else {
-		idraw.Fill(img, img.Rect, fill)
-	}
-	if shadow {
-		win := img.Rect.Inset(d.opts.Margin.Int())
-		drawShadow(img, win, d.opts.BorderRadius.Int(), d.opts.Shadow)
-	}
-	d.backdrop = img
-	return img
 }
 
 // drawShadow composites the shadow of a window at win, with corners of

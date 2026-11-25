@@ -50,10 +50,12 @@ type renderFrame struct {
 	// [vt.Buffer].
 	images    []vt.Placement
 	imageCell image.Point
-	// backdrop is what shows outside the window, at the origin: the margin,
-	// with its gradient and shadow. It is nil for a margin of one color
-	// with no shadow.
-	backdrop *image.NRGBA
+	// backdrop is what is behind the window, at imageBounds.Min, and margin
+	// is it with the shadow over it, which shows outside the window. backdrop
+	// is nil when it is backdropColor, and margin is nil when it is that
+	// too, with no shadow (see [Renderer.backdropFor]).
+	backdrop, margin *image.NRGBA
+	backdropColor    color.NRGBA
 }
 
 // frameStatus is the OSC 7501 program status a frame draws.
@@ -141,7 +143,8 @@ func (d *Renderer) populateRenderFrame(f *renderFrame, origin image.Point, scr v
 	f.palette = d.palette
 	f.boxThicknessOverride = d.boxThicknessOverride
 	f.opts = d.opts
-	f.backdrop = d.backdropFor(f.imageBounds.Size(), icol.NRGBA(f.MarginColor()))
+	f.backdrop, f.margin = d.backdropFor(f.imageBounds.Size())
+	f.backdropColor = d.backdropColor()
 }
 
 func (f *renderFrame) cellBounds(x, y int) image.Rectangle {
@@ -269,23 +272,11 @@ func (f *renderFrame) cursorTextColorNRGBA() color.NRGBA {
 	return f.backgroundNRGBA(nil)
 }
 
-// MarginColor is the fill outside the window: the fill of [WithMargin], else the
-// palette's margin color, else transparent.
-func (f *renderFrame) MarginColor() color.Color {
-	if len(f.opts.MarginFill) > 0 && f.opts.MarginFill[0] != nil {
-		return f.opts.MarginFill[0]
-	}
-	if f.palette.Margin != nil {
-		return f.palette.Margin
-	}
-	return color.NRGBA{}
-}
-
-// MarginAt is the color of the margin at pixel x, y: its backdrop there, or
-// its one color.
+// MarginAt is the color outside the window at pixel x, y: the backdrop
+// with the shadow over it.
 func (f *renderFrame) MarginAt(x, y int) color.NRGBA {
-	if f.backdrop != nil {
-		return f.backdrop.NRGBAAt(x-f.imageBounds.Min.X, y-f.imageBounds.Min.Y)
+	if f.margin != nil {
+		return f.margin.NRGBAAt(x-f.imageBounds.Min.X, y-f.imageBounds.Min.Y)
 	}
-	return icol.NRGBA(f.MarginColor())
+	return f.backdropColor
 }
